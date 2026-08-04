@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html><head><meta http-equiv="content-type" content="text/html; charset=utf-8"/><meta name="viewport" content="width=device-width, initial-scale=0.8"/><title>2&nbsp;Getting Started</title><link rel="stylesheet" type="text/css" href="scribble.css" title="default"/><link rel="stylesheet" type="text/css" href="racket.css" title="default"/><link rel="stylesheet" type="text/css" href="manual-style.css" title="default"/><link rel="stylesheet" type="text/css" href="webracket-layout.css" title="default"/><link rel="stylesheet" type="text/css" href="manual-racket.css" title="default"/><script type="text/javascript" src="scribble-common.js"></script><script type="text/javascript" src="manual-racket.js"></script><link rel="stylesheet" type="text/css" href="docs.css" title="default"/></head><body id="scribble-racket-lang-org"><header class="wr-doc-header"><nav class="wr-doc-nav"><a class="wr-doc-wordmark" href="../../site.html" aria-label="WebRacket home"><img class="wr-doc-logo" src="../../assets/hex-racket-wasm-logo.svg" alt=""/><span class="wr-doc-wordmark-muted">Web</span><span class="wr-doc-wordmark-strong">Racket</span></a><div class="wr-doc-links"><a href="../../site.html#quick-start">Quick Start</a><a href="../../site.html#examples">Examples</a><a href="index.html">Documentation</a><a href="https://github.com/soegaard/webracket">GitHub</a></div></nav></header><div class="tocset"><div class="tocview"><div class="tocviewlist tocviewlisttopspace"><div class="tocviewtitle"><table cellspacing="0" cellpadding="0"><tr><td style="width: 1em;"><a href="javascript:void(0);" title="Expand/Collapse" class="tocviewtoggle" onclick="TocviewToggle(this,&quot;tocview_0&quot;);">&#9660;</a></td><td></td><td><a href="index.html" class="tocviewlink" data-pltdoc="x">Web<span class="mywbr"> &nbsp;</span>Racket Manual</a></td></tr></table></div><div class="tocviewsublisttop" style="display: block;" id="tocview_0"><table cellspacing="0" cellpadding="0"><tr><td align="right">1&nbsp;</td><td><a href="Introduction.html" class="tocviewlink" data-pltdoc="x">Introduction</a></td></tr><tr><td align="right">2&nbsp;</td><td><a href="" class="tocviewselflink" data-pltdoc="x">Getting Started</a></td></tr><tr><td align="right">3&nbsp;</td><td><a href="Installation.html" class="tocviewlink" data-pltdoc="x">Installation</a></td></tr><tr><td align="right">4&nbsp;</td><td><a href="Command-Line_Tool.html" class="tocviewlink" data-pltdoc="x">Command-<wbr></wbr>Line Tool</a></td></tr><tr><td align="right">5&nbsp;</td><td><a href="files-and-vfs.html" class="tocviewlink" data-pltdoc="x">Files and the Virtual Filesystem</a></td></tr><tr><td align="right">6&nbsp;</td><td><a href="WebRacket_for_Racket_Programmers.html" class="tocviewlink" data-pltdoc="x">Web<span class="mywbr"> &nbsp;</span>Racket for Racket Programmers</a></td></tr><tr><td align="right">7&nbsp;</td><td><a href="WebRacket_for_Racket_Programmers_-_Revised.html" class="tocviewlink" data-pltdoc="x">Web<span class="mywbr"> &nbsp;</span>Racket for Racket Programmers -<wbr></wbr> Revised</a></td></tr><tr><td align="right">8&nbsp;</td><td><a href="console-bridge.html" class="tocviewlink" data-pltdoc="x">The Browser Console Bridge</a></td></tr><tr><td align="right">9&nbsp;</td><td><a href="console-bridge-revised.html" class="tocviewlink" data-pltdoc="x">The Browser Console Bridge -<wbr></wbr> Revised</a></td></tr><tr><td align="right">10&nbsp;</td><td><a href="Callback_Source-Map_Tool.html" class="tocviewlink" data-pltdoc="x">Callback Source-<wbr></wbr>Map Tool</a></td></tr><tr><td align="right">11&nbsp;</td><td><a href="Callback_Source-Map_Tool_-_Revised.html" class="tocviewlink" data-pltdoc="x">Callback Source-<wbr></wbr>Map Tool -<wbr></wbr> Revised</a></td></tr><tr><td align="right">12&nbsp;</td><td><a href="Libraries.html" class="tocviewlink" data-pltdoc="x">Libraries</a></td></tr><tr><td align="right">13&nbsp;</td><td><a href="Racket_Libraries.html" class="tocviewlink" data-pltdoc="x">Racket Libraries</a></td></tr><tr><td align="right">14&nbsp;</td><td><a href="Library__define.html" class="tocviewlink" data-pltdoc="x">Library:<span class="mywbr"> &nbsp;</span> <span class="RktSym">define</span></a></td></tr><tr><td align="right">15&nbsp;</td><td><a href="Library__threading.html" class="tocviewlink" data-pltdoc="x">Library:<span class="mywbr"> &nbsp;</span> <span class="RktSym">threading</span></a></td></tr><tr><td align="right">16&nbsp;</td><td><a href="Other_Libraries.html" class="tocviewlink" data-pltdoc="x">Other Libraries</a></td></tr><tr><td align="right">17&nbsp;</td><td><a href="Library__array.html" class="tocviewlink" data-pltdoc="x">Library:<span class="mywbr"> &nbsp;</span> <span class="RktSym">array</span></a></td></tr><tr><td align="right">18&nbsp;</td><td><a href="Library__js_promise.html" class="tocviewlink" data-pltdoc="x">Library:<span class="mywbr"> &nbsp;</span> <span class="RktModLink"><span class="RktSym">js/<span class="mywbr"> &nbsp;</span>promise</span></span></a></td></tr><tr><td align="right">19&nbsp;</td><td><a href="Library__iterator.html" class="tocviewlink" data-pltdoc="x">Library:<span class="mywbr"> &nbsp;</span> <span class="RktSym">iterator</span></a></td></tr><tr><td align="right">20&nbsp;</td><td><a href="Library__jsx-graph.html" class="tocviewlink" data-pltdoc="x">Library:<span class="mywbr"> &nbsp;</span> <span class="RktSym">jsx-<wbr></wbr>graph</span></a></td></tr><tr><td align="right">21&nbsp;</td><td><a href="Library__rquery.html" class="tocviewlink" data-pltdoc="x">Library:<span class="mywbr"> &nbsp;</span> <span class="RktSym">rquery</span></a></td></tr><tr><td align="right">22&nbsp;</td><td><a href="Library__sxml.html" class="tocviewlink" data-pltdoc="x">Library:<span class="mywbr"> &nbsp;</span> <span class="RktSym">sxml</span></a></td></tr><tr><td align="right">23&nbsp;</td><td><a href="Library__web-easy.html" class="tocviewlink" data-pltdoc="x">Library:<span class="mywbr"> &nbsp;</span> <span class="RktSym">web-<wbr></wbr>easy</span></a></td></tr><tr><td align="right">24&nbsp;</td><td><a href="Web_APIs.html" class="tocviewlink" data-pltdoc="x">Web APIs</a></td></tr><tr><td align="right">25&nbsp;</td><td><a href="Library__audio.html" class="tocviewlink" data-pltdoc="x">Library:<span class="mywbr"> &nbsp;</span> <span class="RktSym">audio</span></a></td></tr><tr><td align="right">26&nbsp;</td><td><a href="Library__canvas.html" class="tocviewlink" data-pltdoc="x">Library:<span class="mywbr"> &nbsp;</span> <span class="RktSym">canvas</span></a></td></tr><tr><td align="right">27&nbsp;</td><td><a href="Library__console.html" class="tocviewlink" data-pltdoc="x">Library:<span class="mywbr"> &nbsp;</span> <span class="RktSym">console</span></a></td></tr><tr><td align="right">28&nbsp;</td><td><a href="Library__clipboard.html" class="tocviewlink" data-pltdoc="x">Library:<span class="mywbr"> &nbsp;</span> <span class="RktSym">clipboard</span></a></td></tr><tr><td align="right">29&nbsp;</td><td><a href="Library__compression-streams.html" class="tocviewlink" data-pltdoc="x">Library:<span class="mywbr"> &nbsp;</span> <span class="RktSym">compression-<wbr></wbr>streams</span></a></td></tr><tr><td align="right">30&nbsp;</td><td><a href="Library__document.html" class="tocviewlink" data-pltdoc="x">Library:<span class="mywbr"> &nbsp;</span> <span class="RktSym">document</span></a></td></tr><tr><td align="right">31&nbsp;</td><td><a href="Library__dom.html" class="tocviewlink" data-pltdoc="x">Library:<span class="mywbr"> &nbsp;</span> dom</a></td></tr><tr><td align="right">32&nbsp;</td><td><a href="Library__domrect.html" class="tocviewlink" data-pltdoc="x">Library:<span class="mywbr"> &nbsp;</span> <span class="RktSym">domrect</span></a></td></tr><tr><td align="right">33&nbsp;</td><td><a href="Library__element.html" class="tocviewlink" data-pltdoc="x">Library:<span class="mywbr"> &nbsp;</span> <span class="RktSym">element</span></a></td></tr><tr><td align="right">34&nbsp;</td><td><a href="Library__event.html" class="tocviewlink" data-pltdoc="x">Library:<span class="mywbr"> &nbsp;</span> <span class="RktSym">event</span></a></td></tr><tr><td align="right">35&nbsp;</td><td><a href="Library__fetch.html" class="tocviewlink" data-pltdoc="x">Library:<span class="mywbr"> &nbsp;</span> <span class="RktSym">fetch</span></a></td></tr><tr><td align="right">36&nbsp;</td><td><a href="Library__fullscreen.html" class="tocviewlink" data-pltdoc="x">Library:<span class="mywbr"> &nbsp;</span> <span class="RktSym">fullscreen</span></a></td></tr><tr><td align="right">37&nbsp;</td><td><a href="Library__gamepad.html" class="tocviewlink" data-pltdoc="x">Library:<span class="mywbr"> &nbsp;</span> <span class="RktSym">gamepad</span></a></td></tr><tr><td align="right">38&nbsp;</td><td><a href="Library__geolocation.html" class="tocviewlink" data-pltdoc="x">Library:<span class="mywbr"> &nbsp;</span> <span class="RktSym">geolocation</span></a></td></tr><tr><td align="right">39&nbsp;</td><td><a href="Library__history.html" class="tocviewlink" data-pltdoc="x">Library:<span class="mywbr"> &nbsp;</span> <span class="RktSym">history</span></a></td></tr><tr><td align="right">40&nbsp;</td><td><a href="Library__image.html" class="tocviewlink" data-pltdoc="x">Library:<span class="mywbr"> &nbsp;</span> <span class="RktSym">image</span></a></td></tr><tr><td align="right">41&nbsp;</td><td><a href="Library__indexed-db.html" class="tocviewlink" data-pltdoc="x">Library:<span class="mywbr"> &nbsp;</span> <span class="RktSym">indexed-<wbr></wbr>db</span></a></td></tr><tr><td align="right">42&nbsp;</td><td><a href="Library__intersection-observer.html" class="tocviewlink" data-pltdoc="x">Library:<span class="mywbr"> &nbsp;</span> <span class="RktSym">intersection-<wbr></wbr>observer</span></a></td></tr><tr><td align="right">43&nbsp;</td><td><a href="Library__media.html" class="tocviewlink" data-pltdoc="x">Library:<span class="mywbr"> &nbsp;</span> media</a></td></tr><tr><td align="right">44&nbsp;</td><td><a href="Library__notifications.html" class="tocviewlink" data-pltdoc="x">Library:<span class="mywbr"> &nbsp;</span> <span class="RktSym">notifications</span></a></td></tr><tr><td align="right">45&nbsp;</td><td><a href="Library__performance.html" class="tocviewlink" data-pltdoc="x">Library:<span class="mywbr"> &nbsp;</span> <span class="RktSym">performance</span></a></td></tr><tr><td align="right">46&nbsp;</td><td><a href="Library__resize-observer.html" class="tocviewlink" data-pltdoc="x">Library:<span class="mywbr"> &nbsp;</span> <span class="RktSym">resize-<wbr></wbr>observer</span></a></td></tr><tr><td align="right">47&nbsp;</td><td><a href="Library__screen-orientation.html" class="tocviewlink" data-pltdoc="x">Library:<span class="mywbr"> &nbsp;</span> <span class="RktSym">screen-<wbr></wbr>orientation</span></a></td></tr><tr><td align="right">48&nbsp;</td><td><a href="Library__storage.html" class="tocviewlink" data-pltdoc="x">Library:<span class="mywbr"> &nbsp;</span> <span class="RktSym">storage</span></a></td></tr><tr><td align="right">49&nbsp;</td><td><a href="Library__web-speech.html" class="tocviewlink" data-pltdoc="x">Library:<span class="mywbr"> &nbsp;</span> <span class="RktSym">web-<wbr></wbr>speech</span></a></td></tr><tr><td align="right">50&nbsp;</td><td><a href="Library__web-workers.html" class="tocviewlink" data-pltdoc="x">Library:<span class="mywbr"> &nbsp;</span> <span class="RktSym">web-<wbr></wbr>workers</span></a></td></tr><tr><td align="right">51&nbsp;</td><td><a href="Library__websocket.html" class="tocviewlink" data-pltdoc="x">Library:<span class="mywbr"> &nbsp;</span> <span class="RktSym">websocket</span></a></td></tr><tr><td align="right">52&nbsp;</td><td><a href="Library__window.html" class="tocviewlink" data-pltdoc="x">Library:<span class="mywbr"> &nbsp;</span> <span class="RktSym">window</span></a></td></tr><tr><td align="right">53&nbsp;</td><td><a href="raw-accessors.html" class="tocviewlink" data-pltdoc="x">Raw Accessors</a></td></tr><tr><td align="right">54&nbsp;</td><td><a href="DOM_Family_Labels.html" class="tocviewlink" data-pltdoc="x">DOM Family Labels</a></td></tr><tr><td align="right">55&nbsp;</td><td><a href="Special_Forms.html" class="tocviewlink" data-pltdoc="x">Special Forms</a></td></tr><tr><td align="right">56&nbsp;</td><td><a href="Implemented_Primitives.html" class="tocviewlink" data-pltdoc="x">Implemented Primitives</a></td></tr><tr><td align="right">57&nbsp;</td><td><a href="FFI_Reference.html" class="tocviewlink" data-pltdoc="x">FFI Reference</a></td></tr><tr><td align="right">58&nbsp;</td><td><a href="smoke-tests.html" class="tocviewlink" data-pltdoc="x">Appendix:<span class="mywbr"> &nbsp;</span> Smoke Tests</a></td></tr><tr><td align="right">59&nbsp;</td><td><a href="WebRacket_at_a_Glance.html" class="tocviewlink" data-pltdoc="x">Web<span class="mywbr"> &nbsp;</span>Racket at a Glance</a></td></tr></table></div></div><div class="tocviewlist"><table cellspacing="0" cellpadding="0"><tr><td style="width: 1em;"><a href="javascript:void(0);" title="Expand/Collapse" class="tocviewtoggle" onclick="TocviewToggle(this,&quot;tocview_1&quot;);">&#9658;</a></td><td>2&nbsp;</td><td><a href="" class="tocviewselflink" data-pltdoc="x">Getting Started</a></td></tr></table><div class="tocviewsublistbottom" style="display: none;" id="tocview_1"><table cellspacing="0" cellpadding="0"><tr><td align="right">2.1&nbsp;</td><td><a href="#%28part._.What_is_.Web.Racket_%29" class="tocviewlink" data-pltdoc="x">What is Web<span class="mywbr"> &nbsp;</span>Racket?</a></td></tr><tr><td align="right">2.2&nbsp;</td><td><a href="#%28part._.What_you_can_build%29" class="tocviewlink" data-pltdoc="x">What you can build</a></td></tr><tr><td align="right">2.3&nbsp;</td><td><a href="#%28part._.Your_.First_.Program%29" class="tocviewlink" data-pltdoc="x">Your First Program</a></td></tr><tr><td align="right">2.4&nbsp;</td><td><a href="#%28part._.Mental_.Model%29" class="tocviewlink" data-pltdoc="x">Mental Model</a></td></tr></table></div></div></div><div class="tocsub"><div class="tocsubtitle">On this page:</div><table class="tocsublist" cellspacing="0"><tr><td><span class="tocsublinknumber">2.1<span class="stt">&nbsp;</span></span><a href="#%28part._.What_is_.Web.Racket_%29" class="tocsubseclink" data-pltdoc="x">What is Web<span class="mywbr"> &nbsp;</span>Racket?</a></td></tr><tr><td><span class="tocsublinknumber">2.1.1<span class="stt">&nbsp;</span></span><a href="#%28part._.How_it_works%29" class="tocsubseclink" data-pltdoc="x">How it works</a></td></tr><tr><td><span class="tocsublinknumber">2.2<span class="stt">&nbsp;</span></span><a href="#%28part._.What_you_can_build%29" class="tocsubseclink" data-pltdoc="x">What you can build</a></td></tr><tr><td><span class="tocsublinknumber">2.2.1<span class="stt">&nbsp;</span></span><a href="#%28part._.Web_applications%29" class="tocsubseclink" data-pltdoc="x">Web applications</a></td></tr><tr><td><span class="tocsublinknumber">2.2.2<span class="stt">&nbsp;</span></span><a href="#%28part._.Graphics_and_visualizations%29" class="tocsubseclink" data-pltdoc="x">Graphics and visualizations</a></td></tr><tr><td><span class="tocsublinknumber">2.2.3<span class="stt">&nbsp;</span></span><a href="#%28part._.Multimedia_applications%29" class="tocsubseclink" data-pltdoc="x">Multimedia applications</a></td></tr><tr><td><span class="tocsublinknumber">2.2.4<span class="stt">&nbsp;</span></span><a href="#%28part._.Browser-integrated_tools%29" class="tocsubseclink" data-pltdoc="x">Browser-<wbr></wbr>integrated tools</a></td></tr><tr><td><span class="tocsublinknumber">2.3<span class="stt">&nbsp;</span></span><a href="#%28part._.Your_.First_.Program%29" class="tocsubseclink" data-pltdoc="x">Your First Program</a></td></tr><tr><td><span class="tocsublinknumber">2.3.1<span class="stt">&nbsp;</span></span><a href="#%28part._.Step_1__.Write_a_program%29" class="tocsubseclink" data-pltdoc="x">Step 1:<span class="mywbr"> &nbsp;</span> Write a program</a></td></tr><tr><td><span class="tocsublinknumber">2.3.2<span class="stt">&nbsp;</span></span><a href="#%28part._.Step_2__.Compile_the_program%29" class="tocsubseclink" data-pltdoc="x">Step 2:<span class="mywbr"> &nbsp;</span> Compile the program</a></td></tr><tr><td><span class="tocsublinknumber">2.3.3<span class="stt">&nbsp;</span></span><a href="#%28part._.Step_3__.Start_a_local_web_server%29" class="tocsubseclink" data-pltdoc="x">Step 3:<span class="mywbr"> &nbsp;</span> Start a local web server</a></td></tr><tr><td><span class="tocsublinknumber">2.3.4<span class="stt">&nbsp;</span></span><a href="#%28part._.Step_4__.Open_the_page_in_your_browser%29" class="tocsubseclink" data-pltdoc="x">Step 4:<span class="mywbr"> &nbsp;</span> Open the page in your browser</a></td></tr><tr><td><span class="tocsublinknumber">2.3.5<span class="stt">&nbsp;</span></span><a href="#%28part._.What_this_program_does%29" class="tocsubseclink" data-pltdoc="x">What this program does</a></td></tr><tr><td><span class="tocsublinknumber">2.4<span class="stt">&nbsp;</span></span><a href="#%28part._.Mental_.Model%29" class="tocsubseclink" data-pltdoc="x">Mental Model</a></td></tr><tr><td><span class="tocsublinknumber">2.4.1<span class="stt">&nbsp;</span></span><a href="#%28part._.From_.Racket_to_the_browser%29" class="tocsubseclink" data-pltdoc="x">From Racket to the browser</a></td></tr><tr><td><span class="tocsublinknumber">2.4.2<span class="stt">&nbsp;</span></span><a href="#%28part._.What_runs_where%29" class="tocsubseclink" data-pltdoc="x">What runs where</a></td></tr><tr><td><span class="tocsublinknumber">2.4.3<span class="stt">&nbsp;</span></span><a href="#%28part._.Producing_output%29" class="tocsubseclink" data-pltdoc="x">Producing output</a></td></tr><tr><td><span class="tocsublinknumber">2.4.4<span class="stt">&nbsp;</span></span><a href="#%28part._.A_different_kind_of_program%29" class="tocsubseclink" data-pltdoc="x">A different kind of program</a></td></tr><tr><td><span class="tocsublinknumber">2.4.5<span class="stt">&nbsp;</span></span><a href="#%28part._.Summary%29" class="tocsubseclink" data-pltdoc="x">Summary</a></td></tr></table></div></div><div class="maincolumn"><div class="main"><div class="versionbox"><span class="version">9.2.0.2</span></div><div class="navsettop"><span class="navleft"><div class="nosearchform"></div>&nbsp;&nbsp;<span class="tocsettoggle">&nbsp;&nbsp;<a href="javascript:void(0);" title="show/hide table of contents" onclick="TocsetToggle();">contents</a></span></span><span class="navright">&nbsp;&nbsp;<a href="Introduction.html" title="backward to &quot;1 Introduction&quot;" data-pltdoc="x" rel="prev">&larr; prev</a>&nbsp;&nbsp;<a href="index.html" title="up to &quot;WebRacket Manual&quot;" data-pltdoc="x">up</a>&nbsp;&nbsp;<a href="Installation.html" title="forward to &quot;3 Installation&quot;" data-pltdoc="x" rel="next">next &rarr;</a></span>&nbsp;</div><section class="SsectionLevel2" id="section 2"><h2 class="heading">2<span class="stt">&nbsp;</span><a name="(part._.Getting_.Started)"></a>Getting Started<span class="button-group"><a href="#(part._.Getting_.Started)" class="heading-anchor" title="Link to here">🔗</a><span style="visibility: hidden"> </span></span></h2><section class="SsectionLevel3" id="section 2.1"><h3 class="heading">2.1<span class="stt">&nbsp;</span><a name="(part._.What_is_.Web.Racket_)"></a>What is WebRacket?<span class="button-group"><a href="#(part._.What_is_.Web.Racket_)" class="heading-anchor" title="Link to here">🔗</a><span style="visibility: hidden"> </span></span></h3><p>WebRacket is a compiler and runtime that lets you write programs in
+Racket and run them in the browser by compiling them to WebAssembly.</p><p>In practice, it gives you:</p><ul><li><p>a subset of Racket</p></li><li><p>compiled to fast, portable WebAssembly</p></li><li><p>with direct access to browser APIs and JavaScript</p></li></ul><section class="SsectionLevel4" id="section 2.1.1"><h4 class="heading">2.1.1<span class="stt">&nbsp;</span><a name="(part._.How_it_works)"></a>How it works<span class="button-group"><a href="#(part._.How_it_works)" class="heading-anchor" title="Link to here">🔗</a><span style="visibility: hidden"> </span></span></h4><ul><li><p>You write a Racket program (<span class="stt">.rkt</span>)</p></li><li><p><div class="SIntrapara">WebRacket compiles it to a number of WebAssembly (<span class="stt">.wasm</span>) files.
+</div><div class="SIntrapara"><ul><li><p>one corresponds to your program</p></li><li><p>one to the runtime (shared between programs)</p></li><li><p>one for FFI libraries</p></li></ul></div></p></li><li><p>a webpage that loads the webassembly files</p></li><li><p>The browser runs the result</p></li></ul></section></section><section class="SsectionLevel3" id="section 2.2"><h3 class="heading">2.2<span class="stt">&nbsp;</span><a name="(part._.What_you_can_build)"></a>What you can build<span class="button-group"><a href="#(part._.What_you_can_build)" class="heading-anchor" title="Link to here">🔗</a><span style="visibility: hidden"> </span></span></h3><p>WebRacket is aimed at building interactive programs that run in the browser.</p><section class="SsectionLevel4" id="section 2.2.1"><h4 class="heading">2.2.1<span class="stt">&nbsp;</span><a name="(part._.Web_applications)"></a>Web applications<span class="button-group"><a href="#(part._.Web_applications)" class="heading-anchor" title="Link to here">🔗</a><span style="visibility: hidden"> </span></span></h4><p>You can build dynamic web pages and small applications with user interaction,
+event handling, and DOM manipulation.</p></section><section class="SsectionLevel4" id="section 2.2.2"><h4 class="heading">2.2.2<span class="stt">&nbsp;</span><a name="(part._.Graphics_and_visualizations)"></a>Graphics and visualizations<span class="button-group"><a href="#(part._.Graphics_and_visualizations)" class="heading-anchor" title="Link to here">🔗</a><span style="visibility: hidden"> </span></span></h4><p>Using the canvas API, you can create drawings, animations, and interactive
+visualizations.</p></section><section class="SsectionLevel4" id="section 2.2.3"><h4 class="heading">2.2.3<span class="stt">&nbsp;</span><a name="(part._.Multimedia_applications)"></a>Multimedia applications<span class="button-group"><a href="#(part._.Multimedia_applications)" class="heading-anchor" title="Link to here">🔗</a><span style="visibility: hidden"> </span></span></h4><p>WebRacket supports audio APIs, making it possible to build sound-based tools,
+synthesizers, and interactive audio applications.</p></section><section class="SsectionLevel4" id="section 2.2.4"><h4 class="heading">2.2.4<span class="stt">&nbsp;</span><a name="(part._.Browser-integrated_tools)"></a>Browser-integrated tools<span class="button-group"><a href="#(part._.Browser-integrated_tools)" class="heading-anchor" title="Link to here">🔗</a><span style="visibility: hidden"> </span></span></h4><p><div class="SIntrapara">You can access standard browser features such as:
+</div><div class="SIntrapara"><ul><li><p>the DOM</p></li><li><p>event handling</p></li><li><p>local storage and IndexedDB</p></li><li><p>network communication via fetch and WebSocket</p></li></ul></div></p></section></section><section class="SsectionLevel3" id="section 2.3"><h3 class="heading">2.3<span class="stt">&nbsp;</span><a name="(part._.Your_.First_.Program)"></a>Your First Program<span class="button-group"><a href="#(part._.Your_.First_.Program)" class="heading-anchor" title="Link to here">🔗</a><span style="visibility: hidden"> </span></span></h3><p>This section shows a minimal WebRacket program that renders a simple
+"Hello World" page in the browser.</p><section class="SsectionLevel4" id="section 2.3.1"><h4 class="heading">2.3.1<span class="stt">&nbsp;</span><a name="(part._.Step_1__.Write_a_program)"></a>Step 1: Write a program<span class="button-group"><a href="#(part._.Step_1__.Write_a_program)" class="heading-anchor" title="Link to here">🔗</a><span style="visibility: hidden"> </span></span></h4><p>Create a file named <span class="stt">hello.rkt</span> with the following contents:</p><blockquote class="Rfilebox"><p class="Rfiletitle"><span class="Rfilename"><span class="stt">"hello.rkt"</span></span></p><blockquote class="Rfilecontent"><table cellspacing="0" cellpadding="0" class="SVerbatim"><tr><td><p><span class="stt">#lang webracket/base</span></p></td></tr><tr><td><p><span class="stt"></span><span class="hspace">&nbsp;</span></p></td></tr><tr><td><p><span class="stt">(require web-easy)</span></p></td></tr><tr><td><p><span class="stt"></span><span class="hspace">&nbsp;</span></p></td></tr><tr><td><p><span class="stt">(define hello-world-app</span></p></td></tr><tr><td><p><span class="stt"></span><span class="hspace">&nbsp;&nbsp;</span><span class="stt">(window</span></p></td></tr><tr><td><p><span class="stt"></span><span class="hspace">&nbsp;&nbsp;&nbsp;&nbsp;</span><span class="stt">(container</span></p></td></tr><tr><td><p><span class="stt"></span><span class="hspace">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span><span class="stt">(h1 "Hello World")</span></p></td></tr><tr><td><p><span class="stt"></span><span class="hspace">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span><span class="stt">(text "Have a nice day."))))</span></p></td></tr><tr><td><p><span class="stt"></span><span class="hspace">&nbsp;</span></p></td></tr><tr><td><p><span class="stt">(mount-renderer!</span></p></td></tr><tr><td><p><span class="stt"></span><span class="hspace">&nbsp;</span><span class="stt">(render hello-world-app))</span></p></td></tr></table></blockquote></blockquote></section><section class="SsectionLevel4" id="section 2.3.2"><h4 class="heading">2.3.2<span class="stt">&nbsp;</span><a name="(part._.Step_2__.Compile_the_program)"></a>Step 2: Compile the program<span class="button-group"><a href="#(part._.Step_2__.Compile_the_program)" class="heading-anchor" title="Link to here">🔗</a><span style="visibility: hidden"> </span></span></h4><p>Compile the program for the browser:</p><blockquote class="SubFlow scribble-copy-wrap" data-copy-button="on"><p><div class="SIntrapara"><script type="text/javascript">
+(function () {
+  if (window.__scribbleCssFontPreviewUiInit) return;
+  window.__scribbleCssFontPreviewUiInit = true;
+
+  var styleId = "scribble-css-preview-ui-style";
+  function ensureStyles() {
+    var first = document.querySelector(".css-preview-ui, .js-preview-ui");
+    var external = first && first.getAttribute("data-preview-css-url");
+    if (external) {
+      var lid = "scribble-css-preview-ui-link";
+      if (!document.getElementById(lid)) {
+        var lk = document.createElement("link");
+        lk.id = lid;
+        lk.rel = "stylesheet";
+        lk.href = external;
+        document.head.appendChild(lk);
+      }
+      return;
+    }
+    if (!document.getElementById(styleId)) {
+      var st = document.createElement("style");
+      st.id = styleId;
+      st.textContent =
+        ":root{--css-preview-stroke:#999;--css-preview-text:rgba(0,0,0,.72);--css-preview-accent-1:rgba(70,150,245,.70);--css-preview-accent-2:rgba(70,150,245,.22);--css-preview-fill:rgba(70,150,245,.15);}" +
+        ".css-preview-ui{display:inline-block;margin-left:.45em;vertical-align:middle;user-select:none;-webkit-user-select:none;pointer-events:auto;}" +
+        ".css-preview-ui:focus,.js-preview-ui:focus{outline:1px solid color-mix(in srgb, var(--css-preview-accent-1) 80%, #000 10%);outline-offset:1px;}" +
+        ".css-preview-ui[data-preview-mode=none]{display:none!important;}" +
+        ".css-preview-ui[data-preview-mode=hover]{display:none;}" +
+        ".css-color-preview-ui{width:.75em;height:.75em;border:1px solid var(--css-preview-stroke);background:var(--css-preview-bg);}" +
+        ".css-gradient-preview-ui{width:1.4em;height:.75em;border:1px solid var(--css-preview-stroke);background:var(--css-preview-bg);}" +
+        ".css-spacing-preview-ui{width:var(--css-preview-width,10px);height:.58em;border:1px solid color-mix(in srgb, var(--css-preview-stroke) 80%, transparent);border-radius:2px;background:linear-gradient(to right, var(--css-preview-accent-1), var(--css-preview-accent-2));}" +
+        ".css-radius-preview-ui{width:.95em;height:.95em;border:1px solid color-mix(in srgb, var(--css-preview-stroke) 85%, transparent);border-radius:var(--css-preview-radius,4px);background:var(--css-preview-fill);}" +
+        ".css-font-preview-ui{margin-left:.6em;white-space:nowrap;font-family:var(--css-preview-font,inherit);font-size:1em;line-height:1;color:var(--css-preview-text);pointer-events:auto;}" +
+        ".css-font-preview-warning{color:#b45;font-weight:600;}" +
+        ".css-token-def-preview-ui,.css-token-ref-preview-ui{margin-left:.45em;padding:0 .3em;height:1.1em;line-height:1.05em;border-radius:.35em;border:1px solid color-mix(in srgb, var(--css-preview-stroke) 80%, transparent);font-size:.72em;color:var(--css-preview-text);}" +
+        ".css-token-def-preview-ui{background:color-mix(in srgb, var(--css-preview-fill) 75%, transparent);}" +
+        ".css-token-ref-preview-ui{background:transparent;border-style:dashed;}" +
+        ".js-preview-ui{display:inline-block;margin-left:.35em;vertical-align:middle;user-select:none;-webkit-user-select:none;pointer-events:auto;color:var(--css-preview-text);font-size:.82em;line-height:1;}" +
+        ".js-regex-preview-ui::before{content:\"/r/\";}" +
+        ".js-template-preview-ui::before{content:\"`...`\";}" +
+        ".scribble-copy-wrap{position:relative;}" +
+        ".scribble-copy-source{display:none!important;white-space:pre;}" +
+        ".scribble-copy-btn{position:absolute;top:.38rem;right:.38rem;display:inline-flex;align-items:center;justify-content:center;width:1.6rem;height:1.6rem;padding:0;border:1px solid rgba(120,120,120,.55);border-radius:.35rem;background:rgba(255,255,255,.92);color:rgba(35,35,35,.9);cursor:pointer;opacity:0;pointer-events:none;transition:opacity .14s ease, background-color .14s ease, border-color .14s ease, transform .12s ease;z-index:5;}" +
+        ".scribble-copy-wrap:hover .scribble-copy-btn,.scribble-copy-wrap:focus-within .scribble-copy-btn{opacity:1;pointer-events:auto;}" +
+        ".scribble-copy-btn:hover{background:rgba(245,245,245,.98);}" +
+        ".scribble-copy-btn:active{transform:scale(.96);}" +
+        ".scribble-copy-btn[data-copy-state=done]{background:rgba(46,160,67,.20);border-color:rgba(46,160,67,.65);}" +
+        ".scribble-copy-btn[data-copy-state=error]{background:rgba(201,58,58,.20);border-color:rgba(201,58,58,.62);}" +
+        ".scribble-copy-btn svg{width:14px;height:14px;display:block;}";
+      document.head.appendChild(st);
+    }
+  }
+
+  var tooltipEl = null;
+  function ensureTooltipEl() {
+    if (tooltipEl) return tooltipEl;
+    tooltipEl = document.createElement("div");
+    tooltipEl.id = "scribble-preview-tooltip";
+    tooltipEl.style.position = "fixed";
+    tooltipEl.style.zIndex = "99999";
+    tooltipEl.style.display = "none";
+    tooltipEl.style.pointerEvents = "none";
+    tooltipEl.style.maxWidth = "32rem";
+    tooltipEl.style.padding = "0.28rem 0.45rem";
+    tooltipEl.style.borderRadius = "0.32rem";
+    tooltipEl.style.background = "rgba(20,20,20,.92)";
+    tooltipEl.style.color = "#fff";
+    tooltipEl.style.font = "12px/1.25 sans-serif";
+    tooltipEl.style.whiteSpace = "pre-wrap";
+    tooltipEl.style.boxShadow = "0 3px 10px rgba(0,0,0,.28)";
+    document.body.appendChild(tooltipEl);
+    return tooltipEl;
+  }
+
+  function tooltipText(preview) {
+    if (preview.getAttribute("data-preview-tooltips") === "off") return "";
+    return preview.getAttribute("data-preview-title") || preview.getAttribute("title") || "";
+  }
+
+  function setPreviewLabel(preview, text) {
+    preview.setAttribute("data-preview-title", text);
+    preview.setAttribute("aria-label", text);
+    if (preview.getAttribute("data-preview-tooltips") === "off") {
+      preview.removeAttribute("title");
+    } else {
+      preview.setAttribute("title", text);
+    }
+  }
+
+  function showTooltip(preview, clientX, clientY) {
+    var text = tooltipText(preview);
+    if (!text) return;
+    var tip = ensureTooltipEl();
+    tip.textContent = text;
+    tip.style.display = "block";
+    moveTooltip(clientX, clientY);
+  }
+
+  function moveTooltip(clientX, clientY) {
+    if (!tooltipEl || tooltipEl.style.display === "none") return;
+    var x = (typeof clientX === "number" ? clientX : 0) + 12;
+    var y = (typeof clientY === "number" ? clientY : 0) + 12;
+    var vw = window.innerWidth || document.documentElement.clientWidth || 1024;
+    var vh = window.innerHeight || document.documentElement.clientHeight || 768;
+    var tw = tooltipEl.offsetWidth || 0;
+    var th = tooltipEl.offsetHeight || 0;
+    if (x + tw + 8 > vw) x = Math.max(8, vw - tw - 8);
+    if (y + th + 8 > vh) y = Math.max(8, vh - th - 8);
+    tooltipEl.style.left = x + "px";
+    tooltipEl.style.top = y + "px";
+  }
+
+  function hideTooltip() {
+    if (tooltipEl) tooltipEl.style.display = "none";
+  }
+
+  function bindTooltip(preview) {
+    if (preview.__scribbleTooltipBound) return;
+    preview.__scribbleTooltipBound = true;
+    if (preview.getAttribute("data-preview-tooltips") === "off") return;
+    if (!tooltipText(preview)) return;
+    preview.style.cursor = "help";
+    preview.addEventListener("mouseenter", function (e) {
+      showTooltip(preview, e.clientX, e.clientY);
+    });
+    preview.addEventListener("mousemove", function (e) {
+      moveTooltip(e.clientX, e.clientY);
+    });
+    preview.addEventListener("mouseleave", hideTooltip);
+    preview.addEventListener("focus", function () {
+      var r = preview.getBoundingClientRect();
+      showTooltip(preview, r.left + r.width / 2, r.bottom);
+    });
+    preview.addEventListener("blur", hideTooltip);
+  }
+
+  var GENERIC = new Set([
+    "serif", "sans-serif", "monospace", "cursive", "fantasy",
+    "system-ui", "emoji", "math", "fangsong",
+    "ui-serif", "ui-sans-serif", "ui-monospace", "ui-rounded"
+  ]);
+
+  function splitFontStack(raw) {
+    var s = (raw || "").trim();
+    var out = [];
+    var cur = "";
+    var quote = null;
+    var esc = false;
+    for (var i = 0; i < s.length; i++) {
+      var ch = s[i];
+      if (esc) {
+        cur += ch;
+        esc = false;
+        continue;
+      }
+      if (ch === "\\\\") {
+        cur += ch;
+        esc = true;
+        continue;
+      }
+      if (quote) {
+        cur += ch;
+        if (ch === quote) quote = null;
+        continue;
+      }
+      if (ch === "'" || ch === "\"") {
+        cur += ch;
+        quote = ch;
+        continue;
+      }
+      if (ch === ",") {
+        out.push(cur.trim());
+        cur = "";
+        continue;
+      }
+      cur += ch;
+    }
+    if (cur.trim() !== "") out.push(cur.trim());
+    return out.map(function (part) {
+      var p = part.trim();
+      if ((p.startsWith("\"") && p.endsWith("\"")) || (p.startsWith("'") && p.endsWith("'"))) {
+        p = p.slice(1, -1);
+      }
+      return p.trim();
+    }).filter(Boolean);
+  }
+
+  function isGenericFamily(name) {
+    return GENERIC.has((name || "").toLowerCase());
+  }
+
+  function hasFont(name) {
+    if (!name) return false;
+    if (isGenericFamily(name)) return true;
+    if (!document.fonts || !document.fonts.check) return null;
+    try {
+      var escaped = String(name).replace(/"/g, "\\\\\"");
+      return document.fonts.check('16px "' + escaped + '"');
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function addWarning(preview) {
+    var warn = preview.querySelector(".css-font-preview-warning");
+    if (warn) return;
+    warn = document.createElement("span");
+    warn.className = "css-font-preview-warning";
+    warn.setAttribute("aria-hidden", "true");
+    warn.textContent = " \\u26A0";
+    preview.appendChild(warn);
+  }
+
+  function clearWarning(preview) {
+    var warn = preview.querySelector(".css-font-preview-warning");
+    if (warn) warn.remove();
+  }
+
+  function computeFontState(preview) {
+    var stack = preview.getAttribute("data-font-stack") || "";
+    var families = splitFontStack(stack);
+    var nonGeneric = families.filter(function (f) { return !isGenericFamily(f); });
+    var generic = families.filter(function (f) { return isGenericFamily(f); });
+    var available = null;
+    var availabilityUnknown = false;
+
+    for (var i = 0; i < families.length; i++) {
+      var ok = hasFont(families[i]);
+      if (ok === null) {
+        availabilityUnknown = true;
+      } else if (ok) {
+        available = families[i];
+        break;
+      }
+    }
+
+    var fallback = generic[0] || "monospace";
+    var firstRequested = nonGeneric[0] || generic[0] || "(default)";
+    var resolved = available || generic[0] || "(browser default)";
+    var usedFallback = available && firstRequested && (available !== firstRequested);
+    var missing = (!availabilityUnknown && nonGeneric.length > 0 && !available);
+
+    if (missing) {
+      addWarning(preview);
+      setPreviewLabel(preview, "Font not found on system\\nUsing fallback: " + fallback);
+    } else {
+      clearWarning(preview);
+      if (usedFallback) {
+        setPreviewLabel(preview, "Rendered using: " + resolved + " (fallback)");
+      } else {
+        setPreviewLabel(preview, "Rendered using: " + resolved);
+      }
+    }
+  }
+
+  function setVisible(preview, on) {
+    if (preview.getAttribute("data-preview-mode") !== "hover") return;
+    preview.style.display = on ? "inline-block" : "none";
+  }
+
+  function bindPreview(preview) {
+    if (preview.__scribblePreviewBound) return;
+    preview.__scribblePreviewBound = true;
+    var mode = preview.getAttribute("data-preview-mode") || "always";
+    var isFont = preview.classList.contains("css-font-preview-ui");
+
+    if (isFont) computeFontState(preview);
+    bindTooltip(preview);
+    if (mode !== "hover") return;
+
+    preview.__scribbleFontPreviewBound = true;
+    setVisible(preview, false);
+
+    var host =
+      preview.closest("tr") ||
+      preview.closest("p") ||
+      preview.closest("li") ||
+      preview.closest("dd") ||
+      preview.closest("dt") ||
+      preview.parentElement;
+    if (!host) return;
+
+    host.addEventListener("mouseenter", function () {
+      if (isFont) computeFontState(preview);
+      setVisible(preview, true);
+    });
+    host.addEventListener("mouseleave", function () {
+      setVisible(preview, false);
+    });
+    host.addEventListener("focusin", function () {
+      if (isFont) computeFontState(preview);
+      setVisible(preview, true);
+    });
+    host.addEventListener("focusout", function () {
+      setVisible(preview, false);
+    });
+  }
+
+  var COPY_ICON_SVG =
+    '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">' +
+    '<rect x="9" y="3" width="11" height="13" rx="2" ry="2" fill="none" stroke="currentColor" stroke-width="2"></rect>' +
+    '<rect x="4" y="8" width="11" height="13" rx="2" ry="2" fill="none" stroke="currentColor" stroke-width="2"></rect>' +
+    '</svg>';
+  var COPY_DONE_SVG =
+    '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">' +
+    '<path d="M5 12l5 5L20 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path>' +
+    '</svg>';
+
+  function setCopyState(btn, state) {
+    if (!state) {
+      btn.removeAttribute("data-copy-state");
+      btn.innerHTML = COPY_ICON_SVG;
+      btn.setAttribute("aria-label", "Copy code");
+      btn.setAttribute("title", "Copy code");
+      return;
+    }
+    btn.setAttribute("data-copy-state", state);
+    if (state === "done") {
+      btn.innerHTML = COPY_DONE_SVG;
+      btn.setAttribute("aria-label", "Copied");
+      btn.setAttribute("title", "Copied");
+    } else {
+      btn.innerHTML = COPY_ICON_SVG;
+      btn.setAttribute("aria-label", "Copy failed");
+      btn.setAttribute("title", "Copy failed");
+    }
+  }
+
+  function copyToClipboard(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(text);
+    }
+    return new Promise(function (resolve, reject) {
+      try {
+        var ta = document.createElement("textarea");
+        ta.value = text;
+        ta.setAttribute("readonly", "true");
+        ta.style.position = "fixed";
+        ta.style.left = "-9999px";
+        ta.style.top = "0";
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        var ok = document.execCommand("copy");
+        ta.remove();
+        if (ok) resolve();
+        else reject(new Error("copy command failed"));
+      } catch (e) {
+        reject(e);
+      }
+    });
+  }
+
+  function bindCopyButton(wrap) {
+    if (wrap.__scribbleCopyBound) return;
+    wrap.__scribbleCopyBound = true;
+    if (wrap.getAttribute("data-copy-button") === "off") return;
+
+    var src = wrap.querySelector(".scribble-copy-source");
+    if (!src) return;
+
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "scribble-copy-btn";
+    btn.innerHTML = COPY_ICON_SVG;
+    btn.setAttribute("aria-label", "Copy code");
+    btn.setAttribute("title", "Copy code");
+    btn.addEventListener("click", function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      var text = src.textContent || "";
+      copyToClipboard(text).then(function () {
+        setCopyState(btn, "done");
+        window.setTimeout(function () { setCopyState(btn, null); }, 1200);
+      }).catch(function () {
+        setCopyState(btn, "error");
+        window.setTimeout(function () { setCopyState(btn, null); }, 1200);
+      });
+    });
+    wrap.appendChild(btn);
+  }
+
+  function scan() {
+    ensureStyles();
+    var previews = document.querySelectorAll(".css-preview-ui");
+    for (var i = 0; i < previews.length; i++) bindPreview(previews[i]);
+    var copyWraps = document.querySelectorAll(".scribble-copy-wrap");
+    for (var j = 0; j < copyWraps.length; j++) bindCopyButton(copyWraps[j]);
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", scan, { once: true });
+  } else {
+    scan();
+  }
+})();
+</script><noscript></noscript></div><div class="SIntrapara"><blockquote class="SCodeFlow"><table cellspacing="0" cellpadding="0" class="RktBlk"><tr><td><span style="color: #262680;">webracket</span><span class="hspace">&nbsp;</span><span class="RktVal">--browser</span><span class="hspace">&nbsp;</span><span class="RktVal">--dest</span><span class="hspace">&nbsp;</span><span style="color: #262680;">generated</span><span class="hspace">&nbsp;</span><span style="color: #262680;">hello.rkt</span></td></tr></table></blockquote></div><div class="SIntrapara"><span style="display: none; white-space: pre;" class="scribble-copy-source">webracket --browser --dest generated hello.rkt</span></div></p></blockquote><p>The same compiler is also available as <span class="RktBlk"><span style="color: #262680;">raco</span><span class="hspace">&nbsp;</span><span style="color: #262680;">webracket</span></span>.
+When working from an uninstalled source checkout, use
+<span class="RktBlk"><span style="color: #262680;">racket</span><span class="hspace">&nbsp;</span><span style="color: #262680;">webracket.rkt</span></span> in place of <span class="RktBlk"><span style="color: #262680;">webracket</span></span>.</p><p>This generates the files needed to run the program in a browser.
+The exact set of generated files depends on the libraries the program
+uses. For this example, expect a host page <span class="stt">hello.html</span>, the user
+program <span class="stt">hello.wasm</span>, a reusable runtime module named like
+<span class="stt">webracket-runtime-&lt;fingerprint&gt;.wasm</span>, a label-map file
+<span class="stt">hello.wasm.map.sexp</span>, and possibly a reusable FFI module named like
+<span class="stt">webracket-ffi-&lt;fingerprint&gt;.wasm</span>. Keep the generated files together.</p></section><section class="SsectionLevel4" id="section 2.3.3"><h4 class="heading">2.3.3<span class="stt">&nbsp;</span><a name="(part._.Step_3__.Start_a_local_web_server)"></a>Step 3: Start a local web server<span class="button-group"><a href="#(part._.Step_3__.Start_a_local_web_server)" class="heading-anchor" title="Link to here">🔗</a><span style="visibility: hidden"> </span></span></h4><p>To run the program in a browser, start a local web server in the
+directory containing the generated files:</p><p><div class="SIntrapara"><blockquote class="refpara"><blockquote class="refcolumn"><blockquote class="refcontent"><p>If the default port 8000 is already in use, add an <span class="RktBlk"><span class="RktVal">-p</span><span class="hspace">&nbsp;</span><span class="RktVal">8001</span></span> to the command.</p></blockquote></blockquote></blockquote></div><div class="SIntrapara"><blockquote class="SubFlow scribble-copy-wrap" data-copy-button="on"><p><div class="SIntrapara"><blockquote class="SCodeFlow"><table cellspacing="0" cellpadding="0" class="RktBlk"><tr><td><a href="https://www.gnu.org/software/bash/manual/html_node/Bourne-Shell-Builtins.html#index-cd" style="color: inherit; text-decoration: none;" class="mdn-code-link"><span style="color: #07A;">cd</span></a><span class="hspace">&nbsp;</span><span style="color: #262680;">generated</span></td></tr><tr><td><span style="color: #262680;">raco</span><span class="hspace">&nbsp;</span><span style="color: #262680;">static-web</span></td></tr></table></blockquote></div><div class="SIntrapara"><span style="display: none; white-space: pre;" class="scribble-copy-source">cd generated
+raco static-web</span></div></p></blockquote></div></p><p>By default, this starts a local server and prints the address to use
+in your browser.</p></section><section class="SsectionLevel4" id="section 2.3.4"><h4 class="heading">2.3.4<span class="stt">&nbsp;</span><a name="(part._.Step_4__.Open_the_page_in_your_browser)"></a>Step 4: Open the page in your browser<span class="button-group"><a href="#(part._.Step_4__.Open_the_page_in_your_browser)" class="heading-anchor" title="Link to here">🔗</a><span style="visibility: hidden"> </span></span></h4><p>Open the address shown by <span class="RktBlk"><span style="color: #262680;">raco</span><span class="hspace">&nbsp;</span><span style="color: #262680;">static-web</span></span>, then load
+<span class="stt">hello.html</span>. With the default port, the page is:</p><blockquote class="SCentered"><p><a href="http://localhost:8000/hello.html"><span class="url">http://localhost:8000/hello.html</span></a></p></blockquote><p>Serve the files over HTTP; do not open <span class="stt">hello.html</span> directly as a
+<span class="stt">file://</span> page.</p><p>You should see a page containing the heading <span class="stt">Hello World</span> and the
+text <span class="stt">Have a nice day.</span></p><p>If you want to inspect or call selected WebRacket bindings from the
+browser&rsquo;s JavaScript console while a page is running, see
+<a href="console-bridge.html" data-pltdoc="x">The Browser Console Bridge</a>.</p></section><section class="SsectionLevel4" id="section 2.3.5"><h4 class="heading">2.3.5<span class="stt">&nbsp;</span><a name="(part._.What_this_program_does)"></a>What this program does<span class="button-group"><a href="#(part._.What_this_program_does)" class="heading-anchor" title="Link to here">🔗</a><span style="visibility: hidden"> </span></span></h4><p>The calls to <span class="RktSym">window</span>, <span class="RktSym">container</span>, <span class="RktSym">h1</span>, and
+<span class="RktSym">text</span> construct a description of the user interface.
+The call to <span class="RktSym">render</span> produces a renderer for the interface.
+The call to <span class="RktSym">mount-renderer!</span> inserts it into the browser page.</p></section></section><section class="SsectionLevel3" id="section 2.4"><h3 class="heading">2.4<span class="stt">&nbsp;</span><a name="(part._.Mental_.Model)"></a>Mental Model<span class="button-group"><a href="#(part._.Mental_.Model)" class="heading-anchor" title="Link to here">🔗</a><span style="visibility: hidden"> </span></span></h3><p>This section gives a high-level picture of how a WebRacket program runs.</p><section class="SsectionLevel4" id="section 2.4.1"><h4 class="heading">2.4.1<span class="stt">&nbsp;</span><a name="(part._.From_.Racket_to_the_browser)"></a>From Racket to the browser<span class="button-group"><a href="#(part._.From_.Racket_to_the_browser)" class="heading-anchor" title="Link to here">🔗</a><span style="visibility: hidden"> </span></span></h4><p>A WebRacket program goes through the following steps:</p><ul><li><p>You write a program in Racket.</p></li><li><p>The WebRacket compiler translates it to WebAssembly modules.</p></li><li><p>A generated host page loads the runtime, any FFI module, and
+the user program.</p></li><li><p>The browser executes the cooperating modules.</p></li></ul><p>In short:</p><blockquote class="SCentered"><p><span class="stt">Racket &#8594; WebRacket compiler &#8594; Wasm modules + host page &#8594; Browser</span></p></blockquote></section><section class="SsectionLevel4" id="section 2.4.2"><h4 class="heading">2.4.2<span class="stt">&nbsp;</span><a name="(part._.What_runs_where)"></a>What runs where<span class="button-group"><a href="#(part._.What_runs_where)" class="heading-anchor" title="Link to here">🔗</a><span style="visibility: hidden"> </span></span></h4><p>A WebRacket program involves three parts:</p><ul><li><p><span style="font-weight: bold">WebAssembly:</span> Your compiled program runs with reusable runtime
+and FFI modules.</p></li><li><p><span style="font-weight: bold">JavaScript:</span> The generated host page loads the Wasm modules and
+connects them to the browser.</p></li><li><p><span style="font-weight: bold">The browser:</span> Provides the DOM and other APIs.</p></li></ul><p>Your Racket code does not run directly in JavaScript. Instead, it runs
+inside WebAssembly and interacts with the browser through the provided
+libraries and FFI.</p></section><section class="SsectionLevel4" id="section 2.4.3"><h4 class="heading">2.4.3<span class="stt">&nbsp;</span><a name="(part._.Producing_output)"></a>Producing output<span class="button-group"><a href="#(part._.Producing_output)" class="heading-anchor" title="Link to here">🔗</a><span style="visibility: hidden"> </span></span></h4><p>Unlike a traditional Racket program, output is not shown in a terminal.</p><p>To display something in the browser, your program must construct a user
+interface and insert it into the page. For example:</p><ul><li><p>Using <span class="RktSym">web-easy</span> to build and display UI elements.</p></li><li><p>Using DOM libraries to create and modify elements.</p></li></ul><p>Calling <span class="RktSym">render</span> creates a representation of the interface, and
+<span class="RktSym">mount-renderer!</span> inserts it into the page so it becomes visible.</p></section><section class="SsectionLevel4" id="section 2.4.4"><h4 class="heading">2.4.4<span class="stt">&nbsp;</span><a name="(part._.A_different_kind_of_program)"></a>A different kind of program<span class="button-group"><a href="#(part._.A_different_kind_of_program)" class="heading-anchor" title="Link to here">🔗</a><span style="visibility: hidden"> </span></span></h4><p>WebRacket programs are typically:</p><ul><li><p>interactive</p></li><li><p>event-driven</p></li><li><p>running continuously in the browser</p></li></ul><p>Instead of computing a result and exiting, a program usually reacts to
+user input such as clicks, key presses, or network events.</p></section><section class="SsectionLevel4" id="section 2.4.5"><h4 class="heading">2.4.5<span class="stt">&nbsp;</span><a name="(part._.Summary)"></a>Summary<span class="button-group"><a href="#(part._.Summary)" class="heading-anchor" title="Link to here">🔗</a><span style="visibility: hidden"> </span></span></h4><p>A WebRacket program:</p><ul><li><p>is written in Racket</p></li><li><p>compiled to WebAssembly</p></li><li><p>runs inside the browser</p></li><li><p>interacts with the page through libraries and FFI</p></li></ul></section></section></section><div class="navsetbottom"><span class="navleft"><div class="nosearchform"></div>&nbsp;&nbsp;<span class="tocsettoggle">&nbsp;&nbsp;<a href="javascript:void(0);" title="show/hide table of contents" onclick="TocsetToggle();">contents</a></span></span><span class="navright">&nbsp;&nbsp;<a href="Introduction.html" title="backward to &quot;1 Introduction&quot;" data-pltdoc="x" rel="prev">&larr; prev</a>&nbsp;&nbsp;<a href="index.html" title="up to &quot;WebRacket Manual&quot;" data-pltdoc="x">up</a>&nbsp;&nbsp;<a href="Installation.html" title="forward to &quot;3 Installation&quot;" data-pltdoc="x" rel="next">next &rarr;</a></span>&nbsp;</div></div></div><div id="contextindicator">&nbsp;</div></body></html>

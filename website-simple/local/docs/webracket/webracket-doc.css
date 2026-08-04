@@ -1,0 +1,24 @@
+/* WebRacket documentation layout overrides. */
+
+@media all and (min-width:721px) {
+  .tocset {
+    width: 18rem !important;
+  }
+
+  .navsettop,
+  .navsetbottom {
+    width: 19rem !important;
+  }
+
+  .maincolumn {
+    margin-left: 21rem !important;
+  }
+
+  .versionbox {
+    left: 21rem !important;
+  }
+
+  #contextindicator {
+    left: 21rem !important;
+  }
+}

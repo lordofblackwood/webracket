@@ -1,0 +1,239 @@
+:root {
+  --f1-page: #f7f6f1;
+  --f1-panel: #ffffff;
+  --f1-soft: #f1eee7;
+  --f1-ink: #24262b;
+  --f1-muted: #555d68;
+  --f1-blue: #0f4d7c;
+  --f1-red: #9f171c;
+  --f1-line: #d8d2c6;
+  color-scheme: light;
+}
+
+body {
+  margin: 0;
+  background: var(--f1-page);
+  color: var(--f1-ink);
+}
+
+.page--formula1 {
+  min-height: 100vh;
+  background: var(--f1-page);
+}
+
+.page--formula1 .site-header {
+  background: var(--f1-page);
+}
+
+.examples-hero,
+.section {
+  padding: 32px clamp(18px, 4vw, 56px);
+}
+
+.hero-panel,
+.section-content {
+  max-width: 1180px;
+  margin: 0 auto;
+}
+
+.hero-panel {
+  border: 1px solid var(--f1-line);
+  border-radius: 8px;
+  background: var(--f1-panel);
+  padding: clamp(28px, 5vw, 56px);
+}
+
+.hero-title {
+  margin: 0;
+  color: var(--f1-ink);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(3rem, 8vw, 6.4rem);
+  line-height: 0.95;
+  letter-spacing: 0;
+}
+
+.hero-lead {
+  max-width: 760px;
+  margin: 22px 0 0;
+  color: var(--f1-muted);
+  font-size: 1.2rem;
+  line-height: 1.55;
+}
+
+.section--examples {
+  padding-top: 20px;
+}
+
+.f1-countdown-card {
+  border: 1px solid var(--f1-line);
+  border-radius: 8px;
+  background: var(--f1-panel);
+  padding: clamp(24px, 5vw, 48px);
+  box-shadow: 0 18px 42px rgba(33, 31, 27, 0.12);
+}
+
+.f1-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 22px;
+}
+
+.f1-kicker,
+.demo-note-label {
+  margin: 0;
+  color: var(--f1-red);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.f1-data-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  border: 1px solid var(--f1-line);
+  border-radius: 999px;
+  background: var(--f1-soft);
+  padding: 0 12px;
+  color: var(--f1-muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.f1-data-badge.is-ready {
+  border-color: rgba(15, 77, 124, 0.24);
+  background: rgba(15, 77, 124, 0.08);
+  color: var(--f1-blue);
+}
+
+.f1-race-title {
+  max-width: 920px;
+  margin: 0;
+  color: var(--f1-ink);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(2rem, 5vw, 4.4rem);
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.f1-countdown {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 14px;
+  margin-top: 28px;
+}
+
+.f1-countdown-value {
+  color: var(--f1-red);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(4rem, 13vw, 9rem);
+  font-weight: 800;
+  line-height: 0.9;
+}
+
+.f1-countdown-unit {
+  color: var(--f1-ink);
+  font-size: clamp(1.4rem, 4vw, 2.5rem);
+  font-weight: 800;
+}
+
+.f1-countdown-label,
+.f1-race-time,
+.f1-countdown-status {
+  max-width: 760px;
+  margin: 14px 0 0;
+  color: var(--f1-muted);
+  font-size: 1rem;
+  line-height: 1.55;
+}
+
+.f1-race-time {
+  color: var(--f1-ink);
+  font-weight: 700;
+}
+
+.section--examples-details {
+  padding-top: 0;
+}
+
+.examples-details {
+  display: grid;
+  gap: 14px;
+  border: 1px solid var(--f1-line);
+  border-radius: 8px;
+  background: var(--f1-soft);
+  padding: 22px;
+}
+
+.demo-note {
+  display: grid;
+  gap: 6px;
+}
+
+.demo-note + .demo-note {
+  padding-top: 14px;
+  border-top: 1px solid var(--f1-line);
+}
+
+.examples-details p {
+  margin: 0;
+  color: var(--f1-muted);
+  line-height: 1.55;
+}
+
+.examples-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.code-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  border: 1px solid var(--f1-line);
+  border-radius: 6px;
+  background: #ffffff;
+  padding: 0 16px;
+  color: var(--f1-blue);
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.code-pill:hover,
+.code-pill:focus-visible {
+  border-color: var(--f1-blue);
+  outline: none;
+}
+
+.page--formula1 .site-footer {
+  margin-top: 16px;
+}
+
+@media (max-width: 760px) {
+  .examples-hero,
+  .section {
+    padding-inline: 14px;
+  }
+
+  .hero-panel,
+  .f1-countdown-card,
+  .examples-details {
+    padding: 18px;
+  }
+
+  .hero-title {
+    font-size: clamp(2.6rem, 16vw, 4rem);
+  }
+
+  .f1-card-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
