@@ -1,8 +1,11 @@
+#lang webracket/base
+
 ;;;
 ;;; WebRacket Simple Website Prototype
 ;;;
 
-(include-lib web-easy)
+(require racket/list
+         web-easy)
 
 ;;;
 ;;; Content
@@ -78,11 +81,13 @@
 ;; shell-section : string? string? view? ... -> view?
 ;;   Build a titled page section.
 (define (shell-section id title . body)
-  (apply Section
-         (append
-          (list (H2 title)
-                (apply Div (append body (list '#:class "section-body"))))
-          (list '#:id id '#:class "site-section"))))
+  (keyword-apply
+   Section
+   '(#:class #:id)
+   (list "site-section" id)
+   (list
+    (H2 title)
+    (keyword-apply Div '(#:class) (list "section-body") body))))
 
 ;; code-lines : (listof string?) -> view?
 ;;   Render shell commands as a compact code block.
@@ -172,7 +177,7 @@
       "examples"
       "Examples"
       (P "The examples show the range of WebRacket.")
-      (apply Div (append (map example-card examples) (list '#:class "example-grid"))))
+      (keyword-apply Div '(#:class) (list "example-grid") (map example-card examples)))
      (shell-section
       "docs"
       "Documentation"

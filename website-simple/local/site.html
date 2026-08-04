@@ -43,7 +43,7 @@
       "Likely cause: server returned HTML (for example a 404 page) instead of .wasm."
     );
   }
-  const coreWasmUrl = "webracket-runtime-110b0b070aba7d6a9ded6bdad85a06c74b2f3c1e.wasm";
+  const coreWasmUrl = "webracket-runtime-a036bbc1bcd8eb53ffa70a151262d9ebda3d5677.wasm";
 const coreWasmResponse = await fetch(coreWasmUrl);
 if (!coreWasmResponse.ok) {
   throw new Error(
@@ -63,7 +63,7 @@ if (!iscoreWasmMagic) {
     `Fetched core wasm '${coreWasmUrl}' but content is not a WebAssembly binary (missing magic 00 61 73 6d).`
   );
 }
-  const ffiWasmUrl = "webracket-ffi-800b88b5c14faa7cfd0256e8449d964c57234876.wasm";
+  const ffiWasmUrl = "webracket-ffi-ea8e08d22f0fcd757c0ae26dc28041236383d37c.wasm";
 const ffiWasmResponse = await fetch(ffiWasmUrl);
 if (!ffiWasmResponse.ok) {
   throw new Error(
