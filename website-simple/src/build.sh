@@ -208,47 +208,49 @@ cp -f "$ROOT_DIR/web-site/src/assets/hex-racket-wasm-logo.svg" "$CONNECTIONS_OUT
 rm -rf "$WEB_EASY_EXAMPLES_OUT_DIR"
 mkdir -p "$WEB_EASY_EXAMPLES_OUT_DIR"
 
-copy_web_easy_generated_example() {
+compile_pkgs_web_easy_example() {
   local example_name="$1"
-  local generated_dir="$ROOT_DIR/pkgs/web-easy/examples/$example_name/generated"
+  local source_dir="$ROOT_DIR/pkgs/web-easy/examples/$example_name"
+  local source_file="$example_name.rkt"
   local target_dir="$WEB_EASY_EXAMPLES_OUT_DIR/$example_name"
 
   rm -rf "$target_dir"
   mkdir -p "$target_dir"
-  cp -R "$generated_dir/." "$target_dir/"
+  cd "$source_dir"
+  PLTCOLLECTS="$ROOT_DIR/pkgs${PLTCOLLECTS:+:$PLTCOLLECTS}:" \
+  PLTCOMPILEDROOTS="$COMPILED_ROOT" \
+  "$RACKET_BIN" "$ROOT_DIR/webracket.rkt" \
+    --browser \
+    --split-runtime \
+    --dest "$target_dir" \
+    "$source_file"
   find "$target_dir" -type f \( -name '*.map.sexp' -o -name '*.wasm.map.sexp' \) -delete
   cp -f "$ROOT_DIR/pkgs/web-easy/themes/web-easy-core.css" "$target_dir/web-easy-core.css"
   cp -f "$ROOT_DIR/pkgs/web-easy/themes/theme-light.css" "$target_dir/theme-light.css"
   cp -f "$target_dir/$example_name.html" "$target_dir/index.html"
 }
 
-copy_web_easy_generated_example "hello-world"
-copy_web_easy_generated_example "a-single-counter"
-copy_web_easy_generated_example "multiple-counters"
-copy_web_easy_generated_example "dynamic-counters"
-copy_web_easy_generated_example "add-two-numbers"
-copy_web_easy_generated_example "todo-lists"
-copy_web_easy_generated_example "rquery-helpers"
-copy_web_easy_generated_example "rquery-counter"
-copy_web_easy_generated_example "rquery-toggle"
-copy_web_easy_generated_example "rquery-delegate-list"
-copy_web_easy_generated_example "rquery-once"
-copy_web_easy_generated_example "rquery-trigger"
-copy_web_easy_generated_example "7gui-counter"
-copy_web_easy_generated_example "7gui-temperature-converter"
-copy_web_easy_generated_example "7gui-flight-booker"
-copy_web_easy_generated_example "7gui-timer"
-copy_web_easy_generated_example "7gui-crud"
-copy_web_easy_generated_example "7gui-circle"
-copy_web_easy_generated_example "7gui-circle-extended"
-copy_web_easy_generated_example "pict-playground"
-copy_web_easy_generated_example "pict-fish-school"
-copy_web_easy_generated_example "pict-hungry-fish"
-copy_web_easy_generated_example "audio-oscillator"
-copy_web_easy_generated_example "audio-buffer-playback"
-copy_web_easy_generated_example "audio-analyser"
-copy_web_easy_generated_example "audio-effects"
-copy_web_easy_generated_example "websocket"
+compile_pkgs_web_easy_example "rquery-helpers"
+compile_pkgs_web_easy_example "rquery-counter"
+compile_pkgs_web_easy_example "rquery-toggle"
+compile_pkgs_web_easy_example "rquery-delegate-list"
+compile_pkgs_web_easy_example "rquery-once"
+compile_pkgs_web_easy_example "rquery-trigger"
+compile_pkgs_web_easy_example "7gui-counter"
+compile_pkgs_web_easy_example "7gui-temperature-converter"
+compile_pkgs_web_easy_example "7gui-flight-booker"
+compile_pkgs_web_easy_example "7gui-timer"
+compile_pkgs_web_easy_example "7gui-crud"
+compile_pkgs_web_easy_example "7gui-circle"
+compile_pkgs_web_easy_example "7gui-circle-extended"
+compile_pkgs_web_easy_example "pict-playground"
+compile_pkgs_web_easy_example "pict-fish-school"
+compile_pkgs_web_easy_example "pict-hungry-fish"
+compile_pkgs_web_easy_example "audio-oscillator"
+compile_pkgs_web_easy_example "audio-buffer-playback"
+compile_pkgs_web_easy_example "audio-analyser"
+compile_pkgs_web_easy_example "audio-effects"
+compile_pkgs_web_easy_example "websocket"
 
 printf '%s\n' \
   '<!DOCTYPE html>' \
@@ -278,6 +280,7 @@ compile_web_easy_example() {
   PLTCOMPILEDROOTS="$COMPILED_ROOT" \
   "$RACKET_BIN" "$ROOT_DIR/webracket.rkt" \
     --browser \
+    --split-runtime \
     --dest "$target_dir" \
     "$source_file"
   cp -f "$ROOT_DIR/pkgs/web-easy/themes/web-easy-core.css" "$target_dir/web-easy-core.css"

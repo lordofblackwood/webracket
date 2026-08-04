@@ -1078,13 +1078,13 @@ html.we-theme-dark .we-tab-panel > .we-tab-list + .we-tab-content {
 
 /* Dialog surface colors are theme-owned, so theme switching updates overlays. */
 html.we-theme-dark .we-dialog-panel {
-  border-color: var(--we-dialog-border-color);
-  border-width: var(--we-dialog-border-width);
+  border-color: var(--we-dialog-border-color, var(--we-border));
+  border-width: var(--we-dialog-border-width, 1px);
   border-style: solid;
-  border-radius: var(--we-dialog-radius);
-  background: linear-gradient(var(--we-dialog-bg), var(--we-dialog-bg)), var(--we-surface);
-  color: var(--we-dialog-color);
-  box-shadow: var(--we-dialog-shadow);
+  border-radius: var(--we-dialog-radius, var(--we-radius-lg, 8px));
+  background: linear-gradient(var(--we-dialog-bg, var(--we-surface)), var(--we-dialog-bg, var(--we-surface))), var(--we-surface);
+  color: var(--we-dialog-color, var(--we-fg));
+  box-shadow: var(--we-dialog-shadow, var(--we-shadow-lg));
 }
 
 html.we-theme-dark .we-tab-btn:focus-visible {
@@ -2504,11 +2504,11 @@ html.we-theme-dark .we-modal {
 
 html.we-theme-dark .we-dialog-panel,
 html.we-theme-dark .we-modal-panel {
-  border: var(--we-dialog-border-width) solid var(--we-dialog-border-color);
-  border-radius: var(--we-dialog-radius);
-  background: linear-gradient(var(--we-dialog-bg), var(--we-dialog-bg)), var(--we-surface);
-  color: var(--we-dialog-color);
-  box-shadow: var(--we-dialog-shadow);
+  border: var(--we-dialog-border-width, 1px) solid var(--we-dialog-border-color, var(--we-border));
+  border-radius: var(--we-dialog-radius, var(--we-radius-lg, 8px));
+  background: linear-gradient(var(--we-dialog-bg, var(--we-surface)), var(--we-dialog-bg, var(--we-surface))), var(--we-surface);
+  color: var(--we-dialog-color, var(--we-fg));
+  box-shadow: var(--we-dialog-shadow, var(--we-shadow-lg));
 }
 
 html.we-theme-dark .we-offcanvas-backdrop {
@@ -2615,8 +2615,8 @@ html.we-theme-dark .we-tooltip-header {
   display: flex;
   align-items: center;
   gap: 8px;
-  border-bottom: var(--we-dialog-header-border-width) solid var(--we-dialog-header-border-color);
-  padding: var(--we-dialog-header-padding-y) var(--we-dialog-header-padding-x);
+  border-bottom: var(--we-dialog-header-border-width, 1px) solid var(--we-dialog-header-border-color, var(--we-separator));
+  padding: var(--we-dialog-header-padding-y, 0.75rem) var(--we-dialog-header-padding-x, 1rem);
   margin: 0;
 }
 
@@ -2628,9 +2628,9 @@ html.we-theme-dark .we-tooltip-footer {
   flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
-  border-top: var(--we-dialog-footer-border-width) solid var(--we-dialog-footer-border-color);
+  border-top: var(--we-dialog-footer-border-width, 1px) solid var(--we-dialog-footer-border-color, var(--we-separator));
   gap: var(--we-dialog-footer-gap, 0.5rem);
-  padding: var(--we-dialog-footer-padding-y) var(--we-dialog-footer-padding-x);
+  padding: var(--we-dialog-footer-padding-y, 0.75rem) var(--we-dialog-footer-padding-x, 1rem);
   margin: 0;
 }
 
@@ -2645,7 +2645,7 @@ html.we-theme-dark .we-modal-actions {
 
 html.we-theme-dark .we-dialog-body,
 html.we-theme-dark .we-modal-body {
-  padding: var(--we-dialog-body-padding-y) var(--we-dialog-body-padding-x);
+  padding: var(--we-dialog-body-padding-y, 1rem) var(--we-dialog-body-padding-x, 1rem);
   font-weight: var(--we-font-weight-normal);
 }
 
@@ -2653,10 +2653,10 @@ html.we-theme-dark .we-dialog-title,
 html.we-theme-dark .we-modal-title,
 html.we-theme-dark .we-tooltip-title {
   font-family: var(--we-font-family-heading);
-  font-size: var(--we-dialog-title-font-size);
+  font-size: var(--we-dialog-title-font-size, 1.25rem);
   font-weight: var(--we-dialog-title-font-weight, var(--we-font-weight-normal));
-  color: var(--we-dialog-title-color);
-  text-transform: var(--we-dialog-title-text-transform);
+  color: var(--we-dialog-title-color, var(--we-fg));
+  text-transform: var(--we-dialog-title-text-transform, none);
 }
 
 html.we-theme-dark .we-dialog-description,
