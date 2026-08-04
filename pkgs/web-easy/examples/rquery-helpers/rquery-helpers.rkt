@@ -67,48 +67,53 @@
 
 (mount-renderer! app-renderer)
 
-(define status ($ "#rquery-helpers-status"))
-(define note ($ "#rquery-helpers-note"))
-(define field ($ "#rquery-helpers-input"))
-(define badge ($ "#rquery-helpers-badge"))
-(define load-button ($ "#rquery-helpers-load"))
-(define mirror-button ($ "#rquery-helpers-mirror"))
-(define toggle-button ($ "#rquery-helpers-toggle"))
-(define stamp-button ($ "#rquery-helpers-stamp"))
-(define read-button ($ "#rquery-helpers-read"))
+(define (install-rquery-helper-handlers!)
+  (define status ($ "#rquery-helpers-status"))
+  (define note ($ "#rquery-helpers-note"))
+  (define field ($ "#rquery-helpers-input"))
+  (define badge ($ "#rquery-helpers-badge"))
+  (define load-button ($ "#rquery-helpers-load"))
+  (define mirror-button ($ "#rquery-helpers-mirror"))
+  (define toggle-button ($ "#rquery-helpers-toggle"))
+  (define stamp-button ($ "#rquery-helpers-stamp"))
+  (define read-button ($ "#rquery-helpers-read"))
 
-(define (set-status! str)
-  ($text! status str))
+  (define (set-status! str)
+    ($text! status str))
 
-(define (set-note! str)
-  ($text! note str))
+  (define (set-note! str)
+    ($text! note str))
 
-($chain load-button
-  .on "click"
-  (lambda (_evt)
-    ($val! field "Query helpers")
-    (set-status! "Status: preset loaded")))
+  ($chain load-button
+    .on "click"
+    (lambda (_evt)
+      ($val! field "Query helpers")
+      (set-status! "Status: preset loaded")))
 
-($chain mirror-button
-  .on "click"
-  (lambda (_evt)
-    (set-status! (string-append "Status: " ($val field)))))
+  ($chain mirror-button
+    .on "click"
+    (lambda (_evt)
+      (set-status! (string-append "Status: " ($val field)))))
 
-($chain toggle-button
-  .on "click"
-  (lambda (_evt)
-    ($toggle-class! badge "highlight")
-    (set-status! "Status: highlight toggled")))
+  ($chain toggle-button
+    .on "click"
+    (lambda (_evt)
+      ($toggle-class! badge "highlight")
+      (set-status! "Status: highlight toggled")))
 
-($chain stamp-button
-  .on "click"
-  (lambda (_evt)
-    (define current ($val field))
-    ($data! badge 'state current)
-    (set-note! (string-append "Data state: " current))
-    (set-status! (string-append "Status: saved " current))))
+  ($chain stamp-button
+    .on "click"
+    (lambda (_evt)
+      (define current ($val field))
+      ($data! badge 'state current)
+      (set-note! (string-append "Data state: " current))
+      (set-status! (string-append "Status: saved " current))))
 
-($chain read-button
-  .on "click"
-  (lambda (_evt)
-    (set-status! (string-append "Status: data state is " ($data badge 'state)))))
+  ($chain read-button
+    .on "click"
+    (lambda (_evt)
+      (set-status! (string-append "Status: data state is " ($data badge 'state)))))
+
+  (void))
+
+(install-rquery-helper-handlers!)

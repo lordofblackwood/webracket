@@ -1,10 +1,11 @@
 #lang webracket/base
 
-(require (only-in rquery
+(require (only-in browser/element
+                  element-set-attribute!)
+         (only-in rquery
                   $
                   $first
-                  .once
-                  element-set-attribute!)
+                  .once)
          web-easy)
 
 ;; Module-based port of the legacy `(include-lib web-easy)` + `(include-lib rquery)`
@@ -30,10 +31,15 @@
 
 (mount-renderer! app-renderer)
 
-(define once-button ($ "#rquery-once-button"))
+(define (install-rquery-once-handler!)
+  (define once-button ($ "#rquery-once-button"))
 
-(.once once-button
-       "click"
-       (lambda (_evt)
-         (obs-update! @count add1)
-         (element-set-attribute! ($first once-button) 'disabled "disabled")))
+  (.once once-button
+         "click"
+         (lambda (_evt)
+           (obs-update! @count add1)
+           (element-set-attribute! ($first once-button) 'disabled "disabled")))
+
+  (void))
+
+(install-rquery-once-handler!)

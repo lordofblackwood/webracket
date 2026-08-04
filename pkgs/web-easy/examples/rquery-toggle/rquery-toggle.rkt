@@ -42,29 +42,34 @@
 
 (mount-renderer! app-renderer)
 
-(define decrement-button ($ "#rquery-toggle-decrement"))
-(define increment-button ($ "#rquery-toggle-increment"))
-(define switch-button ($ "#rquery-toggle-switch"))
+(define (install-rquery-toggle-handlers!)
+  (define decrement-button ($ "#rquery-toggle-decrement"))
+  (define increment-button ($ "#rquery-toggle-increment"))
+  (define switch-button ($ "#rquery-toggle-switch"))
 
-($chain decrement-button
-  .on "click"
-  decrement!)
+  ($chain decrement-button
+    .on "click"
+    decrement!)
 
-($chain increment-button
-  .on "click"
-  increment!)
+  ($chain increment-button
+    .on "click"
+    increment!)
 
-($chain switch-button
-  .on "click"
-  (lambda (_evt)
-    (if (obs-peek @increment-enabled?)
-        (begin
-          ($chain increment-button
-            .off "click"
-            increment!)
-          (obs-set! @increment-enabled? #f))
-        (begin
-          ($chain increment-button
-            .on "click"
-            increment!)
-          (obs-set! @increment-enabled? #t)))))
+  ($chain switch-button
+    .on "click"
+    (lambda (_evt)
+      (if (obs-peek @increment-enabled?)
+          (begin
+            ($chain increment-button
+              .off "click"
+              increment!)
+            (obs-set! @increment-enabled? #f))
+          (begin
+            ($chain increment-button
+              .on "click"
+              increment!)
+            (obs-set! @increment-enabled? #t)))))
+
+  (void))
+
+(install-rquery-toggle-handlers!)

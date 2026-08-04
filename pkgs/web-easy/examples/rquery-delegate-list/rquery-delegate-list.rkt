@@ -1,10 +1,11 @@
 #lang webracket/base
 
-(require (only-in rquery
+(require (only-in browser/element
+                  element-text-content)
+         (only-in rquery
                   $
                   $chain
-                  .on-delegate
-                  element-text-content)
+                  .on-delegate)
          web-easy)
 
 ;; Module-based port of the legacy `(include-lib web-easy)` + `(include-lib rquery)`
@@ -33,10 +34,15 @@
 
 (mount-renderer! app-renderer)
 
-(define delegate-list ($ "#rquery-delegate-list"))
+(define (install-rquery-delegate-list-handler!)
+  (define delegate-list ($ "#rquery-delegate-list"))
 
-($chain delegate-list
-  .on-delegate "click"
-  "button"
-  (lambda (matched _evt)
-    (obs-set! @selected (element-text-content matched))))
+  ($chain delegate-list
+    .on-delegate "click"
+    "button"
+    (lambda (matched _evt)
+      (obs-set! @selected (element-text-content matched))))
+
+  (void))
+
+(install-rquery-delegate-list-handler!)

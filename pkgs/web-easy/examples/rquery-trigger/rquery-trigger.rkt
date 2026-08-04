@@ -29,15 +29,20 @@
 
 (mount-renderer! app-renderer)
 
-(define target-button ($ "#rquery-trigger-target"))
-(define fire-button ($ "#rquery-trigger-fire"))
+(define (install-rquery-trigger-handlers!)
+  (define target-button ($ "#rquery-trigger-target"))
+  (define fire-button ($ "#rquery-trigger-fire"))
 
-($chain target-button
-  .on "click"
-  (lambda (_evt)
-    (obs-update! @count add1)))
+  ($chain target-button
+    .on "click"
+    (lambda (_evt)
+      (obs-update! @count add1)))
 
-($chain fire-button
-  .on "click"
-  (lambda (_evt)
-    ($trigger "click" target-button)))
+  ($chain fire-button
+    .on "click"
+    (lambda (_evt)
+      ($trigger "click" target-button)))
+
+  (void))
+
+(install-rquery-trigger-handlers!)

@@ -20,15 +20,20 @@
 
 (mount-renderer! app-renderer)
 
-(define dec-sel ($ "#rquery-counter-decrement"))
-(define inc-sel ($ "#rquery-counter-increment"))
+(define (install-rquery-counter-handlers!)
+  (define dec-sel ($ "#rquery-counter-decrement"))
+  (define inc-sel ($ "#rquery-counter-increment"))
 
-(.on inc-sel
-     "click"
-     (lambda (_evt)
-       (obs-update! @count add1)))
+  (.on inc-sel
+       "click"
+       (lambda (_evt)
+         (obs-update! @count add1)))
 
-(.on dec-sel
-     "click"
-     (lambda (_evt)
-       (obs-update! @count sub1)))
+  (.on dec-sel
+       "click"
+       (lambda (_evt)
+         (obs-update! @count sub1)))
+
+  (void))
+
+(install-rquery-counter-handlers!)
