@@ -50,14 +50,10 @@ html.we-theme-simple a:focus-visible {
 }
 
 .site-header {
-  position: sticky;
-  top: 0;
-  z-index: 10;
   width: min(1120px, calc(100vw - 32px));
   margin: 0 auto;
-  background: rgba(246, 245, 241, 0.94);
+  background: var(--rk-bg);
   border-bottom: 1px solid var(--rk-border);
-  backdrop-filter: blur(12px);
 }
 
 .top-nav {

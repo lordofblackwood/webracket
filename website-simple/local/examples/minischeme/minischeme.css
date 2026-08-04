@@ -63,18 +63,14 @@ a:focus-visible {
 }
 
 .mini-site-header {
-  position: sticky;
-  top: 0;
-  z-index: 30;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 24px;
   min-height: 68px;
   padding: 0 max(16px, calc((100vw - 1120px) / 2));
-  background: rgba(246, 245, 241, 0.94);
+  background: var(--mini-bg);
   border-bottom: 1px solid var(--mini-line);
-  backdrop-filter: blur(12px);
 }
 
 .mini-wordmark {

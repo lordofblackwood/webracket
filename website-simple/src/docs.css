@@ -18,12 +18,8 @@ body#scribble-racket-lang-org {
 }
 
 .wr-doc-header {
-  position: sticky;
-  top: 0;
-  z-index: 10000;
-  background: rgba(246, 245, 241, 0.96);
+  background: var(--rk-bg);
   border-bottom: 1px solid var(--rk-border);
-  backdrop-filter: blur(12px);
 }
 
 .wr-doc-nav {
