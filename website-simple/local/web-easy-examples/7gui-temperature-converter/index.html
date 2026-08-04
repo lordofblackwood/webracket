@@ -30,26 +30,6 @@
       "Likely cause: server returned HTML (for example a 404 page) instead of .wasm."
     );
   }
-  const coreWasmUrl = "7gui-temperature-converter.runtime.wasm";
-const coreWasmResponse = await fetch(coreWasmUrl);
-if (!coreWasmResponse.ok) {
-  throw new Error(
-    `Failed to fetch core wasm '${coreWasmUrl}' (HTTP ${coreWasmResponse.status} ${coreWasmResponse.statusText}).`
-  );
-}
-const coreWasmBuffer = await coreWasmResponse.arrayBuffer();
-const coreWasmBytes = new Uint8Array(coreWasmBuffer);
-const isCoreWasmMagic =
-  coreWasmBytes.length >= 4 &&
-  coreWasmBytes[0] === 0x00 &&
-  coreWasmBytes[1] === 0x61 &&
-  coreWasmBytes[2] === 0x73 &&
-  coreWasmBytes[3] === 0x6d;
-if (!isCoreWasmMagic) {
-  throw new Error(
-    `Fetched core wasm '${coreWasmUrl}' but content is not a WebAssembly binary (missing magic 00 61 73 6d).`
-  );
-}
   
   
   var memory = new WebAssembly.Memory({initial:1024});
@@ -1124,15 +1104,6 @@ function fasl_to_js_value(arr, i = 0) {
 
   const tag = arr[i++];
 
-  function keywordValue(name) {
-    return {
-      tag: 'keyword',
-      name,
-      toString() { return `#:${name}`; },
-      [Symbol.toPrimitive]() { return `#:${name}`; }
-    };
-  }
-
   function u32() {
     const v = read_u32(arr, i);
     i += 4;
@@ -1161,8 +1132,6 @@ function fasl_to_js_value(arr, i = 0) {
       return [String.fromCodePoint(u32()), i];
     case 2:
       return [Symbol.for(read_string()), i];
-    case 13:
-      return [keywordValue(read_string()), i];
     case 3:
       return [read_string(), i];
     case 4:
@@ -1259,10 +1228,6 @@ function js_value_to_fasl(v) {
     writeByte(2);
     writeString(name);
   }
-  function writeKeyword(name) {
-    writeByte(13);
-    writeString(name);
-  }
   function writeStringVal(s) {
     writeByte(3);
     writeString(s);
@@ -1313,10 +1278,6 @@ function js_value_to_fasl(v) {
     }
     if (typeof x === "boolean") {
       writeBoolean(x);
-      return;
-    }
-    if (x && x.tag === "keyword" && typeof x.name === "string") {
-      writeKeyword(x.name);
       return;
     }
     if (x === null) {
@@ -1628,9 +1589,6 @@ function testsuite(js_value_to_fasl, fasl_to_js_value, { log = true } = {}) {
       const kb = Symbol.keyFor(b) ?? b.description ?? '';
       return ka === kb;
     }
-    if (a && b && a.tag === 'keyword' && b.tag === 'keyword') {
-      return a.name === b.name;
-    }
     // Pairs
     if (a && b && a.tag === 'pair' && b.tag === 'pair') {
       return deepEq(a.car, b.car) && deepEq(a.cdr, b.cdr);
@@ -1685,7 +1643,6 @@ function testsuite(js_value_to_fasl, fasl_to_js_value, { log = true } = {}) {
   test('char snowman', { tag: 'char', cp: '☃'.codePointAt(0) });
   // Symbols
   test('symbol foo', Symbol.for('foo'));
-  test('keyword attrs', { tag: 'keyword', name: 'attrs' });
   // Bytes (Uint8Array)
   test('bytes', new Uint8Array([0, 1, 2, 255]));
   // Pairs
@@ -2143,14 +2100,10 @@ function install_ffi_exception_bridge(imports) {
 }
 
 var imports = {
-    // Core Wasm runtime imports.
     'env': {
         'memory': memory
     },
-
-    // WebRacket runtime primitive imports.
     'primitives': {
-      // Diagnostics, callbacks, and output.
       'console_log': ((x)   => console.error(x)),
       'add':         ((x,y) => x+y),
       'foreign_error_tag': foreign_error_tag,
@@ -2161,8 +2114,6 @@ var imports = {
         const [v] = fasl_to_js_value(bytes);
         console.log(v);
       }),
-
-      // Time and date.
       'current_inexact_milliseconds': (() => Date.now()),
       'current_milliseconds_bits': (() => {
         const modulus = 0x40000000;
@@ -2225,8 +2176,6 @@ var imports = {
           default: return 0;
         }
       }),
-
-      // Virtual filesystem.
       'vfs_stat_kind': ((start, len) => {
         try {
           const stat = webracketVFS.stat(vfs_path_from_memory(start, len));
@@ -2423,8 +2372,6 @@ var imports = {
           return -1;
         }
       }),
-
-      // External values and FFI bridge helpers.
       'register_external': (obj => { externals.push(obj); return externals.length - 1; }),
       'lookup_external':   (idx => externals[idx]),
       'external_number_to_f64': (obj =>
@@ -2440,8 +2387,6 @@ var imports = {
                                    : to_string(String(obj))))),
       'external_nullish': (obj => ((obj === null) || (obj === undefined)) ? 1 : 0),
       'external_undefined': (obj => (obj === undefined) ? 1 : 0),
-
-      // Unicode character operations.
       'char_upcase': ((cp) => {
         const s = String.fromCodePoint(cp).toUpperCase();
         const arr = Array.from(s);
@@ -2549,8 +2494,6 @@ var imports = {
       'char_extended_pictographic': ((cp) =>
         Number(/\p{Extended_Pictographic}/u.test(String.fromCodePoint(cp))))
     },
-
-    // General JavaScript FFI.
     'standard': {
       'global-this':               (() => globalThis),
       'infinity':                  (() => Infinity),
@@ -2717,8 +2660,6 @@ var imports = {
       'Intl.RelativeTimeFormat':   (() => ('RelativeTimeFormat' in Intl ? Intl.RelativeTimeFormat : undefined)),
       'Intl.Segmenter':            (() => ('Segmenter' in Intl ? Intl.Segmenter : undefined))
     },
-
-    // Console FFI.
     'console': {
       'log':                       (args => console.log(...(from_fasl(args) || []))),
       'info':                      (args => console.info(...(from_fasl(args) || []))),
@@ -2756,14 +2697,10 @@ var imports = {
       'profile-end':               (args => (console.profileEnd || (() => {}))(...(from_fasl(args) || []))),
       'exception':                 (args => console.error(...(from_fasl(args) || []))),
     },
-
-    // Temporary/prototype FFI.
     'temp': {
       'x':                         ((o) => to_fasl(o.x)),
       'set-x!':                    ((o, v) => { o.x = from_fasl(v); }),
     },
-
-    // JavaScript Math FFI.
     'math': {
         'abs':    ((x)       => Math.abs(x)),
         'acos':   ((x)       => Math.acos(x)),
@@ -2801,8 +2738,6 @@ var imports = {
         'tanh':   ((x)       => Math.tanh(x)),
         'trunc':  ((x)       => Math.trunc(x))
     },
-
-    // JavaScript Number FFI.
     'number': {
         // Machine epsilon constant.
         'epsilon':           (() => Number.EPSILON),
@@ -2857,8 +2792,6 @@ var imports = {
         // Extract primitive numeric value.
         'value-of':          (x => x.valueOf())
     },
-
-    // JavaScript Array FFI.
       'array': {
         'length':            (arr => arr.length),
         'set-length!':       ((arr, len) => { arr.length = len; }),
@@ -3542,7 +3475,7 @@ var imports = {
         'controls': (m => m.controls ? 1 : 0),
         'set-controls!': ((m, flag) => { m.controls = !!flag; }),
         'controls-list': (m => m.controlsList),
-        'cross-origin': (m => to_fasl(m.crossOrigin)),
+        'cross-origin': (m => m.crossOrigin),
         'set-cross-origin!': ((m, o) => { m.crossOrigin = from_fasl(o); }),
         'current-src': (m => m.currentSrc),
         'current-time': (m => m.currentTime),
@@ -3691,7 +3624,7 @@ var imports = {
         'set-srcset!': ((img, s) => { img.srcset = from_fasl(s); }),
         'sizes': (img => img.sizes),
         'set-sizes!': ((img, s) => { img.sizes = from_fasl(s); }),
-        'cross-origin': (img => to_fasl(img.crossOrigin)),
+        'cross-origin': (img => img.crossOrigin),
         'set-cross-origin!': ((img, o) => { img.crossOrigin = from_fasl(o); }),
         'use-map': (img => img.useMap),
         'set-use-map!': ((img, m) => { img.useMap = from_fasl(m); }),
@@ -5066,38 +4999,19 @@ var imports = {
 
 install_ffi_exception_bridge(imports);
 
-let splitRuntimeCoreExports = {};
-const coreRuntimeModule = await WebAssembly.instantiate(coreWasmBuffer, imports);
-splitRuntimeCoreExports = coreRuntimeModule.instance.exports;
-imports["core"] = splitRuntimeCoreExports;
-
-
-
 const wasmModule
       = await WebAssembly
       .instantiate(wasmBuffer, imports)
-      .then(results  => { const programExports = results.instance.exports;
-                          const { entry, get_bytes, copy_bytes_to_memory } = programExports;
-                          const callback = programExports.callback ?? splitRuntimeCoreExports.callback;
-                          const callback_accepts_argc =
-                            programExports['callback-accepts-argc'] ??
-                            splitRuntimeCoreExports['callback-accepts-argc'];
-                          const callback_expected_arity =
-                            programExports['callback-expected-arity'] ??
-                            splitRuntimeCoreExports['callback-expected-arity'];
-                          const callback_name =
-                            programExports['callback-name'] ??
-                            splitRuntimeCoreExports['callback-name'];
-                          const callback_debug_id =
-                            programExports['callback-debug-id'] ??
-                            splitRuntimeCoreExports['callback-debug-id'];
-                          const wr_ref = programExports['wr-ref'] ?? splitRuntimeCoreExports['wr-ref'];
-                          const wr_call = programExports['wr-call'] ?? splitRuntimeCoreExports['wr-call'];
-                          const wr_names = programExports['wr-names'] ?? splitRuntimeCoreExports['wr-names'];
-                          const wr_names_detailed =
-                            programExports['wr-names-detailed'] ??
-                            splitRuntimeCoreExports['wr-names-detailed'];
-                          const wr_format = programExports['wr-format'] ?? splitRuntimeCoreExports['wr-format'];
+      .then(results  => { const { entry, get_bytes, copy_bytes_to_memory, callback,
+                                  ['callback-accepts-argc']: callback_accepts_argc,
+                                  ['callback-expected-arity']: callback_expected_arity,
+                                  ['callback-name']: callback_name,
+                                  ['callback-debug-id']: callback_debug_id,
+                                  ['wr-ref']: wr_ref,
+                                  ['wr-call']: wr_call,
+                                  ['wr-names']: wr_names,
+                                  ['wr-names-detailed']: wr_names_detailed,
+                                  ['wr-format']: wr_format } = results.instance.exports;
                           callback_export = callback;
                           callback_accepts_argc_export = callback_accepts_argc;
                           callback_expected_arity_export = callback_expected_arity;

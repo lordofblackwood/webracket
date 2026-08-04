@@ -29,7 +29,7 @@
   (string-append "https://github.com/soegaard/webracket/blob/main/"
                  (if (handwritten-example? example-id)
                      "website-simple/src/examples/web-easy/"
-                     "lib/web-easy/examples/")
+                     "pkgs/web-easy/examples/")
                  example-id
                  "/"
                  file-name))

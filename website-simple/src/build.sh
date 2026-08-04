@@ -210,7 +210,7 @@ mkdir -p "$WEB_EASY_EXAMPLES_OUT_DIR"
 
 copy_web_easy_generated_example() {
   local example_name="$1"
-  local generated_dir="$ROOT_DIR/lib/web-easy/examples/$example_name/generated"
+  local generated_dir="$ROOT_DIR/pkgs/web-easy/examples/$example_name/generated"
   local target_dir="$WEB_EASY_EXAMPLES_OUT_DIR/$example_name"
 
   rm -rf "$target_dir"
