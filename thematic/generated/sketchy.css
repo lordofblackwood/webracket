@@ -215,12 +215,10 @@ html.we-theme-sketchy {
   --we-button-group-adjacent-button-shadow: var(--we-button-shadow-current, var(--we-button-variant-shadow));
   --we-button-group-separator-width: 2px;
   --we-button-group-separator-style: solid;
-  --we-button-group-separator-color: #333;
   --we-button-group-vertical-radius: 25px;
   --we-button-group-vertical-button-radius: 255px 25px 225px 25px/25px 225px 25px 255px;
   --we-button-group-vertical-separator-width: 2px;
   --we-button-group-vertical-separator-style: solid;
-  --we-button-group-vertical-separator-color: #555;
   --we-button-primary-bg: #333;
   --we-button-primary-color: #fff;
   --we-button-primary-border: #333;
@@ -308,7 +306,6 @@ html.we-theme-sketchy {
   --we-card-cap-color: #212529;
   --we-card-cap-padding-x: 1rem;
   --we-card-cap-padding-y: 0.5rem;
-  --we-card-header-font-weight: inherit;
   --we-card-header-radius-top-left: calc(25px - 2px);
   --we-card-header-radius-top-right: calc(25px - 2px);
   --we-card-footer-radius-bottom-left: calc(25px - 2px);
@@ -461,16 +458,9 @@ html.we-theme-sketchy {
   --we-toast-title-font-family: "Cabin Sketch", cursive;
   --we-toast-title-font-size: 0.875rem;
   --we-toast-title-font-weight: bolder;
-  --we-toast-title-line-height: inherit;
-  --we-toast-title-letter-spacing: inherit;
-  --we-toast-title-text-transform: inherit;
   --we-toast-title-text-shadow: var(--we-toast-text-shadow, var(--we-text-shadow, none));
-  --we-toast-meta-font-family: inherit;
   --we-toast-meta-font-size: 0.875em;
-  --we-toast-meta-font-weight: inherit;
   --we-toast-meta-line-height: 1.5;
-  --we-toast-meta-letter-spacing: inherit;
-  --we-toast-meta-text-transform: inherit;
   --we-toast-header-radius-top-left: calc(25px - 2px);
   --we-toast-header-radius-top-right: calc(25px - 2px);
   --we-toast-body-padding: 0.75rem;
@@ -576,16 +566,7 @@ html.we-theme-sketchy {
   --we-alert-radius: 255px 25px 225px 25px/25px 225px 25px 255px;
   --we-alert-title-font-family: "Cabin Sketch", cursive;
   --we-alert-title-font-weight: bolder;
-  --we-alert-title-line-height: inherit;
-  --we-alert-title-letter-spacing: inherit;
-  --we-alert-title-text-transform: inherit;
-  --we-alert-title-text-shadow: inherit;
-  --we-alert-link-color: inherit;
-  --we-alert-link-font-family: inherit;
   --we-alert-link-font-weight: 700;
-  --we-alert-link-line-height: inherit;
-  --we-alert-link-letter-spacing: inherit;
-  --we-alert-link-text-transform: inherit;
   --we-alert-primary-bg: #d6d6d6;
   --we-alert-primary-border: #adadad;
   --we-alert-primary-color: #141414;
@@ -830,7 +811,6 @@ html.we-theme-sketchy {
   --we-check-border-style: none;
   --we-check-size: 0;
   --we-check-height: 0;
-  --we-check-font-size: inherit;
   --we-check-line-height: 1.5;
   --we-check-radius: 0.25em;
   --we-radio-radius: 50%;
@@ -1076,11 +1056,7 @@ html.we-theme-sketchy {
   --we-lead-letter-spacing: normal;
   --we-lead-text-transform: none;
   --we-strong-font-family: "Cabin Sketch", cursive;
-  --we-strong-font-size: inherit;
   --we-strong-font-weight: bolder;
-  --we-strong-line-height: inherit;
-  --we-strong-letter-spacing: inherit;
-  --we-strong-text-transform: inherit;
   --we-blockquote-color: #212529;
   --we-blockquote-font-family: Neucha, -apple-system, system-ui, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --we-blockquote-font-size: 1.25rem;
@@ -1795,6 +1771,7 @@ html.we-theme-sketchy .we-button-primary {
   background: var(--we-button-primary-bg, var(--we-primary));
   border-color: var(--we-button-primary-border, var(--we-primary));
   color: var(--we-button-primary-color, var(--we-primary-on));
+  --we-button-border-color: var(--we-button-primary-border, var(--we-primary));
   --we-button-variant-shadow: var(--we-button-primary-shadow, var(--we-button-shadow, none));
   box-shadow: var(--we-button-shadow-current, var(--we-button-variant-shadow));
 }
@@ -1802,6 +1779,7 @@ html.we-theme-sketchy .we-button-primary {
 html.we-theme-sketchy .we-button-primary:not(:disabled):hover {
   background: var(--we-primary-emphasis);
   border-color: var(--we-button-primary-border, var(--we-primary-emphasis));
+  --we-button-border-color: var(--we-button-primary-border, var(--we-primary-emphasis));
 }
 
 html.we-theme-sketchy .we-button-secondary {
@@ -1810,6 +1788,7 @@ html.we-theme-sketchy .we-button-secondary {
   border-style: var(--we-button-secondary-border-style, solid);
   border-color: var(--we-button-secondary-border);
   color: var(--we-button-secondary-color);
+  --we-button-border-color: var(--we-button-secondary-border);
   --we-button-variant-shadow: var(--we-button-secondary-shadow, var(--we-button-shadow, none));
   box-shadow: var(--we-button-shadow-current, var(--we-button-variant-shadow));
 }
@@ -1818,6 +1797,7 @@ html.we-theme-sketchy .we-button-secondary:not(:disabled):hover {
   background: var(--we-button-secondary-hover-bg);
   border-color: var(--we-button-secondary-hover-border);
   color: var(--we-button-secondary-hover-color);
+  --we-button-border-color: var(--we-button-secondary-hover-border);
 }
 
 html.we-theme-sketchy .we-button-ghost {
@@ -1897,6 +1877,7 @@ html.we-theme-sketchy .we-button-outline-primary {
   background: var(--we-button-outline-primary-bg, transparent);
   border-color: var(--we-button-outline-primary-border, var(--we-primary));
   color: var(--we-button-outline-primary-color, var(--we-primary));
+  --we-button-border-color: var(--we-button-outline-primary-border, var(--we-primary));
   --we-button-variant-shadow: var(--we-button-outline-primary-shadow, var(--we-button-primary-shadow, var(--we-button-shadow, none)));
   box-shadow: var(--we-button-shadow-current, var(--we-button-variant-shadow));
 }
@@ -1905,6 +1886,7 @@ html.we-theme-sketchy .we-button-outline-primary[aria-pressed='true'] {
   background: var(--we-button-outline-primary-active-bg, var(--we-primary));
   border-color: var(--we-button-outline-primary-active-border, var(--we-button-primary-border, var(--we-primary)));
   color: var(--we-button-outline-primary-active-color, var(--we-primary-on));
+  --we-button-border-color: var(--we-button-outline-primary-active-border, var(--we-button-primary-border, var(--we-primary)));
   --we-button-variant-shadow: var(--we-button-outline-primary-active-shadow, var(--we-button-outline-primary-shadow, var(--we-button-primary-shadow, var(--we-button-shadow, none))));
 }
 html.we-theme-sketchy .we-button-outline-primary,
@@ -1921,10 +1903,11 @@ html.we-theme-sketchy .we-button-outline-secondary {
   background: var(--we-button-outline-secondary-bg, transparent);
   border-color: var(--we-button-outline-secondary-border);
   color: var(--we-button-outline-secondary-color);
+  --we-button-border-color: var(--we-button-outline-secondary-border);
   --we-button-variant-shadow: var(--we-button-outline-secondary-shadow, var(--we-button-secondary-shadow, var(--we-button-shadow, none)));
   box-shadow: var(--we-button-shadow-current, var(--we-button-variant-shadow));
 }
-html.we-theme-sketchy .we-button-outline-secondary:not(:disabled):hover { background: var(--we-button-outline-secondary-hover-bg); border-color: var(--we-button-outline-secondary-hover-border); color: var(--we-button-secondary-hover-color); }
+html.we-theme-sketchy .we-button-outline-secondary:not(:disabled):hover { background: var(--we-button-outline-secondary-hover-bg); border-color: var(--we-button-outline-secondary-hover-border); color: var(--we-button-secondary-hover-color); --we-button-border-color: var(--we-button-outline-secondary-hover-border); }
 html.we-theme-sketchy .we-button-outline-success { background: transparent; border-color: var(--we-button-success-border, var(--we-success)); color: var(--we-success-emphasis); --we-button-variant-shadow: var(--we-button-success-shadow, var(--we-button-shadow, none)); box-shadow: var(--we-button-shadow-current, var(--we-button-variant-shadow)); }
 html.we-theme-sketchy .we-button-outline-info { background: transparent; border-color: var(--we-button-info-border, var(--we-info)); color: var(--we-info); --we-button-variant-shadow: var(--we-button-info-shadow, var(--we-button-shadow, none)); box-shadow: var(--we-button-shadow-current, var(--we-button-variant-shadow)); }
 html.we-theme-sketchy .we-button-outline-warning { background: transparent; border-color: var(--we-button-warning-border, var(--we-warning)); color: var(--we-warning-emphasis); --we-button-variant-shadow: var(--we-button-warning-shadow, var(--we-button-shadow, none)); box-shadow: var(--we-button-shadow-current, var(--we-button-variant-shadow)); }
@@ -3441,7 +3424,8 @@ html.we-theme-sketchy .we-toggle-button-group > .we-button + .we-button {
   margin-left: calc(-1 * var(--we-button-border-width, var(--we-border-width)));
 }
 
-html.we-theme-sketchy .we-button-group > .we-button + .we-button {
+html.we-theme-sketchy .we-button-group > .we-button + .we-button,
+html.we-theme-sketchy .we-toolbar-group > .we-button + .we-button {
   box-shadow: var(--we-button-group-adjacent-button-shadow, var(--we-button-shadow-current, var(--we-button-variant-shadow)));
 }
 

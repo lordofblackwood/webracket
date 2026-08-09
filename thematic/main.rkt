@@ -6817,9 +6817,7 @@
         button-border-style))
   (define button-group-separator-color
     (or (theme-component-ref theme 'btn-group-separator-color)
-        button-border-color-override
-        (theme-component-ref theme 'btn-outline-primary-border)
-        (bootstrap-theme-primary theme)))
+        button-border-color-override))
   (define button-group-vertical-radius
     (or (theme-component-ref theme 'btn-group-vertical-radius)
         button-group-radius))
@@ -6836,10 +6834,7 @@
         button-border-style))
   (define button-group-vertical-separator-color
     (or (theme-component-ref theme 'btn-group-vertical-separator-color)
-        button-border-color-override
-        (theme-component-ref theme 'btn-secondary-border)
-        (theme-component-ref theme 'btn-outline-secondary-border)
-        button-border-color))
+        button-border-color-override))
   (define button-primary-shadow
     (or (theme-component-ref theme 'btn-primary-shadow)
         "var(--we-button-shadow, none)"))
@@ -10128,7 +10123,9 @@
    " {\n"
    (apply string-append
           (for/list ([entry (in-list token-lines)])
-            (format "  ~a: ~a;\n" (car entry) (cdr entry))))
+            (if (present-css-value? (cdr entry))
+                (format "  ~a: ~a;\n" (car entry) (cdr entry))
+                "")))
    "  color: var(--we-fg);\n"
    "  text-shadow: var(--we-text-shadow, none);\n"
    "}\n\n"
