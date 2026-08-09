@@ -527,6 +527,30 @@
     (and (string? value)
          (not (string-empty-or-whitespace? value))
          value))
+  (define (authored-direct-ref selectors property)
+    (and (css-stylesheet? rules)
+         (for/or ([declaration (in-list
+                                 (reverse
+                                  (css-find-declarations-in-selector-groups
+                                   rules
+                                   selectors
+                                   property)))])
+           (present-authored-ref
+            (string-trim
+             (regexp-replace #px"(?i:\\s*!important\\s*$)"
+                             (css-declaration-value declaration)
+                             ""))))))
+  (define (unresolved-direct-var-token? value)
+    (define m
+      (and (string? value)
+           (regexp-match css-var-regexp value)))
+    (and m
+         (let ([key (second m)]
+               [fallback (third m)])
+           (and key
+                (not fallback)
+                (not (hash-has-key? props key))
+                (not (hash-has-key? bootstrap-defaults key))))))
   (define (present-non-none-ref value)
     (and (present-css-value? value)
          (not (string-ci=? (string-trim value) "none"))
@@ -922,6 +946,12 @@
                        '(".navbar.rounded" ".rounded" ".navbar")
                        "border-radius")
         (hash-ref props "--bs-border-radius" #f)))
+  (define navbar-link-radius
+    (or (navbar-direct-ref '(".navbar .navbar-nav .nav-link"
+                             ".navbar-nav .nav-link")
+                           "border-radius")
+        (nav-style-ref ".navbar .navbar-nav .nav-link" "border-radius")
+        (nav-style-ref ".navbar-nav .nav-link" "border-radius")))
   (define navbar-padding-x
     (or (selector-ref* nav-style-ref
                        '(".navbar.px-3" ".px-3")
@@ -965,6 +995,8 @@
     (tab-direct-ref tab-link-selectors "padding"))
   (define tab-border-shorthand
     (tab-direct-ref tab-border-selectors "border"))
+  (define tab-border-width-shorthand
+    (tab-direct-ref tab-border-selectors "border-width"))
   (define tab-border-radius-shorthand
     (tab-direct-ref tab-link-selectors "border-radius"))
   (define tab-first-radius-shorthand
@@ -986,6 +1018,18 @@
         (nav-style-ref ".nav-tabs .nav-link" "border-width")
         (nav-style-ref ".nav-link" "border-width")
         (hash-ref props "--bs-border-width" #f)))
+  (define (tab-border-side-width side property)
+    (or (tab-direct-ref tab-border-selectors property)
+        (box-shorthand-side tab-border-width-shorthand side)
+        (nav-style-ref ".nav-tabs .nav-link" property)))
+  (define tab-border-top-width
+    (tab-border-side-width 'top "border-top-width"))
+  (define tab-border-right-width
+    (tab-border-side-width 'right "border-right-width"))
+  (define tab-border-bottom-width
+    (tab-border-side-width 'bottom "border-bottom-width"))
+  (define tab-border-left-width
+    (tab-border-side-width 'left "border-left-width"))
   (define tab-border-style
     (or (tab-direct-ref tab-border-selectors "border-style")
         (border-shorthand-style tab-border-shorthand)
@@ -1967,7 +2011,10 @@
         (button-custom-ref ".btn-light" "--bs-btn-bg")
         (button-style-ref ".btn-light" "background-color")))
   (define btn-light-border
-    (or (button-custom-ref ".btn-light" "--bs-btn-border-color")
+    (or (button-direct-ref '(".btn-light"
+                             ".btn-light, .btn-outline-light")
+                           "border-color")
+        (button-custom-ref ".btn-light" "--bs-btn-border-color")
         (button-style-ref ".btn-light" "border-color")))
   (define btn-light-color
     (or (button-direct-ref '(".btn-light") "color")
@@ -2049,11 +2096,19 @@
   (define btn-outline-secondary-hover-color
     (or (button-custom-ref ".btn-outline-secondary" "--bs-btn-hover-color")
         (button-style-ref ".btn-outline-secondary:hover" "color")))
+  (define btn-outline-secondary-disabled-selectors
+    '(".btn-outline-secondary:disabled"
+      ".btn-outline-secondary.disabled"
+      ".btn-secondary:disabled, .btn-secondary.disabled, .btn-light:disabled, .btn-light.disabled, .btn-outline-secondary:disabled, .btn-outline-secondary.disabled, .btn-outline-light:disabled, .btn-outline-light.disabled"))
+  (define btn-outline-secondary-disabled-border-shorthand
+    (button-direct-ref btn-outline-secondary-disabled-selectors "border"))
   (define btn-outline-secondary-disabled-bg
     (or (button-custom-ref ".btn-outline-secondary" "--bs-btn-disabled-bg")
         (button-style-ref ".btn-outline-secondary:disabled" "background-color")))
   (define btn-outline-secondary-disabled-border
-    (or (button-custom-ref ".btn-outline-secondary" "--bs-btn-disabled-border-color")
+    (or (button-direct-ref btn-outline-secondary-disabled-selectors "border-color")
+        (border-shorthand-color btn-outline-secondary-disabled-border-shorthand)
+        (button-custom-ref ".btn-outline-secondary" "--bs-btn-disabled-border-color")
         (button-style-ref ".btn-outline-secondary:disabled" "border-color")))
   (define btn-outline-secondary-disabled-color
     (or (button-custom-ref ".btn-outline-secondary" "--bs-btn-disabled-color")
@@ -2483,12 +2538,26 @@
                        '(".pagination .page-link" ".page-link" ".pagination")
                        "text-transform")
         "none"))
+  (define pagination-color-token
+    (custom-direct-token-ref '(".pagination") "--bs-pagination-color"))
+  (define pagination-color-from-token
+    (and pagination-color-token
+         (resolved-concrete-css-value pagination-color-token pagination-context-ref)))
   (define pagination-color
-    (or (navmetric-custom-ref ".pagination" "--bs-pagination-color")
+    (or (and (unresolved-direct-var-token? pagination-color-token)
+             (hash-ref props "--bs-body-color" #f))
+        pagination-color-from-token
+        (and pagination-color-token
+             (hash-ref props "--bs-body-color" #f))
+        (navmetric-custom-ref ".pagination" "--bs-pagination-color")
         (navmetric-style-ref ".page-link" "color")))
   (define pagination-bg
     (or (navmetric-custom-ref ".pagination" "--bs-pagination-bg")
         (navmetric-style-ref ".page-link" "background-color")))
+  (define pagination-shadow
+    (or (pagination-direct-ref '(".pagination .page-link" ".page-link") "box-shadow")
+        (navmetric-style-ref ".pagination .page-link" "box-shadow")
+        (navmetric-style-ref ".page-link" "box-shadow")))
   (define pagination-border-width
     (or (navmetric-custom-ref ".pagination" "--bs-pagination-border-width")
         (navmetric-style-ref ".page-link" "border-width")))
@@ -2507,7 +2576,12 @@
         (navmetric-style-ref ".page-item:first-child .page-link"
                              "border-top-left-radius")))
   (define pagination-hover-color
-    (or (navmetric-custom-ref ".pagination" "--bs-pagination-hover-color")
+    (or (let ([token (custom-direct-token-ref '(".pagination")
+                                              "--bs-pagination-hover-color")])
+          (and token
+               (or (resolved-concrete-css-value token pagination-context-ref)
+                   pagination-color)))
+        (navmetric-custom-ref ".pagination" "--bs-pagination-hover-color")
         (navmetric-style-ref ".page-link:hover" "color")))
   (define pagination-hover-bg
     (or (navmetric-custom-ref ".pagination" "--bs-pagination-hover-bg")
@@ -2534,7 +2608,8 @@
                                "box-shadow")
         (navmetric-style-ref ".page-link.active" "box-shadow")
         (navmetric-style-ref ".active > .page-link" "box-shadow")
-        (navmetric-style-ref ".page-item.active .page-link" "box-shadow")))
+        (navmetric-style-ref ".page-item.active .page-link" "box-shadow")
+        pagination-shadow))
   (define pagination-disabled-color
     (or (navmetric-custom-ref ".pagination" "--bs-pagination-disabled-color")
         (navmetric-style-ref ".page-link.disabled" "color")
@@ -2654,6 +2729,9 @@
   (define breadcrumb-divider-color
     (or (navmetric-custom-ref ".breadcrumb" "--bs-breadcrumb-divider-color")
         (navmetric-style-ref ".breadcrumb-item + .breadcrumb-item::before" "color")))
+  (define breadcrumb-divider-content
+    (or (navmetric-custom-ref ".breadcrumb" "--bs-breadcrumb-divider")
+        (navmetric-style-ref ".breadcrumb-item + .breadcrumb-item::before" "content")))
   (define breadcrumb-padding-x
     (or (navmetric-custom-ref ".breadcrumb" "--bs-breadcrumb-padding-x")
         (navmetric-style-ref ".breadcrumb" "padding-left")))
@@ -2672,9 +2750,26 @@
   (define breadcrumb-border-width
     (or (navmetric-style-ref ".breadcrumb" "border-width")
         (hash-ref props "--bs-border-width" #f)))
+  (define breadcrumb-item-padding-shorthand
+    (navmetric-style-ref ".breadcrumb-item" "padding"))
   (define breadcrumb-item-padding-x
     (or (navmetric-custom-ref ".breadcrumb" "--bs-breadcrumb-item-padding-x")
         (navmetric-style-ref ".breadcrumb-item + .breadcrumb-item" "padding-left")))
+  (define (breadcrumb-item-padding side property)
+    (or (navmetric-style-ref ".breadcrumb-item" property)
+        (box-shorthand-side breadcrumb-item-padding-shorthand side)))
+  (define breadcrumb-item-padding-top
+    (breadcrumb-item-padding 'top "padding-top"))
+  (define breadcrumb-item-padding-right
+    (breadcrumb-item-padding 'right "padding-right"))
+  (define breadcrumb-item-padding-bottom
+    (breadcrumb-item-padding 'bottom "padding-bottom"))
+  (define breadcrumb-item-padding-left
+    (breadcrumb-item-padding 'left "padding-left"))
+  (define breadcrumb-separator-padding-right
+    (or (navmetric-style-ref ".breadcrumb-item + .breadcrumb-item::before"
+                             "padding-right")
+        breadcrumb-item-padding-x))
   (define breadcrumb-font-size
     (selector-ref* navmetric-style-ref
                    '(".breadcrumb-item a" ".breadcrumb-item.active" ".breadcrumb-item" ".breadcrumb" "body")
@@ -2731,8 +2826,8 @@
     (or (toast-custom-ref ".toast" "--bs-toast-max-width")
         (toast-style-ref ".toast" "width")))
   (define toast-color
-    (or (toast-custom-ref ".toast" "--bs-toast-color")
-        (toast-style-ref ".toast" "color")
+    (or (present-ref (toast-custom-ref ".toast" "--bs-toast-color"))
+        (present-ref (toast-style-ref ".toast" "color"))
         (hash-ref props "--bs-body-color" #f)))
   (define toast-bg
     (or (toast-direct-ref '(".toast") "background-color")
@@ -2764,9 +2859,18 @@
   (define toast-text-shadow
     (or (toast-direct-ref '(".toast") "text-shadow")
         (toast-style-ref ".toast" "text-shadow")))
+  (define toast-header-color-token
+    (custom-direct-token-ref '(".toast") "--bs-toast-header-color"))
+  (define toast-header-color-from-token
+    (and toast-header-color-token
+         (resolved-concrete-css-value toast-header-color-token toast-context-ref)))
   (define toast-header-color
-    (or (toast-custom-ref ".toast" "--bs-toast-header-color")
-        (toast-style-ref ".toast-header" "color")))
+    (or (and (unresolved-direct-var-token? toast-header-color-token)
+             toast-color)
+        toast-header-color-from-token
+        (and toast-header-color-token toast-color)
+        (toast-style-ref ".toast-header" "color")
+        (toast-custom-ref ".toast" "--bs-toast-header-color")))
   (define toast-header-bg
     (or (toast-custom-ref ".toast" "--bs-toast-header-bg")
         (toast-style-ref ".toast-header" "background-color")))
@@ -3035,6 +3139,17 @@
         (box-shorthand-side alert-dismiss-padding-shorthand
                             (string->symbol side))
         (alert-style-ref ".alert-dismissible .btn-close" property)))
+  (define alert-dismiss-color-raw
+    (or (authored-direct-ref '(".alert .btn-close"
+                               ".alert-dismissible .btn-close")
+                             "color")
+        (alert-style-ref ".alert .btn-close" "color")
+        (alert-style-ref ".alert-dismissible .btn-close" "color")))
+  (define alert-dismiss-color
+    (if (and (string? alert-dismiss-color-raw)
+             (string-ci=? (string-trim alert-dismiss-color-raw) "inherit"))
+        "currentColor"
+        alert-dismiss-color-raw))
   (define alert-border-width
     (or (border-shorthand-width alert-border-shorthand)
         (alert-style-ref ".alert" "border-width")))
@@ -3368,6 +3483,10 @@
     ".table-sm > :not(caption) > * > *")
   (define table-cell-override-selectors
     '(".table th" ".table td"))
+  (define table-header-selectors
+    '(".table thead th" ".table > thead th" "thead th" ".table th" "th"))
+  (define table-head-selectors
+    '(".table > thead" ".table thead" "thead"))
   (define table-sm-cell-selectors
     (list table-sm-cell-selector ".table-sm th" ".table-sm td"))
   (define table-cell-padding-override
@@ -3416,20 +3535,33 @@
           header-color
           table-color)))
   (define table-header-font-family
-    (or (list-table-style-ref ".table th" "font-family")
+    (or (selector-ref* list-table-style-ref
+                       table-header-selectors
+                       "font-family")
         (list-table-style-ref table-cell-selector "font-family")
         (list-table-style-ref "th" "font-family")))
   (define table-header-font-size
-    (or (table-direct-ref '(".table th") "font-size")
+    (or (table-direct-ref table-header-selectors "font-size")
         table-font-size
-        (list-table-style-ref "th" "font-size")
-        (list-table-style-ref ".table th" "font-size")))
+        (selector-ref* list-table-style-ref
+                       table-header-selectors
+                       "font-size")))
   (define table-header-font-weight
-    (or (list-table-style-ref ".table th" "font-weight")
-        (list-table-style-ref "th" "font-weight")))
+    (selector-ref* list-table-style-ref
+                   table-header-selectors
+                   "font-weight"))
   (define table-header-text-transform
-    (or (list-table-style-ref "th" "text-transform")
-        (list-table-style-ref ".table th" "text-transform")))
+    (or (table-direct-ref table-header-selectors "text-transform")
+        (selector-ref* list-table-style-ref
+                       table-header-selectors
+                       "text-transform")))
+  (define table-header-vertical-align
+    (or (selector-ref* list-table-style-ref
+                       table-head-selectors
+                       "vertical-align")
+        (selector-ref* list-table-style-ref
+                       table-header-selectors
+                       "vertical-align")))
   (define table-body-font-weight
     (or (list-table-style-ref ".table td" "font-weight")
         (hash-ref props "--bs-body-font-weight" #f)
@@ -4476,6 +4608,7 @@
         'navbar-border-style navbar-border-style
         'navbar-shadow navbar-shadow
         'navbar-radius navbar-radius
+        'navbar-link-radius navbar-link-radius
         'navbar-padding-x navbar-padding-x
         'navbar-padding-y navbar-padding-y
         'navbar-font-size navbar-font-size
@@ -4486,6 +4619,10 @@
         'tab-border-color tab-border-color
         'tab-link-border-color tab-link-border-color
         'tab-border-width tab-border-width
+        'tab-border-top-width tab-border-top-width
+        'tab-border-right-width tab-border-right-width
+        'tab-border-bottom-width tab-border-bottom-width
+        'tab-border-left-width tab-border-left-width
         'tab-border-style tab-border-style
         'tab-shadow tab-shadow
         'tab-padding-x tab-padding-x
@@ -4840,6 +4977,7 @@
         'pagination-text-transform pagination-text-transform
         'pagination-color pagination-color
         'pagination-bg pagination-bg
+        'pagination-shadow pagination-shadow
         'pagination-border-width pagination-border-width
         'pagination-border-color pagination-border-color
         'pagination-radius pagination-radius
@@ -4880,6 +5018,7 @@
         'placeholder-bg placeholder-bg
         'placeholder-opacity placeholder-opacity
         'breadcrumb-divider-color breadcrumb-divider-color
+        'breadcrumb-divider-content breadcrumb-divider-content
         'breadcrumb-padding-x breadcrumb-padding-x
         'breadcrumb-padding-y breadcrumb-padding-y
         'breadcrumb-bg breadcrumb-bg
@@ -4887,6 +5026,11 @@
         'breadcrumb-border-color breadcrumb-border-color
         'breadcrumb-border-width breadcrumb-border-width
         'breadcrumb-item-padding-x breadcrumb-item-padding-x
+        'breadcrumb-item-padding-top breadcrumb-item-padding-top
+        'breadcrumb-item-padding-right breadcrumb-item-padding-right
+        'breadcrumb-item-padding-bottom breadcrumb-item-padding-bottom
+        'breadcrumb-item-padding-left breadcrumb-item-padding-left
+        'breadcrumb-separator-padding-right breadcrumb-separator-padding-right
         'breadcrumb-font-size breadcrumb-font-size
         'breadcrumb-font-weight breadcrumb-font-weight
         'breadcrumb-line-height breadcrumb-line-height
@@ -4972,6 +5116,7 @@
         'alert-dismiss-padding-right (alert-dismiss-padding "right")
         'alert-dismiss-padding-bottom (alert-dismiss-padding "bottom")
         'alert-dismiss-padding-left (alert-dismiss-padding "left")
+        'alert-dismiss-color alert-dismiss-color
         'alert-border-width alert-border-width
         'alert-border-style alert-border-style
         'alert-border-color alert-border-color
@@ -5116,11 +5261,12 @@
         'table-border-top-width table-border-top-width
         'table-header-color table-header-color
         'table-header-font-family table-header-font-family
-        'table-header-font-size table-header-font-size
-        'table-header-font-weight table-header-font-weight
-        'table-header-text-transform table-header-text-transform
-        'table-body-font-weight table-body-font-weight
-        'field-bg field-bg
+       'table-header-font-size table-header-font-size
+       'table-header-font-weight table-header-font-weight
+       'table-header-text-transform table-header-text-transform
+       'table-header-vertical-align table-header-vertical-align
+       'table-body-font-weight table-body-font-weight
+       'field-bg field-bg
         'field-color field-color
         'field-border-color field-border-color
         'field-border-width field-border-width
@@ -6121,6 +6267,9 @@
   (define navbar-radius
     (or (theme-component-ref theme 'navbar-radius)
         (bootstrap-theme-radius-md theme)))
+  (define navbar-link-radius
+    (or (theme-component-ref theme 'navbar-link-radius)
+        "0"))
   (define navbar-padding-x
     (or (theme-component-ref theme 'navbar-padding-x)
         "1rem"))
@@ -6234,6 +6383,18 @@
     (or (theme-component-ref theme 'tab-border-width)
         (hash-ref bootstrap-defaults "--bs-border-width" #f)
         "1px"))
+  (define tab-border-top-width
+    (or (theme-component-ref theme 'tab-border-top-width)
+        tab-border-width))
+  (define tab-border-right-width
+    (or (theme-component-ref theme 'tab-border-right-width)
+        tab-border-width))
+  (define tab-border-bottom-width
+    (or (theme-component-ref theme 'tab-border-bottom-width)
+        tab-border-width))
+  (define tab-border-left-width
+    (or (theme-component-ref theme 'tab-border-left-width)
+        tab-border-width))
   (define tab-border-style
     (or (theme-component-ref theme 'tab-border-style)
         "solid"))
@@ -7352,6 +7513,9 @@
   (define pagination-bg
     (or (theme-component-ref theme 'pagination-bg)
         (hash-ref surface-map 'surface)))
+  (define pagination-shadow
+    (or (theme-component-ref theme 'pagination-shadow)
+        "none"))
   (define pagination-border-width
     (or (theme-component-ref theme 'pagination-border-width)
         "0"))
@@ -7472,6 +7636,9 @@
   (define breadcrumb-divider-color
     (or (theme-component-ref theme 'breadcrumb-divider-color)
         fg-muted))
+  (define breadcrumb-divider-content
+    (or (theme-component-token-ref theme 'breadcrumb-divider-content)
+        "\"/\""))
   (define breadcrumb-padding-x
     (or (theme-component-ref theme 'breadcrumb-padding-x)
         "0"))
@@ -7493,6 +7660,21 @@
   (define breadcrumb-item-padding-x
     (or (theme-component-ref theme 'breadcrumb-item-padding-x)
         "0.5rem"))
+  (define breadcrumb-item-padding-top
+    (or (theme-component-ref theme 'breadcrumb-item-padding-top)
+        "0"))
+  (define breadcrumb-item-padding-right
+    (or (theme-component-ref theme 'breadcrumb-item-padding-right)
+        "0"))
+  (define breadcrumb-item-padding-bottom
+    (or (theme-component-ref theme 'breadcrumb-item-padding-bottom)
+        "0"))
+  (define breadcrumb-item-padding-left
+    (or (theme-component-ref theme 'breadcrumb-item-padding-left)
+        "0"))
+  (define breadcrumb-separator-padding-right
+    (or (theme-component-ref theme 'breadcrumb-separator-padding-right)
+        breadcrumb-item-padding-x))
   (define breadcrumb-font-size
     (or (theme-component-ref theme 'breadcrumb-font-size)
         (bootstrap-theme-font-size-md theme)))
@@ -7743,6 +7925,9 @@
   (define alert-dismiss-padding-left
     (or (theme-component-ref theme 'alert-dismiss-padding-left)
         "1rem"))
+  (define alert-dismiss-color
+    (or (theme-component-token-ref theme 'alert-dismiss-color)
+        close-button-color))
   (define alert-border-width
     (or (theme-component-ref theme 'alert-border-width)
         "1px"))
@@ -8132,6 +8317,9 @@
   (define table-header-text-transform
     (or (theme-component-ref theme 'table-header-text-transform)
         "none"))
+  (define table-header-vertical-align
+    (or (theme-component-ref theme 'table-header-vertical-align)
+        "bottom"))
   (define table-body-font-weight
     (or (theme-component-ref theme 'table-body-font-weight)
         (bootstrap-theme-font-weight-normal theme)))
@@ -8309,13 +8497,13 @@
         (bootstrap-theme-font-family-base theme)))
   (define floating-label-font-size
     (or (theme-component-ref theme 'floating-label-font-size)
-        field-font-size))
+        (bootstrap-theme-font-size-md theme)))
   (define floating-label-font-weight
     (or (theme-component-ref theme 'floating-label-font-weight)
         field-font-weight))
   (define floating-label-line-height
     (or (theme-component-ref theme 'floating-label-line-height)
-        field-line-height))
+        (bootstrap-theme-line-height-base theme)))
   (define floating-label-letter-spacing
     (or (theme-component-ref theme 'floating-label-letter-spacing)
         (bootstrap-theme-letter-spacing-base theme)))
@@ -9143,6 +9331,7 @@
     (cons "--we-navbar-border-style" navbar-border-style)
     (cons "--we-navbar-shadow" navbar-shadow)
     (cons "--we-navbar-radius" navbar-radius)
+    (cons "--we-navbar-link-radius" navbar-link-radius)
     (cons "--we-navbar-padding-x" navbar-padding-x)
     (cons "--we-navbar-padding-y" navbar-padding-y)
     (cons "--we-navbar-font-size" navbar-font-size)
@@ -9179,6 +9368,10 @@
     (cons "--we-tab-border-color" tab-border-color)
     (cons "--we-tab-link-border-color" tab-link-border-color)
     (cons "--we-tab-border-width" tab-border-width)
+    (cons "--we-tab-border-top-width" tab-border-top-width)
+    (cons "--we-tab-border-right-width" tab-border-right-width)
+    (cons "--we-tab-border-bottom-width" tab-border-bottom-width)
+    (cons "--we-tab-border-left-width" tab-border-left-width)
     (cons "--we-tab-border-style" tab-border-style)
     (cons "--we-tab-shadow" tab-shadow)
     (cons "--we-tab-padding-x" tab-padding-x)
@@ -9443,6 +9636,7 @@
     (cons "--we-pagination-text-transform" pagination-text-transform)
     (cons "--we-pagination-color" pagination-color)
     (cons "--we-pagination-bg" pagination-bg)
+    (cons "--we-pagination-shadow" pagination-shadow)
     (cons "--we-pagination-border-width" pagination-border-width)
     (cons "--we-pagination-border-color" pagination-border-color)
     (cons "--we-pagination-radius" pagination-radius)
@@ -9483,6 +9677,7 @@
     (cons "--we-placeholder-bg" placeholder-bg)
     (cons "--we-placeholder-opacity" placeholder-opacity)
     (cons "--we-breadcrumb-divider-color" breadcrumb-divider-color)
+    (cons "--we-breadcrumb-divider-content" breadcrumb-divider-content)
     (cons "--we-breadcrumb-padding-x" breadcrumb-padding-x)
     (cons "--we-breadcrumb-padding-y" breadcrumb-padding-y)
     (cons "--we-breadcrumb-bg" breadcrumb-bg)
@@ -9490,6 +9685,11 @@
     (cons "--we-breadcrumb-border-color" breadcrumb-border-color)
     (cons "--we-breadcrumb-border-width" breadcrumb-border-width)
     (cons "--we-breadcrumb-item-padding-x" breadcrumb-item-padding-x)
+    (cons "--we-breadcrumb-item-padding-top" breadcrumb-item-padding-top)
+    (cons "--we-breadcrumb-item-padding-right" breadcrumb-item-padding-right)
+    (cons "--we-breadcrumb-item-padding-bottom" breadcrumb-item-padding-bottom)
+    (cons "--we-breadcrumb-item-padding-left" breadcrumb-item-padding-left)
+    (cons "--we-breadcrumb-separator-padding-right" breadcrumb-separator-padding-right)
     (cons "--we-breadcrumb-font-size" breadcrumb-font-size)
     (cons "--we-breadcrumb-font-weight" breadcrumb-font-weight)
     (cons "--we-breadcrumb-line-height" breadcrumb-line-height)
@@ -9625,6 +9825,7 @@
     (cons "--we-alert-dismiss-padding-right" alert-dismiss-padding-right)
     (cons "--we-alert-dismiss-padding-bottom" alert-dismiss-padding-bottom)
     (cons "--we-alert-dismiss-padding-left" alert-dismiss-padding-left)
+    (cons "--we-alert-dismiss-color" alert-dismiss-color)
     (cons "--we-alert-border-width" alert-border-width)
     (cons "--we-alert-border-style" alert-border-style)
     (cons "--we-alert-border-color" alert-border-color)
@@ -9748,6 +9949,7 @@
     (cons "--we-table-header-font-size" table-header-font-size)
     (cons "--we-table-header-font-weight" table-header-font-weight)
     (cons "--we-table-header-text-transform" table-header-text-transform)
+    (cons "--we-table-header-vertical-align" table-header-vertical-align)
     (cons "--we-table-body-font-weight" table-body-font-weight)
     (cons "--we-field-bg" field-bg)
     (cons "--we-field-color" field-color)
@@ -10866,7 +11068,10 @@
      ".table-sm > :not(caption) > * > * {\n"
      "  padding: 0.25rem 0.25rem;\n"
      "}\n"
-     "th {\n"
+     ".table > thead {\n"
+     "  vertical-align: bottom;\n"
+     "}\n"
+     "thead th {\n"
      "  font-size: 0.875rem;\n"
      "  text-transform: uppercase;\n"
      "}\n"
@@ -11865,6 +12070,7 @@
     (check-equal? (hash-ref token-map "--we-table-sm-cell-padding-y") "0.75rem")
     (check-equal? (hash-ref token-map "--we-table-header-font-size") "0.875rem")
     (check-equal? (hash-ref token-map "--we-table-header-text-transform") "uppercase")
+    (check-equal? (hash-ref token-map "--we-table-header-vertical-align") "bottom")
     (check-equal? (hash-ref token-map "--we-table-body-font-weight") "300"))
 
   (test-case "component rule extraction feeds form and dialog tokens"

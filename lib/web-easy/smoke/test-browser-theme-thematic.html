@@ -171,6 +171,7 @@
           <option value="morph">Morph</option>
           <option value="materia">Materia</option>
           <option value="flatly">Flatly</option>
+          <option value="zephyr">Zephyr</option>
         </select>
         <button id="btn-brite" type="button">Brite</button>
         <button id="btn-superhero" type="button">Superhero</button>
@@ -183,6 +184,7 @@
         <button id="btn-morph" type="button">Morph</button>
         <button id="btn-materia" type="button">Materia</button>
         <button id="btn-flatly" type="button">Flatly</button>
+        <button id="btn-zephyr" type="button">Zephyr</button>
         <span id="current">(loading)</span>
         <a href="./generated/thematic-brite.css" download>Download Brite CSS</a>
         <a href="./generated/thematic-superhero.css" download>Download Superhero CSS</a>
@@ -195,6 +197,7 @@
         <a href="./generated/thematic-morph.css" download>Download Morph CSS</a>
         <a href="./generated/thematic-materia.css" download>Download Materia CSS</a>
         <a href="./generated/thematic-flatly.css" download>Download Flatly CSS</a>
+        <a href="./generated/thematic-zephyr.css" download>Download Zephyr CSS</a>
       </div>
     </div>
   </header>
@@ -260,7 +263,8 @@
       vapor: "./thematic-vapor.css",
       morph: "./thematic-morph.css",
       materia: "./thematic-materia.css",
-      flatly: "./thematic-flatly.css"
+      flatly: "./thematic-flatly.css",
+      zephyr: "./thematic-zephyr.css"
     };
 
     const FRAME_IDS = [
@@ -323,7 +327,8 @@
         "we-theme-vapor",
         "we-theme-morph",
         "we-theme-materia",
-        "we-theme-flatly"
+        "we-theme-flatly",
+        "we-theme-zephyr"
       );
       frameDoc.documentElement.classList.add("we-theme-" + name);
       const coreLink = ensureCoreLink(frameDoc);
@@ -358,6 +363,7 @@
     document.getElementById("btn-morph").addEventListener("click", () => applyTheme("morph"));
     document.getElementById("btn-materia").addEventListener("click", () => applyTheme("materia"));
     document.getElementById("btn-flatly").addEventListener("click", () => applyTheme("flatly"));
+    document.getElementById("btn-zephyr").addEventListener("click", () => applyTheme("zephyr"));
     document.getElementById("theme-select").addEventListener("change", (e) => applyTheme(e.target.value));
 
     window.addEventListener("load", () => applyTheme(currentTheme));
