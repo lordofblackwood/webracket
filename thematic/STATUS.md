@@ -53,6 +53,18 @@ Current status:
   - [`thematic/fetch-bulma-local.sh`](/Users/soegaard/Dropbox/GitHub/webracket/thematic/fetch-bulma-local.sh)
 - Includes a local Bulma example page:
   - [`thematic/bulma-example.html`](/Users/soegaard/Dropbox/GitHub/webracket/thematic/bulma-example.html)
+- Supports `--report` for machine-readable generation metadata:
+  - requested/resolved source dialect
+  - selected theme root
+  - preserved imports
+  - emitted token names
+  - source-framework variable leak checks
+- Exposes the generated `--we-*` token contract via:
+  - [`tools/thematic-token-contract`](/Users/soegaard/Dropbox/GitHub/webracket/tools/thematic-token-contract)
+  - [`thematic/token-contract`](/Users/soegaard/Dropbox/GitHub/webracket/pkgs/thematic/token-contract.rkt)
+- Includes an opt-in external source contract smoke script:
+  - [`thematic/check-external-sources-local.sh`](/Users/soegaard/Dropbox/GitHub/webracket/thematic/check-external-sources-local.sh)
+- The compare harness can write a ranked parity dashboard when `THEMATIC_COMPARE_REPORT` is set.
 - Includes a regeneration script:
   - [`thematic/regenerate.sh`](/Users/soegaard/Dropbox/GitHub/webracket/thematic/regenerate.sh)
 - Includes current real-theme fixtures and generated outputs for:
@@ -110,16 +122,20 @@ Typography has also been pushed deeper into the shared scaffold:
 ## What Still Needs To Be Implemented
 
 - Expand the package documentation as the public API grows beyond command-line entry points.
-- A clearer contract for generated output:
-  - which `--we-*` tokens are guaranteed
+- A richer contract for generated output:
   - which values come from Bootstrap directly
   - which values are derived
+  - which tokens are mandatory for custom `web-easy` themes versus optional component refinements
 - Better test coverage for:
   - `@import` preservation edge cases
   - nested/odd `var(...)` fallback patterns
   - more real Bootswatch fixtures
   - real downloaded external dialect fixtures under an opt-in, license-aware test path
 - A decision about whether boosted outputs should be documented as recommended for some themes or kept as purely optional.
+- A mechanical module split:
+  - dialect bridges under `thematic/private/dialects/*`
+  - report/contract helpers under `thematic/private/report`
+  - generated CSS emission under a smaller emitter module
 
 ## What Needs Improvement
 

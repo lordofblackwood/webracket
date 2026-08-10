@@ -51,7 +51,7 @@ racket -l thematic -- \
 Inside the WebRacket checkout, the repository launcher is equivalent:
 
 @verbatim|{
-./tools/thematic \
+racket -c tools/thematic \
   --input thematic/original/vapor/bootstrap.css \
   --output thematic/generated/vapor.css \
   --theme-class we-theme-vapor
@@ -79,6 +79,7 @@ Then put the generated theme class on @tt{html}:
   @item{@tt{--theme-class class-name}: CSS class to emit on the @tt{html} selector. The default is @tt{we-theme-bootstrap}.}
   @item{@tt{--selector selector}: Bootstrap theme root to read. Supported values are @tt{:root}, @tt{[data-bs-theme=light]}, @tt{[data-bs-theme=dark]}, @tt{[data-theme=name]}, and @tt{.theme-name}. The default is @tt{:root}.}
   @item{@tt{--source-dialect dialect}: source token dialect to normalize before parsing. Supported values are @tt{auto}, @tt{bootstrap}, @tt{tabler}, @tt{pico}, @tt{bulma}, and @tt{daisyui}. The default is @tt{auto}.}
+  @item{@tt{--report path}: optional path for a machine-readable JSON report describing the conversion.}
   @item{@tt{--accent-boost}: optional enhancement mode for themes whose subtle accent surfaces become too quiet in @tt{web-easy}.}
 ]
 
@@ -87,6 +88,45 @@ and derives only the missing @tt{web-easy} companions. Use
 @tt{--accent-boost} only when a theme needs stronger low-contrast
 accent companions. Boosted output is intentionally opt-in so that
 strict conversion remains predictable.
+
+@subsection{Generation Reports}
+
+Use @tt{--report} to write a machine-readable report beside a generated
+theme:
+
+@verbatim|{
+racket -c tools/thematic \
+  --input thematic/original/vapor/bootstrap.css \
+  --output thematic/generated/vapor.css \
+  --theme-class we-theme-vapor \
+  --report thematic/generated/vapor.report.json
+}|
+
+The report uses schema @tt{thematic.generation-report.v1}. It includes
+the requested and resolved source dialect, selected theme root, import
+count, emitted token names, and any source-framework variables that
+leaked into the generated stylesheet. A generated theme is considered
+standalone when @tt{sourceVariableLeaks} is empty.
+
+@section{Token Contract}
+
+Thematic exposes its current generated @tt{--we-*} token inventory as
+JSON:
+
+@verbatim|{
+racket -l thematic/token-contract
+}|
+
+Inside the WebRacket checkout, this launcher is equivalent:
+
+@verbatim|{
+racket -c tools/thematic-token-contract \
+  --output thematic/generated/token-contract.json
+}|
+
+The token contract uses schema @tt{thematic.token-contract.v1}. It is
+generated from the same token builder used by normal theme generation,
+so it is a public contract artifact rather than a hand-maintained list.
 
 @section{Bootstrap Scoping Tool}
 
@@ -106,7 +146,7 @@ racket -l thematic/scope-bootstrap -- \
 The WebRacket checkout also provides:
 
 @verbatim|{
-./tools/thematic-scope \
+racket -c tools/thematic-scope \
   --input thematic/original/vapor/bootstrap.css \
   --output thematic/generated/bootstrap-vapor-scoped.css \
   --scope .bs-preview
@@ -145,7 +185,7 @@ Thematic can also read Tabler Free's compiled CSS by using the
 @tt{tabler} source dialect:
 
 @verbatim|{
-./tools/thematic \
+racket -c tools/thematic \
   --input path/to/tabler.css \
   --output path/to/theme-tabler.css \
   --theme-class we-theme-tabler \
@@ -177,7 +217,7 @@ Thematic can read Pico CSS v2 compiled stylesheets by using the
 @tt{pico} source dialect:
 
 @verbatim|{
-./tools/thematic \
+racket -c tools/thematic \
   --input path/to/pico.jade.css \
   --output path/to/theme-pico-jade.css \
   --theme-class we-theme-pico-jade \
@@ -221,7 +261,7 @@ Thematic can read Bulma v1 compiled stylesheets by using the
 @tt{bulma} source dialect:
 
 @verbatim|{
-./tools/thematic \
+racket -c tools/thematic \
   --input path/to/bulma.css \
   --output path/to/theme-bulma-dark.css \
   --theme-class we-theme-bulma-dark \
@@ -270,7 +310,7 @@ Thematic can read daisyUI v5 compiled theme stylesheets by using the
 @tt{daisyui} source dialect:
 
 @verbatim|{
-./tools/thematic \
+racket -c tools/thematic \
   --input path/to/themes.css \
   --output path/to/theme-daisyui-synthwave.css \
   --theme-class we-theme-daisyui-synthwave \
@@ -342,6 +382,21 @@ Pico, Bulma, Tabler, and daisyUI themes should not contain unresolved
 The emitted stylesheet may still contain @tt{var(--we-*)} references.
 Those are part of the @tt{web-easy} theme scaffold and are expected.
 
+@subsection{Opt-In External Source Checks}
+
+The repository includes an opt-in smoke script for real external CSS
+sources:
+
+@verbatim|{
+THEMATIC_EXTERNAL_SOURCES=1 ./thematic/check-external-sources-local.sh
+}|
+
+The script downloads local MIT-licensed fixtures for Tabler, Pico,
+Bulma, and daisyUI, generates @tt{web-easy} themes, and checks that the
+emitted CSS does not retain source-framework variable references. The
+downloaded inputs and generated external-source outputs remain in
+ignored local paths.
+
 @section{Validation Workflow}
 
 The package includes a side-by-side Bootstrap versus @tt{web-easy}
@@ -359,6 +414,18 @@ To run the computed-style parity check:
 make smoke-thematic-bootstrap-compare
 }|
 
+To also write a ranked JSON parity dashboard:
+
+@verbatim|{
+THEMATIC_COMPARE_REPORT=thematic/generated/parity-dashboard.json \
+  make smoke-thematic-bootstrap-compare
+}|
+
+The dashboard uses schema @tt{thematic.parity-dashboard.v1}. It ranks
+mismatches by theme, section heading, property, and case severity so the
+next visual parity pass can start from the highest-signal computed-style
+differences.
+
 The generated comparison page is:
 
 @verbatim|{
@@ -375,6 +442,24 @@ http://127.0.0.1:8765/pkgs/thematic/test/test-browser-theme-thematic-bootstrap-c
 The comparison harness intentionally checks computed styles first. Use
 screenshots as supporting evidence, not as the primary source of truth,
 when computed-style inspection is available.
+
+@section{Refactoring Roadmap}
+
+The next structural improvement is to split the current implementation
+into smaller dialect and reporting modules:
+
+@itemlist[
+  @item{@tt{thematic/private/dialects/bootstrap.rkt}: native Bootstrap and Bootswatch extraction}
+  @item{@tt{thematic/private/dialects/tabler.rkt}: Tabler token normalization}
+  @item{@tt{thematic/private/dialects/pico.rkt}: Pico selector rewriting and inheritance seeding}
+  @item{@tt{thematic/private/dialects/bulma.rkt}: Bulma selector discovery and inheritance seeding}
+  @item{@tt{thematic/private/dialects/daisyui.rkt}: daisyUI theme bridge}
+  @item{@tt{thematic/private/report.rkt}: generation reports, token-contract JSON, and source-variable leak checks}
+]
+
+That split should be mechanical: move code behind the existing
+@tt{normalize-theme-source}, @tt{resolve-source-dialect}, report, and
+token-contract boundaries without changing generated CSS behavior.
 
 @section{Adding A Theme Fixture}
 

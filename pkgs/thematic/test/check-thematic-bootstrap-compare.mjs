@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { installPlaywrightErrorGuard } from "../../../lib/web-easy/smoke/playwright-error-guard.mjs";
@@ -35,6 +36,7 @@ const profile = (process.env.THEMATIC_COMPARE_PROFILE || "focused").trim().toLow
 const verbose = process.env.THEMATIC_COMPARE_VERBOSE === "1";
 const failOnDiffs = process.env.THEMATIC_COMPARE_FAIL_ON_DIFFS === "1" ||
   (process.env.THEMATIC_COMPARE_FAIL_ON_DIFFS !== "0" && profile === "focused");
+const dashboardPath = process.env.THEMATIC_COMPARE_REPORT || "";
 
 async function loadPlaywright() {
   try {
@@ -1124,6 +1126,129 @@ function interestingDiffs(diffs) {
     .slice(0, 8);
 }
 
+function diffSeverity(diff) {
+  const prop = diff.prop;
+  if (prop === "selector" || prop === "display" || prop === "position" || prop === "content") {
+    return 4;
+  }
+  if (/^(color|background|backgroundImage|boxShadow|opacity)$/.test(prop)) {
+    return 3;
+  }
+  if (/Color$/.test(prop) || /Shadow$/.test(prop)) {
+    return 3;
+  }
+  if (/^(font|lineHeight|letterSpacing|textTransform)/.test(prop)) {
+    return 2;
+  }
+  if (/^(padding|margin|border|width|height|rectWidth|rectHeight|minHeight|top|right|bottom|left)/.test(prop)) {
+    return 2;
+  }
+  return 1;
+}
+
+function severityLabel(score) {
+  if (score >= 4) return "critical";
+  if (score === 3) return "high";
+  if (score === 2) return "medium";
+  return "low";
+}
+
+function rankedDiffs(diffs) {
+  return diffs
+    .map((diff) => ({ ...diff, severity: severityLabel(diffSeverity(diff)) }))
+    .sort((a, b) => diffSeverity(b) - diffSeverity(a) || a.prop.localeCompare(b.prop));
+}
+
+function bumpAggregate(map, key, diffCount, severityScore) {
+  const current = map.get(key) || { name: key, diffCount: 0, severityScore: 0 };
+  current.diffCount += diffCount;
+  current.severityScore += severityScore;
+  map.set(key, current);
+}
+
+function dashboardTheme(themeName, themeSpec, results) {
+  const byHeading = new Map();
+  const byProperty = new Map();
+  const cases = results.map((result) => {
+    const ranked = rankedDiffs(result.diffs);
+    const severityScore = result.diffs.reduce((sum, diff) => sum + diffSeverity(diff), 0);
+    const summary = {
+      name: result.name,
+      heading: result.heading || "",
+      diffCount: result.diffs.length,
+      severityScore,
+      maxSeverity: ranked[0]?.severity || "none",
+      topDiffs: ranked.slice(0, 8)
+    };
+    if (summary.diffCount > 0) {
+      bumpAggregate(byHeading, summary.heading || "(unsectioned)", summary.diffCount, severityScore);
+      for (const diff of result.diffs) {
+        bumpAggregate(byProperty, diff.prop, 1, diffSeverity(diff));
+      }
+    }
+    return summary;
+  });
+  const failingCases = cases.filter((entry) => entry.diffCount > 0);
+  return {
+    theme: themeName,
+    label: themeSpec.label,
+    bootstrapTheme: themeSpec.bootstrap,
+    webTheme: themeSpec.web,
+    caseCount: cases.length,
+    failingCaseCount: failingCases.length,
+    diffCount: failingCases.reduce((sum, entry) => sum + entry.diffCount, 0),
+    severityScore: failingCases.reduce((sum, entry) => sum + entry.severityScore, 0),
+    byHeading: Array.from(byHeading.values()).sort((a, b) => b.severityScore - a.severityScore),
+    byProperty: Array.from(byProperty.values()).sort((a, b) => b.severityScore - a.severityScore),
+    topCases: failingCases
+      .slice()
+      .sort((a, b) => b.severityScore - a.severityScore || b.diffCount - a.diffCount)
+      .slice(0, 12),
+    cases
+  };
+}
+
+function buildDashboard(themeReports) {
+  const byHeading = new Map();
+  const byProperty = new Map();
+  const topCases = [];
+  for (const theme of themeReports) {
+    for (const heading of theme.byHeading) {
+      bumpAggregate(byHeading, heading.name, heading.diffCount, heading.severityScore);
+    }
+    for (const property of theme.byProperty) {
+      bumpAggregate(byProperty, property.name, property.diffCount, property.severityScore);
+    }
+    for (const testCase of theme.topCases) {
+      topCases.push({ theme: theme.theme, label: theme.label, ...testCase });
+    }
+  }
+  return {
+    schema: "thematic.parity-dashboard.v1",
+    generatedAt: new Date().toISOString(),
+    profile,
+    failOnDiffs,
+    baseUrl,
+    themeCount: themeReports.length,
+    caseCount: themeReports.reduce((sum, theme) => sum + theme.caseCount, 0),
+    diffCount: themeReports.reduce((sum, theme) => sum + theme.diffCount, 0),
+    severityScore: themeReports.reduce((sum, theme) => sum + theme.severityScore, 0),
+    byHeading: Array.from(byHeading.values()).sort((a, b) => b.severityScore - a.severityScore),
+    byProperty: Array.from(byProperty.values()).sort((a, b) => b.severityScore - a.severityScore),
+    topCases: topCases
+      .sort((a, b) => b.severityScore - a.severityScore || b.diffCount - a.diffCount)
+      .slice(0, 25),
+    themes: themeReports
+  };
+}
+
+function writeDashboard(reportPath, dashboard) {
+  const resolvedPath = path.resolve(reportPath);
+  fs.mkdirSync(path.dirname(resolvedPath), { recursive: true });
+  fs.writeFileSync(resolvedPath, `${JSON.stringify(dashboard, null, 2)}\n`);
+  console.log(`dashboard=${resolvedPath}`);
+}
+
 function summarizeTheme(themeName, results) {
   const totalDiffs = results.reduce((sum, result) => sum + result.diffs.length, 0);
   const failing = results.filter((result) => result.diffs.length > 0);
@@ -1163,6 +1288,7 @@ async function main() {
   });
 
   let grandTotal = 0;
+  const themeReports = [];
   try {
     const page = await browser.newPage({ viewport: { width: 1500, height: 1100 } });
     const guard = installPlaywrightErrorGuard(page);
@@ -1257,9 +1383,14 @@ async function main() {
         results.push({ ...result, diffs: diffCase(result) });
       }
       grandTotal += summarizeTheme(theme, results);
+      themeReports.push(dashboardTheme(theme, themeSpec, results));
     }
   } finally {
     await browser.close();
+  }
+
+  if (dashboardPath) {
+    writeDashboard(dashboardPath, buildDashboard(themeReports));
   }
 
   if (grandTotal > 0 && failOnDiffs) {

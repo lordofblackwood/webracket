@@ -1,0 +1,12 @@
+#lang racket/base
+
+;;;
+;;; thematic-token-contract
+;;;
+
+(require racket/runtime-path)
+
+(define-runtime-path tool-path "../pkgs/thematic/token-contract.rkt")
+
+(parameterize ([current-command-line-arguments (current-command-line-arguments)])
+  ((dynamic-require tool-path 'main)))

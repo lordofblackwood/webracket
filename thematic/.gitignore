@@ -18,3 +18,8 @@ generated/daisyui*.css
 # Bulma-derived generated CSS local so Thematic does not redistribute them.
 original/bulma/
 generated/bulma*.css
+
+# Local report artifacts are generated on demand.
+generated/*.report.json
+generated/*dashboard*.json
+generated/token-contract.json

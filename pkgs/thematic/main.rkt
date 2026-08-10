@@ -3,7 +3,10 @@
 ;; thematic : command-line -> void
 ;;   Generate a starter web-easy external theme from Bootstrap custom properties.
 
-(provide main)
+(provide main
+         thematic-token-contract
+         thematic-token-contract-json
+         write-token-contract!)
 
 (require parsers/css
          racket/cmdline
@@ -159,6 +162,71 @@
 ;;   Parse source into a CSS stylesheet AST.
 (define (read-css-rules source)
   (parse-css source))
+
+(struct json-object (entries) #:transparent)
+
+;; json-escape : string? -> string?
+;;   Escape a string for dependency-free JSON output.
+(define (json-escape value)
+  (define out (open-output-string))
+  (for ([ch (in-string value)])
+    (case ch
+      [(#\") (display "\\\"" out)]
+      [(#\\) (display "\\\\" out)]
+      [(#\backspace) (display "\\b" out)]
+      [(#\page) (display "\\f" out)]
+      [(#\newline) (display "\\n" out)]
+      [(#\return) (display "\\r" out)]
+      [(#\tab) (display "\\t" out)]
+      [else
+       (define code (char->integer ch))
+       (if (< code 32)
+           (let* ([hex (number->string code 16)]
+                  [padding (make-string (max 0 (- 4 (string-length hex))) #\0)])
+             (display (string-append "\\u" padding hex) out))
+           (write-char ch out))]))
+  (get-output-string out))
+
+;; json-value->string : any/c -> string?
+;;   Render the small JSON subset used by Thematic reports.
+(define (json-value->string value)
+  (cond
+    [(json-object? value)
+     (define entries (json-object-entries value))
+     (string-append
+      "{"
+      (string-join
+       (for/list ([entry (in-list entries)])
+         (format "\"~a\":~a"
+                 (json-escape (car entry))
+                 (json-value->string (cdr entry))))
+       ",")
+      "}")]
+    [(list? value)
+     (string-append
+      "["
+      (string-join (map json-value->string value) ",")
+      "]")]
+    [(string? value)
+     (format "\"~a\"" (json-escape value))]
+    [(boolean? value)
+     (if value "true" "false")]
+    [(number? value)
+     (number->string value)]
+    [(symbol? value)
+     (json-value->string (symbol->string value))]
+    [else
+     (json-value->string (format "~a" value))]))
+
+;; write-json-file! : path-string? json-object? -> void
+;;   Write a generated JSON artifact, creating parent directories as needed.
+(define (write-json-file! output-path value)
+  (make-parent-directory* output-path)
+  (call-with-output-file output-path
+    (lambda (out)
+      (display (json-value->string value) out)
+      (newline out))
+    #:exists 'truncate/replace))
 
 ;; normalize-tabler-source : string? -> string?
 ;;   Convert Tabler's Bootstrap-like token dialect into Bootstrap-style token names.
@@ -1723,13 +1791,32 @@ END_DAISYUI_BOOTSTRAP_COMPONENT_BRIDGE
     [else
      "bootstrap"]))
 
+;; normalize-source-dialect-name : string? -> string?
+;;   Normalize user-facing dialect aliases.
+(define (normalize-source-dialect-name source-dialect)
+  (define dialect (string-downcase source-dialect))
+  (case (string->symbol dialect)
+    [(daisy-ui) "daisyui"]
+    [else dialect]))
+
+;; resolve-source-dialect : string? string? -> string?
+;;   Resolve auto-detection and validate explicit source dialects.
+(define (resolve-source-dialect source source-dialect)
+  (define dialect (normalize-source-dialect-name source-dialect))
+  (case (string->symbol dialect)
+    [(auto)
+     (detect-source-dialect source)]
+    [(bootstrap tabler pico bulma daisyui)
+     dialect]
+    [else
+     (fail "unsupported source dialect ~s; use auto, bootstrap, tabler, pico, bulma, or daisyui"
+           source-dialect)]))
+
 ;; normalize-theme-source : string? string? -> string?
 ;;   Normalize supported theme dialects before parsing and semantic extraction.
 (define (normalize-theme-source source source-dialect)
-  (define dialect (string-downcase source-dialect))
+  (define dialect (resolve-source-dialect source source-dialect))
   (case (string->symbol dialect)
-    [(auto)
-     (normalize-theme-source source (detect-source-dialect source))]
     [(bootstrap)
      source]
     [(tabler)
@@ -1738,11 +1825,10 @@ END_DAISYUI_BOOTSTRAP_COMPONENT_BRIDGE
      (normalize-pico-source source)]
     [(bulma)
      (normalize-bulma-source source)]
-    [(daisyui daisy-ui)
+    [(daisyui)
      (normalize-daisyui-source source)]
     [else
-     (fail "unsupported source dialect ~s; use auto, bootstrap, tabler, pico, bulma, or daisyui"
-           source-dialect)]))
+     (error 'normalize-theme-source "internal unsupported resolved dialect: ~s" dialect)]))
 
 ;; extract-top-level-imports/rules : css-stylesheet? -> (listof string?)
 ;;   Preserve top-level @import rules from a parsed stylesheet for re-emission.
@@ -12155,18 +12241,152 @@ END_DAISYUI_BOOTSTRAP_COMPONENT_BRIDGE
    (token-block->string theme-class (build-token-lines theme boost?))
    (theme-template-suffix theme-class)))
 
-;; write-generated-theme! : path-string? path-string? string? string? boolean? string? -> void
+;; source-dialect-var-prefixes : string? -> (listof string?)
+;;   Source-framework custom-property prefixes that must not leak into generated CSS.
+(define (source-dialect-var-prefixes resolved-dialect)
+  (case (string->symbol resolved-dialect)
+    [(tabler) '("--tblr-")]
+    [(pico) '("--pico-")]
+    [(bulma) '("--bulma-")]
+    [(daisyui) '("--color-" "--radius-" "--size-" "--border" "--depth" "--noise")]
+    [else '()]))
+
+;; css-var-reference-names : string? -> (listof string?)
+;;   Extract CSS custom property names referenced via var(...).
+(define (css-var-reference-names css)
+  (remove-duplicates
+   (regexp-match* #px"var\\(\\s*(--[-_a-zA-Z0-9]+)"
+                  css
+                  #:match-select second)
+   string=?))
+
+;; source-variable-leaks : string? string? -> (listof string?)
+;;   Return source-framework variables still referenced by emitted CSS.
+(define (source-variable-leaks css resolved-dialect)
+  (define prefixes (source-dialect-var-prefixes resolved-dialect))
+  (sort
+   (filter
+    (lambda (name)
+      (for/or ([prefix (in-list prefixes)])
+        (string-prefix? name prefix)))
+    (css-var-reference-names css))
+   string<?))
+
+;; default-token-contract-source : -> string?
+;;   Build a minimal Bootstrap source from defaults for token inventory extraction.
+(define (default-token-contract-source)
+  (string-append
+   ":root {\n"
+   (apply string-append
+          (for/list ([key (in-list (sort (hash-keys bootstrap-defaults) string<?))])
+            (format "  ~a: ~a;\n" key (hash-ref bootstrap-defaults key))))
+   "}\n"))
+
+;; token-contract-lines : -> (listof (cons/c string? string?))
+;;   Return the generated token inventory in canonical output order.
+(define (token-contract-lines)
+  (build-token-lines
+   (bootstrap-rules->theme-model
+    (read-css-rules (default-token-contract-source)))))
+
+;; thematic-token-contract : -> json-object?
+;;   Describe the public generated token contract.
+(define (thematic-token-contract)
+  (define token-lines (token-contract-lines))
+  (define token-names (map car token-lines))
+  (json-object
+   (list
+    (cons "schema" "thematic.token-contract.v1")
+    (cons "tokenPrefix" "--we-")
+    (cons "tokenCount" (length token-names))
+    (cons "tokens" token-names)
+    (cons "standaloneRuntimeAllowedPrefixes" '("--we-"))
+    (cons "notes"
+          '("Generated themes are intended to be loaded after web-easy-core.css."
+            "Source dialect variables are allowed during normalization but should not be required by emitted CSS."
+            "The token list is generated from Thematic's current build-token-lines inventory.")))))
+
+;; thematic-token-contract-json : -> string?
+;;   Render the public generated token contract as JSON.
+(define (thematic-token-contract-json)
+  (string-append (json-value->string (thematic-token-contract)) "\n"))
+
+;; write-token-contract! : path-string? -> void
+;;   Write the public token contract JSON artifact.
+(define (write-token-contract! output-path)
+  (write-json-file! output-path (thematic-token-contract)))
+
+;; generation-report : path-string? path-string? string? string? string? string? boolean? (listof string?) (listof (cons/c string? string?)) string? -> json-object?
+;;   Build a machine-readable report for one generated theme.
+(define (generation-report input-path
+                           output-path
+                           theme-class
+                           selector
+                           requested-dialect
+                           resolved-dialect
+                           boost?
+                           import-lines
+                           token-lines
+                           css)
+  (define emitted-token-lines
+    (filter (lambda (entry) (present-css-value? (cdr entry))) token-lines))
+  (define emitted-token-names (map car emitted-token-lines))
+  (define leaks (source-variable-leaks css resolved-dialect))
+  (json-object
+   (list
+    (cons "schema" "thematic.generation-report.v1")
+    (cons "inputPath" (format "~a" input-path))
+    (cons "outputPath" (format "~a" output-path))
+    (cons "themeClass" theme-class)
+    (cons "selector" selector)
+    (cons "sourceDialect"
+          (json-object
+           (list
+            (cons "requested" requested-dialect)
+            (cons "resolved" resolved-dialect))))
+    (cons "accentBoost" boost?)
+    (cons "standalone" (null? leaks))
+    (cons "sourceVariableLeaks" leaks)
+    (cons "importCount" (length import-lines))
+    (cons "imports" import-lines)
+    (cons "tokenCount" (length emitted-token-names))
+    (cons "tokens" emitted-token-names))))
+
+;; write-generated-theme! : path-string? path-string? string? string? boolean? string? [path-string?] -> void
 ;;   Generate and write one theme stylesheet from Bootstrap CSS.
-(define (write-generated-theme! input-path output-path theme-class selector boost? source-dialect)
-  (define source (normalize-theme-source (file->string input-path) source-dialect))
+(define (write-generated-theme! input-path
+                                output-path
+                                theme-class
+                                selector
+                                boost?
+                                source-dialect
+                                [report-path #f])
+  (define original-source (file->string input-path))
+  (define resolved-dialect (resolve-source-dialect original-source source-dialect))
+  (define source (normalize-theme-source original-source resolved-dialect))
   (define rules (read-css-rules source))
   (define import-lines (extract-top-level-imports/rules rules))
   (define theme (bootstrap-rules->theme-model rules selector))
+  (define token-lines (build-token-lines theme boost?))
+  (define css (emit-theme-stylesheet theme theme-class import-lines boost?))
   (make-parent-directory* output-path)
   (call-with-output-file output-path
     (lambda (out)
-      (display (emit-theme-stylesheet theme theme-class import-lines boost?) out))
-    #:exists 'truncate/replace))
+      (display css out))
+    #:exists 'truncate/replace)
+  (when report-path
+    (write-json-file!
+     report-path
+     (generation-report input-path
+                        output-path
+                        theme-class
+                        selector
+                        source-dialect
+                        resolved-dialect
+                        boost?
+                        import-lines
+                        token-lines
+                        css))))
 
 ;; main : -> void
 ;;   Parse command-line arguments and run the generator.
@@ -12177,6 +12397,7 @@ END_DAISYUI_BOOTSTRAP_COMPONENT_BRIDGE
   (define selector ":root")
   (define boost? #f)
   (define source-dialect "auto")
+  (define report-path #f)
   (command-line
    #:program "thematic"
    #:once-each
@@ -12190,13 +12411,15 @@ END_DAISYUI_BOOTSTRAP_COMPONENT_BRIDGE
                    (set! selector selector-text)]
    [("--source-dialect") dialect "Source dialect: auto, bootstrap, tabler, pico, bulma, or daisyui."
                          (set! source-dialect dialect)]
+   [("--report") path "Optional path for a machine-readable generation report."
+                 (set! report-path path)]
    [("--accent-boost") "Strengthen low-contrast accent companions for web-easy."
                        (set! boost? #t)])
   (unless input-path
     (fail "missing required --input path"))
   (unless output-path
     (fail "missing required --output path"))
-  (write-generated-theme! input-path output-path theme-class selector boost? source-dialect))
+  (write-generated-theme! input-path output-path theme-class selector boost? source-dialect report-path))
 
 (module+ main
   (main))
@@ -14917,4 +15140,16 @@ END_DAISYUI_BOOTSTRAP_COMPONENT_BRIDGE
        (extract-top-level-imports import-bootstrap)))
     (check-true (regexp-match? #px"^@import url\\(\"https://fonts.googleapis.com/css2\\?family=Lato" css))
     (check-true (regexp-match? #px"@import url\\(\"theme-extra\\.css\"\\) layer\\(theme\\);" css))
-    (check-true (regexp-match? #px"html\\.we-theme-imports \\{" css))))
+    (check-true (regexp-match? #px"html\\.we-theme-imports \\{" css)))
+
+  (test-case "source variable leak detection ignores web-easy runtime variables"
+    (define css
+      "html.we-theme-x { --we-bg: #fff; color: var(--we-fg); border: var(--tblr-border-width) solid red; }")
+    (check-equal? (source-variable-leaks css "tabler") '("--tblr-border-width"))
+    (check-equal? (source-variable-leaks css "bootstrap") '()))
+
+  (test-case "token contract JSON exposes generated web-easy token inventory"
+    (define json (thematic-token-contract-json))
+    (check-true (regexp-match? #px"thematic\\.token-contract\\.v1" json))
+    (check-true (regexp-match? #px"--we-bg" json))
+    (check-true (regexp-match? #px"--we-button-primary-bg" json))))
