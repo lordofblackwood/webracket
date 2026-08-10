@@ -962,7 +962,7 @@ html.we-theme-lux {
   --we-dialog-title-text-shadow: var(--we-heading-text-shadow, var(--we-dialog-text-shadow, var(--we-text-shadow, none)));
   --we-dialog-close-icon: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%23000'%3e%3cpath d='M.293.293a1 1 0 0 1 1.414 0L8 6.586 14.293.293a1 1 0 1 1 1.414 1.414L9.414 8l6.293 6.293a1 1 0 0 1-1.414 1.414L8 9.414l-6.293 6.293a1 1 0 0 1-1.414-1.414L6.586 8 .293 1.707a1 1 0 0 1 0-1.414'/%3e%3c/svg%3e");
   --we-input-placeholder: rgba(85, 89, 92, 0.500);
-  --we-surface: #ffffff;
+  --we-surface: #fff;
   --we-surface-raised: rgba(246, 247, 248, 0.991);
   --we-surface-subtle: rgba(247, 247, 247, 0.988);
   --we-surface-muted: rgba(237, 238, 239, 0.977);
@@ -991,8 +991,8 @@ html.we-theme-lux {
   --we-secondary: #fff;
   --we-secondary-on: #000;
   --we-secondary-emphasis: #666666;
-  --we-secondary-subtle: #ffffff;
-  --we-secondary-border: #f1f2f2;
+  --we-secondary-subtle: white;
+  --we-secondary-border: white;
   --we-table-row-secondary-bg: white;
   --we-table-row-secondary-color: #55595c;
   --we-table-row-secondary-border-color: #cccccc;

@@ -28,7 +28,8 @@ const themeSpecs = {
   materia: { bootstrap: "materia", web: "materia", label: "Materia" },
   flatly: { bootstrap: "flatly", web: "flatly", label: "Flatly" },
   zephyr: { bootstrap: "zephyr", web: "zephyr", label: "Zephyr" },
-  cyborg: { bootstrap: "cyborg", web: "cyborg", label: "Cyborg" }
+  cyborg: { bootstrap: "cyborg", web: "cyborg", label: "Cyborg" },
+  tabler: { bootstrap: "tabler", web: "tabler", label: "Tabler", sourceBodyFontVar: "--tblr-body-font-family" }
 };
 const profile = (process.env.THEMATIC_COMPARE_PROFILE || "focused").trim().toLowerCase();
 const verbose = process.env.THEMATIC_COMPARE_VERBOSE === "1";
@@ -1220,16 +1221,18 @@ async function main() {
           weThemeStyle.textContent = scopeWeThemeCss(themeSpec, css);
         }
       }, { themeName: theme, themeSpec });
-      await page.waitForFunction(({ bootstrapTheme, webTheme }) => {
+      await page.waitForFunction(({ bootstrapTheme, webTheme, sourceBodyFontVar }) => {
         const bs = document.querySelector(".bs-preview");
         const we = document.querySelector(".we-preview");
         if (!bs || !we) return false;
-        const bsReady = getComputedStyle(bs).getPropertyValue("--bs-body-font-family").trim() !== "";
+        const bsReady = getComputedStyle(bs).getPropertyValue(sourceBodyFontVar).trim() !== "";
         const weReady = getComputedStyle(we).getPropertyValue("--we-font-family-base").trim() !== "";
         const link = document.querySelector("#bootstrap-theme-link");
         const linkReady = link && link.href.endsWith(`/generated/bootstrap-${bootstrapTheme}-scoped.css`);
         return bsReady && weReady && linkReady && we.classList.contains(`we-theme-${webTheme}`);
-      }, { bootstrapTheme: themeSpec.bootstrap, webTheme: themeSpec.web });
+      }, { bootstrapTheme: themeSpec.bootstrap,
+           webTheme: themeSpec.web,
+           sourceBodyFontVar: themeSpec.sourceBodyFontVar || "--bs-body-font-family" });
       await page.evaluate(async () => {
         if (!document.fonts) return;
         await Promise.race([

@@ -966,7 +966,7 @@ html.we-theme-sketchy {
   --we-dialog-title-text-shadow: var(--we-heading-text-shadow, var(--we-dialog-text-shadow, var(--we-text-shadow, none)));
   --we-dialog-close-icon: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='inherit'%3e%3cpath d='M.293.293a1 1 0 0 1 1.414 0L8 6.586 14.293.293a1 1 0 1 1 1.414 1.414L9.414 8l6.293 6.293a1 1 0 0 1-1.414 1.414L8 9.414l-6.293 6.293a1 1 0 0 1-1.414-1.414L6.586 8 .293 1.707a1 1 0 0 1 0-1.414'/%3e%3c/svg%3e");
   --we-input-placeholder: rgba(33, 37, 41, 0.500);
-  --we-surface: #ffffff;
+  --we-surface: #fff;
   --we-surface-raised: rgba(246, 247, 248, 0.991);
   --we-surface-subtle: rgba(249, 249, 250, 0.988);
   --we-surface-muted: rgba(235, 236, 238, 0.977);

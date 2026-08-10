@@ -1,0 +1,20 @@
+# Tabler is MIT-licensed external source material. Keep downloaded inputs and
+# Tabler-derived generated CSS local so Thematic does not redistribute them.
+original/tabler/
+generated/tabler*.css
+generated/bootstrap-tabler*.css
+
+# Pico CSS is MIT-licensed external source material. Keep downloaded inputs and
+# Pico-derived generated CSS local so Thematic does not redistribute them.
+original/pico/
+generated/pico*.css
+
+# daisyUI is MIT-licensed external source material. Keep downloaded inputs and
+# daisyUI-derived generated CSS local so Thematic does not redistribute them.
+original/daisyui/
+generated/daisyui*.css
+
+# Bulma is MIT-licensed external source material. Keep downloaded inputs and
+# Bulma-derived generated CSS local so Thematic does not redistribute them.
+original/bulma/
+generated/bulma*.css

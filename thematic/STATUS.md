@@ -7,13 +7,15 @@
 Current status:
 
 - source lives in the [`pkgs/thematic`](/Users/soegaard/Dropbox/GitHub/webracket/pkgs/thematic) package
+- package docs live in [`pkgs/thematic/scribblings/thematic.scrbl`](/Users/soegaard/Dropbox/GitHub/webracket/pkgs/thematic/scribblings/thematic.scrbl)
 - launcher lives in [`tools/thematic`](/Users/soegaard/Dropbox/GitHub/webracket/tools/thematic)
 - generated reference outputs live in [`thematic/generated`](/Users/soegaard/Dropbox/GitHub/webracket/thematic/generated)
 - smoke preview pages live in [`lib/web-easy/smoke/test-browser-theme-thematic.html`](/Users/soegaard/Dropbox/GitHub/webracket/lib/web-easy/smoke/test-browser-theme-thematic.html) and [`lib/web-easy/smoke/test-browser-theme-thematic-compare.html`](/Users/soegaard/Dropbox/GitHub/webracket/lib/web-easy/smoke/test-browser-theme-thematic-compare.html)
+- package compare harness lives in [`pkgs/thematic/test`](/Users/soegaard/Dropbox/GitHub/webracket/pkgs/thematic/test)
 
 ## What Has Been Implemented
 
-- Parses Bootstrap CSS with `(require lexers/css)`.
+- Parses Bootstrap CSS with `(require parsers/css)`.
 - Extracts custom properties for one selector context.
 - Matches selectors inside comma-separated selector lists.
 - Supports `:root`, `[data-bs-theme=light]`, and `[data-bs-theme=dark]`.
@@ -33,15 +35,41 @@ Current status:
 - Resolves simple Bootstrap custom-property indirections such as:
   - `--bs-body-font-family: var(--bs-font-sans-serif)`
 - Supports `--accent-boost` as an opt-in mode for stronger low-contrast accent companions.
+- Supports Tabler Free as an external source dialect by normalizing `--tblr-*` custom properties into Bootstrap-shaped `--bs-*` names.
+- Includes an opt-in local Tabler fetch workflow:
+  - [`thematic/fetch-tabler-local.sh`](/Users/soegaard/Dropbox/GitHub/webracket/thematic/fetch-tabler-local.sh)
+- Supports Pico CSS v2 as an external source dialect by bridging `--pico-*` semantic variables and Pico selectors into Bootstrap-shaped theme inputs.
+- Seeds partial scoped Pico themes with inherited base variables before applying source overrides.
+- Includes an opt-in local Pico fetch workflow for Pico's precompiled color themes:
+  - [`thematic/fetch-pico-local.sh`](/Users/soegaard/Dropbox/GitHub/webracket/thematic/fetch-pico-local.sh)
+- Supports daisyUI v5 as an external source dialect by bridging daisyUI theme variables such as `--color-base-100`, `--color-primary`, `--radius-field`, and `--border` into Bootstrap-shaped theme inputs.
+- Includes an opt-in local daisyUI fetch workflow for daisyUI's bundled themes:
+  - [`thematic/fetch-daisyui-local.sh`](/Users/soegaard/Dropbox/GitHub/webracket/thematic/fetch-daisyui-local.sh)
+- Includes a local daisyUI example page:
+  - [`thematic/daisyui-example.html`](/Users/soegaard/Dropbox/GitHub/webracket/thematic/daisyui-example.html)
+- Supports Bulma v1 as an external source dialect by bridging `--bulma-*` scheme variables, semantic colors, typography, radii, borders, shadows, and common component styling into Bootstrap-shaped theme inputs.
+- Seeds partial scoped Bulma themes, such as `[data-theme=dark]`, with inherited base variables before applying source overrides.
+- Includes an opt-in local Bulma fetch workflow:
+  - [`thematic/fetch-bulma-local.sh`](/Users/soegaard/Dropbox/GitHub/webracket/thematic/fetch-bulma-local.sh)
+- Includes a local Bulma example page:
+  - [`thematic/bulma-example.html`](/Users/soegaard/Dropbox/GitHub/webracket/thematic/bulma-example.html)
 - Includes a regeneration script:
   - [`thematic/regenerate.sh`](/Users/soegaard/Dropbox/GitHub/webracket/thematic/regenerate.sh)
 - Includes current real-theme fixtures and generated outputs for:
-  - Superhero
-  - Sketchy
+  - Brite
+  - Quartz
   - Lux
+  - Sketchy
   - Sandstone
+  - Superhero
   - Lux Boost
   - Sandstone Boost
+  - Vapor
+  - Morph
+  - Materia
+  - Flatly
+  - Zephyr
+  - Cyborg
 
 ## Preview And Validation Workflow
 
@@ -77,16 +105,11 @@ Typography has also been pushed deeper into the shared scaffold:
 - `--accent-boost` exists, but its exact strength is still a product decision rather than a finalized policy.
 - Some hard-coded non-font literals still exist in the shared starter themes outside the token block. The biggest leak was cleaned up, but the scaffold is not yet perfectly tokenized.
 - The preview pages exist, but there is not yet a formal documented review rubric for deciding whether a generated theme is "good enough".
-- There is no explicit docs page for `thematic` usage beyond lightweight notes and code comments.
+- The package documentation exists, but it still needs a clearer public contract for supported token guarantees and derivation rules.
 
 ## What Still Needs To Be Implemented
 
-- Documentation for `thematic` itself:
-  - purpose
-  - CLI usage
-  - strict mode vs `--accent-boost`
-  - font import behavior
-  - selector behavior
+- Expand the package documentation as the public API grows beyond command-line entry points.
 - A clearer contract for generated output:
   - which `--we-*` tokens are guaranteed
   - which values come from Bootstrap directly
@@ -95,6 +118,7 @@ Typography has also been pushed deeper into the shared scaffold:
   - `@import` preservation edge cases
   - nested/odd `var(...)` fallback patterns
   - more real Bootswatch fixtures
+  - real downloaded external dialect fixtures under an opt-in, license-aware test path
 - A decision about whether boosted outputs should be documented as recommended for some themes or kept as purely optional.
 
 ## What Needs Improvement

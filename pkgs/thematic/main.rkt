@@ -103,7 +103,31 @@
   "/* -------------------------------------------------------------------------- */\n/* 2) Menu-specific tuning")
 
 (define selector-regexp
-  #px"^(:root|\\[data-bs-theme=(?:light|dark)\\])$")
+  #px"^(:root|\\[data-bs-theme=(?:light|dark)\\]|\\[data-theme=[-_a-zA-Z0-9]+\\]|\\.theme-[-_a-zA-Z0-9]+)$")
+
+(define tabler-custom-property-regexp
+  #px"--tblr-")
+
+(define pico-custom-property-regexp
+  #px"--pico-")
+
+(define bulma-custom-property-regexp
+  #px"--bulma-")
+
+(define bulma-data-theme-regexp
+  #px"\\[data-theme\\s*=\\s*(?:\"|')?([-_a-zA-Z0-9]+)(?:\"|')?\\]")
+
+(define bulma-class-theme-regexp
+  #px"\\.theme-([-_a-zA-Z0-9]+)")
+
+(define daisyui-custom-property-regexp
+  #px"--color-base-100|--radius-field|--radius-box|--size-field")
+
+(define daisyui-data-theme-regexp
+  #px"\\[data-theme\\s*=\\s*(?:\"|')?([-_a-zA-Z0-9]+)(?:\"|')?\\]")
+
+(define daisyui-theme-controller-regexp
+  #px"theme-controller\\s*\\[value\\s*=\\s*(?:\"|')?([-_a-zA-Z0-9]+)(?:\"|')?\\]")
 
 (define css-var-regexp
   #px"var\\(\\s*(--[-_a-zA-Z0-9]+)\\s*(?:,\\s*([^\\)]+))?\\s*\\)")
@@ -136,6 +160,1590 @@
 (define (read-css-rules source)
   (parse-css source))
 
+;; normalize-tabler-source : string? -> string?
+;;   Convert Tabler's Bootstrap-like token dialect into Bootstrap-style token names.
+(define (normalize-tabler-source source)
+  (regexp-replace* tabler-custom-property-regexp source "--bs-"))
+
+;; rewrite-pico-theme-selectors : string? -> string?
+;;   Rewrite Pico light/dark theme roots into selectors Thematic already understands.
+(define (rewrite-pico-theme-selectors source)
+  (for/fold ([rewritten source])
+            ([replacement (in-list
+                           (list
+                            (cons #px":root:not\\(\\[data-theme=dark\\]\\)" ":root")
+                            (cons #px":host\\(:not\\(\\[data-theme=dark\\]\\)" ":root")
+                            (cons #px":root:not\\(\\[data-theme\\]\\)" "[data-bs-theme=dark]")
+                            (cons #px":host\\(:not\\(\\[data-theme\\]\\)" "[data-bs-theme=dark]")
+                            (cons #px"\\[data-theme=light\\]" "[data-bs-theme=light]")
+                            (cons #px"\\[data-theme=dark\\]" "[data-bs-theme=dark]")
+                            (cons #px":host" "[data-bs-theme=light], [data-bs-theme=dark]")))])
+    (regexp-replace* (car replacement) rewritten (cdr replacement))))
+
+(define pico-bootstrap-bridge-css #<<END_PICO_BOOTSTRAP_BRIDGE
+
+/* Thematic Pico bridge: map Pico CSS variables and semantic elements to Bootstrap-shaped theme inputs. */
+:root {
+  --bs-body-color: var(--pico-color);
+  --bs-body-bg: var(--pico-background-color);
+  --bs-body-font-family: var(--pico-font-family);
+  --bs-body-font-size: 1rem;
+  --bs-body-font-weight: var(--pico-font-weight);
+  --bs-body-line-height: var(--pico-line-height);
+  --bs-border-color: var(--pico-muted-border-color);
+  --bs-border-color-translucent: var(--pico-muted-border-color);
+  --bs-primary: var(--pico-primary);
+  --bs-primary-bg-subtle: var(--pico-primary-focus);
+  --bs-primary-border-subtle: var(--pico-primary-border);
+  --bs-secondary: var(--pico-secondary);
+  --bs-success: var(--pico-ins-color);
+  --bs-info: var(--pico-primary-hover);
+  --bs-warning: var(--pico-mark-background-color);
+  --bs-danger: var(--pico-del-color);
+  --bs-light: var(--pico-card-sectioning-background-color);
+  --bs-dark: var(--pico-contrast);
+  --bs-link-color: var(--pico-primary);
+  --bs-link-hover-color: var(--pico-primary-hover);
+  --bs-secondary-color: var(--pico-muted-color);
+  --bs-border-width: var(--pico-border-width);
+  --bs-border-style: solid;
+  --bs-border-radius-sm: var(--pico-border-radius);
+  --bs-border-radius: var(--pico-border-radius);
+  --bs-border-radius-lg: var(--pico-border-radius);
+  --bs-border-radius-pill: 5rem;
+  --bs-box-shadow-sm: var(--pico-box-shadow);
+  --bs-box-shadow: var(--pico-box-shadow);
+  --bs-box-shadow-lg: var(--pico-box-shadow);
+  --bs-focus-ring-color: var(--pico-primary-focus);
+  --bs-form-valid-color: var(--pico-ins-color);
+  --bs-form-valid-border-color: var(--pico-form-element-valid-border-color);
+  --bs-form-invalid-color: var(--pico-del-color);
+  --bs-form-invalid-border-color: var(--pico-form-element-invalid-border-color);
+}
+
+[data-bs-theme=light] {
+  --bs-body-color: var(--pico-color);
+  --bs-body-bg: var(--pico-background-color);
+  --bs-body-font-family: var(--pico-font-family);
+  --bs-body-font-size: 1rem;
+  --bs-body-font-weight: var(--pico-font-weight);
+  --bs-body-line-height: var(--pico-line-height);
+  --bs-border-color: var(--pico-muted-border-color);
+  --bs-border-color-translucent: var(--pico-muted-border-color);
+  --bs-primary: var(--pico-primary);
+  --bs-primary-bg-subtle: var(--pico-primary-focus);
+  --bs-primary-border-subtle: var(--pico-primary-border);
+  --bs-secondary: var(--pico-secondary);
+  --bs-success: var(--pico-ins-color);
+  --bs-info: var(--pico-primary-hover);
+  --bs-warning: var(--pico-mark-background-color);
+  --bs-danger: var(--pico-del-color);
+  --bs-light: var(--pico-card-sectioning-background-color);
+  --bs-dark: var(--pico-contrast);
+  --bs-link-color: var(--pico-primary);
+  --bs-link-hover-color: var(--pico-primary-hover);
+  --bs-secondary-color: var(--pico-muted-color);
+  --bs-border-width: var(--pico-border-width);
+  --bs-border-style: solid;
+  --bs-border-radius-sm: var(--pico-border-radius);
+  --bs-border-radius: var(--pico-border-radius);
+  --bs-border-radius-lg: var(--pico-border-radius);
+  --bs-border-radius-pill: 5rem;
+  --bs-box-shadow-sm: var(--pico-box-shadow);
+  --bs-box-shadow: var(--pico-box-shadow);
+  --bs-box-shadow-lg: var(--pico-box-shadow);
+  --bs-focus-ring-color: var(--pico-primary-focus);
+  --bs-form-valid-color: var(--pico-ins-color);
+  --bs-form-valid-border-color: var(--pico-form-element-valid-border-color);
+  --bs-form-invalid-color: var(--pico-del-color);
+  --bs-form-invalid-border-color: var(--pico-form-element-invalid-border-color);
+}
+
+[data-bs-theme=dark] {
+  --bs-body-color: var(--pico-color);
+  --bs-body-bg: var(--pico-background-color);
+  --bs-body-font-family: var(--pico-font-family);
+  --bs-body-font-size: 1rem;
+  --bs-body-font-weight: var(--pico-font-weight);
+  --bs-body-line-height: var(--pico-line-height);
+  --bs-border-color: var(--pico-muted-border-color);
+  --bs-border-color-translucent: var(--pico-muted-border-color);
+  --bs-primary: var(--pico-primary);
+  --bs-primary-bg-subtle: var(--pico-primary-focus);
+  --bs-primary-border-subtle: var(--pico-primary-border);
+  --bs-secondary: var(--pico-secondary);
+  --bs-success: var(--pico-ins-color);
+  --bs-info: var(--pico-primary-hover);
+  --bs-warning: var(--pico-mark-background-color);
+  --bs-danger: var(--pico-del-color);
+  --bs-light: var(--pico-card-sectioning-background-color);
+  --bs-dark: var(--pico-contrast);
+  --bs-link-color: var(--pico-primary);
+  --bs-link-hover-color: var(--pico-primary-hover);
+  --bs-secondary-color: var(--pico-muted-color);
+  --bs-border-width: var(--pico-border-width);
+  --bs-border-style: solid;
+  --bs-border-radius-sm: var(--pico-border-radius);
+  --bs-border-radius: var(--pico-border-radius);
+  --bs-border-radius-lg: var(--pico-border-radius);
+  --bs-border-radius-pill: 5rem;
+  --bs-box-shadow-sm: var(--pico-box-shadow);
+  --bs-box-shadow: var(--pico-box-shadow);
+  --bs-box-shadow-lg: var(--pico-box-shadow);
+  --bs-focus-ring-color: var(--pico-primary-focus);
+  --bs-form-valid-color: var(--pico-ins-color);
+  --bs-form-valid-border-color: var(--pico-form-element-valid-border-color);
+  --bs-form-invalid-color: var(--pico-del-color);
+  --bs-form-invalid-border-color: var(--pico-form-element-invalid-border-color);
+}
+
+body {
+  color: var(--pico-color);
+  background-color: var(--pico-background-color);
+  font-family: var(--pico-font-family);
+  font-size: 1rem;
+  font-weight: var(--pico-font-weight);
+  line-height: var(--pico-line-height);
+  letter-spacing: normal;
+  text-shadow: none;
+}
+
+.btn,
+button {
+  --bs-btn-padding-x: var(--pico-form-element-spacing-horizontal);
+  --bs-btn-padding-y: var(--pico-form-element-spacing-vertical);
+  --bs-btn-font-size: 1rem;
+  --bs-btn-font-weight: 600;
+  --bs-btn-line-height: var(--pico-line-height);
+  --bs-btn-border-width: var(--pico-border-width);
+  --bs-btn-border-radius: var(--pico-border-radius);
+  --bs-btn-box-shadow: var(--pico-button-box-shadow);
+  padding: var(--bs-btn-padding-y) var(--bs-btn-padding-x);
+  color: var(--pico-primary-inverse);
+  font-family: var(--pico-font-family);
+  font-size: var(--bs-btn-font-size);
+  font-weight: var(--bs-btn-font-weight);
+  line-height: var(--bs-btn-line-height);
+  background-color: var(--pico-primary-background);
+  border: var(--bs-btn-border-width) solid var(--pico-primary-border);
+  border-radius: var(--bs-btn-border-radius);
+  box-shadow: var(--bs-btn-box-shadow);
+}
+
+.btn-primary {
+  --bs-btn-color: var(--pico-primary-inverse);
+  --bs-btn-bg: var(--pico-primary-background);
+  --bs-btn-border-color: var(--pico-primary-border);
+  --bs-btn-hover-color: var(--pico-primary-inverse);
+  --bs-btn-hover-bg: var(--pico-primary-hover-background);
+  --bs-btn-hover-border-color: var(--pico-primary-hover-border);
+  color: var(--bs-btn-color);
+  background-color: var(--bs-btn-bg);
+  border-color: var(--bs-btn-border-color);
+}
+
+.btn-secondary {
+  --bs-btn-color: var(--pico-secondary-inverse);
+  --bs-btn-bg: var(--pico-secondary-background);
+  --bs-btn-border-color: var(--pico-secondary-border);
+  --bs-btn-hover-color: var(--pico-secondary-inverse);
+  --bs-btn-hover-bg: var(--pico-secondary-hover-background);
+  --bs-btn-hover-border-color: var(--pico-secondary-hover-border);
+  color: var(--bs-btn-color);
+  background-color: var(--bs-btn-bg);
+  border-color: var(--bs-btn-border-color);
+}
+
+.btn-outline-secondary {
+  --bs-btn-color: var(--pico-secondary);
+  --bs-btn-bg: transparent;
+  --bs-btn-border-color: var(--pico-secondary-border);
+  --bs-btn-hover-color: var(--pico-secondary-inverse);
+  --bs-btn-hover-bg: var(--pico-secondary-hover-background);
+  --bs-btn-hover-border-color: var(--pico-secondary-hover-border);
+  color: var(--bs-btn-color);
+  background-color: var(--bs-btn-bg);
+  border-color: var(--bs-btn-border-color);
+}
+
+.btn-light {
+  --bs-btn-color: var(--pico-color);
+  --bs-btn-bg: var(--pico-card-sectioning-background-color);
+  --bs-btn-border-color: var(--pico-muted-border-color);
+  color: var(--bs-btn-color);
+  background-color: var(--bs-btn-bg);
+  border-color: var(--bs-btn-border-color);
+}
+
+.btn-sm {
+  --bs-btn-padding-x: calc(var(--pico-form-element-spacing-horizontal) * 0.75);
+  --bs-btn-padding-y: calc(var(--pico-form-element-spacing-vertical) * 0.75);
+  --bs-btn-font-size: 0.875rem;
+}
+
+.btn-lg {
+  --bs-btn-padding-x: calc(var(--pico-form-element-spacing-horizontal) * 1.25);
+  --bs-btn-padding-y: calc(var(--pico-form-element-spacing-vertical) * 1.25);
+  --bs-btn-font-size: 1.125rem;
+}
+
+.btn-group,
+.btn-group-vertical {
+  border-radius: var(--pico-border-radius);
+  box-shadow: var(--pico-group-box-shadow);
+}
+
+.btn-group .btn + .btn {
+  border-left: var(--pico-border-width) solid var(--pico-muted-border-color);
+}
+
+.card {
+  --bs-card-color: var(--pico-color);
+  --bs-card-bg: var(--pico-card-background-color);
+  --bs-card-border-color: var(--pico-card-border-color);
+  --bs-card-border-width: var(--pico-border-width);
+  --bs-card-border-radius: var(--pico-border-radius);
+  --bs-card-box-shadow: var(--pico-card-box-shadow);
+  --bs-card-cap-bg: var(--pico-card-sectioning-background-color);
+  --bs-card-cap-color: var(--pico-color);
+  --bs-card-spacer-x: var(--pico-block-spacing-horizontal);
+  --bs-card-spacer-y: var(--pico-block-spacing-vertical);
+  color: var(--bs-card-color);
+  background-color: var(--bs-card-bg);
+  border: var(--bs-card-border-width) solid var(--bs-card-border-color);
+  border-radius: var(--bs-card-border-radius);
+  box-shadow: var(--bs-card-box-shadow);
+}
+
+.card-header,
+.card-footer {
+  padding: var(--pico-block-spacing-vertical) var(--pico-block-spacing-horizontal);
+  color: var(--pico-color);
+  background-color: var(--pico-card-sectioning-background-color);
+  border-color: var(--pico-card-border-color);
+}
+
+.card-header {
+  border-bottom: var(--pico-border-width) solid var(--pico-card-border-color);
+}
+
+.card-footer {
+  border-top: var(--pico-border-width) solid var(--pico-card-border-color);
+}
+
+.card-body {
+  padding: var(--pico-block-spacing-vertical) var(--pico-block-spacing-horizontal);
+}
+
+.form-control,
+.form-select,
+.input-group-text {
+  padding: var(--pico-form-element-spacing-vertical) var(--pico-form-element-spacing-horizontal);
+  color: var(--pico-form-element-color);
+  font-family: var(--pico-font-family);
+  font-size: 1rem;
+  font-weight: var(--pico-font-weight);
+  line-height: var(--pico-line-height);
+  background-color: var(--pico-form-element-background-color);
+  border: var(--pico-border-width) solid var(--pico-form-element-border-color);
+  border-radius: var(--pico-border-radius);
+  box-shadow: none;
+}
+
+.form-control:focus,
+.form-select:focus {
+  color: var(--pico-form-element-color);
+  background-color: var(--pico-form-element-active-background-color);
+  border-color: var(--pico-form-element-active-border-color);
+  box-shadow: 0 0 0 var(--pico-outline-width) var(--pico-form-element-focus-color);
+}
+
+.form-control:disabled,
+.form-select:disabled {
+  color: var(--pico-muted-color);
+  background-color: var(--pico-form-element-selected-background-color);
+  border-color: var(--pico-form-element-border-color);
+  opacity: var(--pico-form-element-disabled-opacity);
+}
+
+.form-control.is-valid {
+  border-color: var(--pico-form-element-valid-border-color);
+}
+
+.form-control.is-invalid {
+  border-color: var(--pico-form-element-invalid-border-color);
+}
+
+.form-text {
+  color: var(--pico-muted-color);
+  font-size: 0.875em;
+  line-height: var(--pico-line-height);
+}
+
+.form-check-input {
+  width: 1em;
+  height: 1em;
+  background-color: var(--pico-form-element-background-color);
+  border: 0.125rem solid var(--pico-form-element-border-color);
+  border-radius: var(--pico-border-radius);
+}
+
+.form-check-input:checked {
+  background-color: var(--pico-primary-background);
+  border-color: var(--pico-primary-border);
+}
+
+.form-check-label,
+label {
+  color: var(--pico-color);
+  font-family: var(--pico-font-family);
+  font-size: 1rem;
+  font-weight: var(--pico-font-weight);
+  line-height: var(--pico-line-height);
+}
+
+.table {
+  color: var(--pico-color);
+  font-size: 1rem;
+  border-color: var(--pico-table-border-color);
+}
+
+.table > :not(caption) > * > * {
+  padding: calc(var(--pico-spacing) * 0.5) var(--pico-spacing);
+  border-bottom: var(--pico-border-width) solid var(--pico-table-border-color);
+}
+
+.table-striped > tbody > tr:nth-of-type(odd) > * {
+  background-color: var(--pico-table-row-stripped-background-color);
+}
+
+.nav {
+  gap: var(--pico-nav-element-spacing-horizontal);
+}
+
+.nav-link {
+  padding: var(--pico-nav-link-spacing-vertical) var(--pico-nav-link-spacing-horizontal);
+  color: var(--pico-primary);
+  font-size: 1rem;
+  line-height: var(--pico-line-height);
+  border-radius: var(--pico-border-radius);
+}
+
+.nav-link:hover {
+  color: var(--pico-primary-hover);
+}
+
+.nav-link.disabled {
+  color: var(--pico-muted-color);
+}
+
+.nav-pills .nav-link.active {
+  color: var(--pico-primary-inverse);
+  background-color: var(--pico-primary-background);
+}
+
+.nav-tabs .nav-link {
+  border: var(--pico-border-width) solid transparent;
+}
+
+.nav-tabs .nav-link.active {
+  color: var(--pico-color);
+  background-color: var(--pico-card-background-color);
+  border-color: var(--pico-muted-border-color);
+}
+
+.navbar {
+  padding: var(--pico-nav-element-spacing-vertical) var(--pico-nav-element-spacing-horizontal);
+  color: var(--pico-color);
+  background-color: var(--pico-card-background-color);
+  border: var(--pico-border-width) solid var(--pico-muted-border-color);
+  border-radius: var(--pico-border-radius);
+}
+
+.navbar-brand {
+  color: var(--pico-contrast);
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.dropdown-menu {
+  color: var(--pico-dropdown-color);
+  background-color: var(--pico-dropdown-background-color);
+  border: var(--pico-border-width) solid var(--pico-dropdown-border-color);
+  border-radius: var(--pico-border-radius);
+  box-shadow: var(--pico-dropdown-box-shadow);
+}
+
+.dropdown-item {
+  color: var(--pico-dropdown-color);
+}
+
+.dropdown-item:hover,
+.dropdown-item:focus {
+  background-color: var(--pico-dropdown-hover-background-color);
+}
+
+.accordion {
+  color: var(--pico-color);
+  background-color: var(--pico-card-background-color);
+  border-color: var(--pico-accordion-border-color);
+  border-radius: var(--pico-border-radius);
+}
+
+.accordion-button {
+  color: var(--pico-color);
+  background-color: var(--pico-card-background-color);
+  border-color: var(--pico-accordion-border-color);
+}
+
+.accordion-button:not(.collapsed) {
+  color: var(--pico-accordion-active-summary-color);
+}
+
+.modal-content,
+.offcanvas {
+  color: var(--pico-color);
+  background-color: var(--pico-card-background-color);
+  border: var(--pico-border-width) solid var(--pico-card-border-color);
+  border-radius: var(--pico-border-radius);
+  box-shadow: var(--pico-card-box-shadow);
+}
+
+.modal-header,
+.modal-footer,
+.offcanvas-header {
+  padding: var(--pico-block-spacing-vertical) var(--pico-block-spacing-horizontal);
+  background-color: var(--pico-card-sectioning-background-color);
+  border-color: var(--pico-card-border-color);
+}
+
+.modal-header,
+.offcanvas-header {
+  border-bottom: var(--pico-border-width) solid var(--pico-card-border-color);
+}
+
+.modal-footer {
+  border-top: var(--pico-border-width) solid var(--pico-card-border-color);
+}
+
+.modal-body,
+.offcanvas-body {
+  padding: var(--pico-block-spacing-vertical) var(--pico-block-spacing-horizontal);
+}
+
+.tooltip-inner {
+  color: var(--pico-tooltip-color);
+  background-color: var(--pico-tooltip-background-color);
+  border-radius: var(--pico-border-radius);
+}
+
+.progress {
+  background-color: var(--pico-progress-background-color);
+  border-radius: var(--pico-border-radius);
+}
+
+.progress-bar {
+  background-color: var(--pico-progress-color);
+}
+END_PICO_BOOTSTRAP_BRIDGE
+)
+
+(define bulma-bootstrap-bridge-body #<<END_BULMA_BOOTSTRAP_BRIDGE_BODY
+  --bs-body-color: hsl(var(--bulma-text-h), var(--bulma-text-s), var(--bulma-text-l));
+  --bs-body-bg: hsl(var(--bulma-scheme-h), var(--bulma-scheme-s), var(--bulma-scheme-main-l));
+  --bs-body-font-family: var(--bulma-family-primary);
+  --bs-body-font-size: var(--bulma-size-normal);
+  --bs-body-font-weight: var(--bulma-weight-normal);
+  --bs-body-line-height: 1.5;
+  --bs-emphasis-color: hsl(var(--bulma-text-h), var(--bulma-text-s), var(--bulma-text-strong-l));
+  --bs-secondary-color: hsl(var(--bulma-text-h), var(--bulma-text-s), var(--bulma-text-weak-l));
+  --bs-tertiary-color: hsl(var(--bulma-text-h), var(--bulma-text-s), var(--bulma-text-weak-l));
+  --bs-secondary-bg: hsl(var(--bulma-scheme-h), var(--bulma-scheme-s), var(--bulma-scheme-main-bis-l));
+  --bs-tertiary-bg: hsl(var(--bulma-scheme-h), var(--bulma-scheme-s), var(--bulma-scheme-main-ter-l));
+  --bs-border-color: hsl(var(--bulma-scheme-h), var(--bulma-scheme-s), var(--bulma-border-l));
+  --bs-border-color-translucent: hsl(var(--bulma-scheme-h), var(--bulma-scheme-s), var(--bulma-border-weak-l));
+  --bs-primary: hsla(var(--bulma-primary-h), var(--bulma-primary-s), var(--bulma-primary-l), 1);
+  --bs-primary-text-emphasis: hsla(var(--bulma-primary-h), var(--bulma-primary-s), var(--bulma-primary-l), 1);
+  --bs-primary-bg-subtle: color-mix(in oklch, hsla(var(--bulma-primary-h), var(--bulma-primary-s), var(--bulma-primary-l), 1) 18%, hsl(var(--bulma-scheme-h), var(--bulma-scheme-s), var(--bulma-scheme-main-l)));
+  --bs-primary-border-subtle: color-mix(in oklch, hsla(var(--bulma-primary-h), var(--bulma-primary-s), var(--bulma-primary-l), 1) 44%, hsl(var(--bulma-scheme-h), var(--bulma-scheme-s), var(--bulma-border-l)));
+  --bs-secondary: hsla(var(--bulma-link-h), var(--bulma-link-s), var(--bulma-link-l), 1);
+  --bs-secondary-text-emphasis: hsla(var(--bulma-link-h), var(--bulma-link-s), var(--bulma-link-l), 1);
+  --bs-secondary-bg-subtle: color-mix(in oklch, hsla(var(--bulma-link-h), var(--bulma-link-s), var(--bulma-link-l), 1) 18%, hsl(var(--bulma-scheme-h), var(--bulma-scheme-s), var(--bulma-scheme-main-l)));
+  --bs-secondary-border-subtle: color-mix(in oklch, hsla(var(--bulma-link-h), var(--bulma-link-s), var(--bulma-link-l), 1) 44%, hsl(var(--bulma-scheme-h), var(--bulma-scheme-s), var(--bulma-border-l)));
+  --bs-success: hsla(var(--bulma-success-h), var(--bulma-success-s), var(--bulma-success-l), 1);
+  --bs-success-text-emphasis: hsla(var(--bulma-success-h), var(--bulma-success-s), var(--bulma-success-l), 1);
+  --bs-success-bg-subtle: color-mix(in oklch, hsla(var(--bulma-success-h), var(--bulma-success-s), var(--bulma-success-l), 1) 18%, hsl(var(--bulma-scheme-h), var(--bulma-scheme-s), var(--bulma-scheme-main-l)));
+  --bs-success-border-subtle: color-mix(in oklch, hsla(var(--bulma-success-h), var(--bulma-success-s), var(--bulma-success-l), 1) 44%, hsl(var(--bulma-scheme-h), var(--bulma-scheme-s), var(--bulma-border-l)));
+  --bs-info: hsla(var(--bulma-info-h), var(--bulma-info-s), var(--bulma-info-l), 1);
+  --bs-info-text-emphasis: hsla(var(--bulma-info-h), var(--bulma-info-s), var(--bulma-info-l), 1);
+  --bs-info-bg-subtle: color-mix(in oklch, hsla(var(--bulma-info-h), var(--bulma-info-s), var(--bulma-info-l), 1) 18%, hsl(var(--bulma-scheme-h), var(--bulma-scheme-s), var(--bulma-scheme-main-l)));
+  --bs-info-border-subtle: color-mix(in oklch, hsla(var(--bulma-info-h), var(--bulma-info-s), var(--bulma-info-l), 1) 44%, hsl(var(--bulma-scheme-h), var(--bulma-scheme-s), var(--bulma-border-l)));
+  --bs-warning: hsla(var(--bulma-warning-h), var(--bulma-warning-s), var(--bulma-warning-l), 1);
+  --bs-warning-text-emphasis: hsla(var(--bulma-warning-h), var(--bulma-warning-s), var(--bulma-warning-l), 1);
+  --bs-warning-bg-subtle: color-mix(in oklch, hsla(var(--bulma-warning-h), var(--bulma-warning-s), var(--bulma-warning-l), 1) 22%, hsl(var(--bulma-scheme-h), var(--bulma-scheme-s), var(--bulma-scheme-main-l)));
+  --bs-warning-border-subtle: color-mix(in oklch, hsla(var(--bulma-warning-h), var(--bulma-warning-s), var(--bulma-warning-l), 1) 48%, hsl(var(--bulma-scheme-h), var(--bulma-scheme-s), var(--bulma-border-l)));
+  --bs-danger: hsla(var(--bulma-danger-h), var(--bulma-danger-s), var(--bulma-danger-l), 1);
+  --bs-danger-text-emphasis: hsla(var(--bulma-danger-h), var(--bulma-danger-s), var(--bulma-danger-l), 1);
+  --bs-danger-bg-subtle: color-mix(in oklch, hsla(var(--bulma-danger-h), var(--bulma-danger-s), var(--bulma-danger-l), 1) 18%, hsl(var(--bulma-scheme-h), var(--bulma-scheme-s), var(--bulma-scheme-main-l)));
+  --bs-danger-border-subtle: color-mix(in oklch, hsla(var(--bulma-danger-h), var(--bulma-danger-s), var(--bulma-danger-l), 1) 44%, hsl(var(--bulma-scheme-h), var(--bulma-scheme-s), var(--bulma-border-l)));
+  --bs-light: hsl(var(--bulma-scheme-h), var(--bulma-scheme-s), var(--bulma-scheme-main-bis-l));
+  --bs-light-text-emphasis: hsl(var(--bulma-text-h), var(--bulma-text-s), var(--bulma-text-l));
+  --bs-light-bg-subtle: hsl(var(--bulma-scheme-h), var(--bulma-scheme-s), var(--bulma-scheme-main-l));
+  --bs-light-border-subtle: hsl(var(--bulma-scheme-h), var(--bulma-scheme-s), var(--bulma-border-weak-l));
+  --bs-dark: hsl(var(--bulma-text-h), var(--bulma-text-s), var(--bulma-text-strong-l));
+  --bs-dark-text-emphasis: hsl(var(--bulma-text-h), var(--bulma-text-s), var(--bulma-text-strong-l));
+  --bs-dark-bg-subtle: color-mix(in oklch, hsl(var(--bulma-text-h), var(--bulma-text-s), var(--bulma-text-strong-l)) 18%, hsl(var(--bulma-scheme-h), var(--bulma-scheme-s), var(--bulma-scheme-main-l)));
+  --bs-dark-border-subtle: color-mix(in oklch, hsl(var(--bulma-text-h), var(--bulma-text-s), var(--bulma-text-strong-l)) 44%, hsl(var(--bulma-scheme-h), var(--bulma-scheme-s), var(--bulma-border-l)));
+  --bs-link-color: hsla(var(--bulma-link-h), var(--bulma-link-s), var(--bulma-link-l), 1);
+  --bs-link-hover-color: hsl(var(--bulma-link-h), var(--bulma-link-s), calc(var(--bulma-link-on-scheme-l) + var(--bulma-hover-color-l-delta)));
+  --bs-border-width: var(--bulma-control-border-width);
+  --bs-border-style: solid;
+  --bs-border-radius-sm: var(--bulma-radius-small);
+  --bs-border-radius: var(--bulma-radius);
+  --bs-border-radius-lg: var(--bulma-radius-large);
+  --bs-border-radius-pill: var(--bulma-radius-rounded);
+  --bs-box-shadow-sm: var(--bulma-shadow);
+  --bs-box-shadow: var(--bulma-shadow);
+  --bs-box-shadow-lg: var(--bulma-shadow);
+  --bs-focus-ring-color: hsla(var(--bulma-focus-h), var(--bulma-focus-s), var(--bulma-focus-l), var(--bulma-focus-shadow-alpha));
+  --bs-form-valid-color: hsla(var(--bulma-success-h), var(--bulma-success-s), var(--bulma-success-l), 1);
+  --bs-form-valid-border-color: hsla(var(--bulma-success-h), var(--bulma-success-s), var(--bulma-success-l), 1);
+  --bs-form-invalid-color: hsla(var(--bulma-danger-h), var(--bulma-danger-s), var(--bulma-danger-l), 1);
+  --bs-form-invalid-border-color: hsla(var(--bulma-danger-h), var(--bulma-danger-s), var(--bulma-danger-l), 1);
+END_BULMA_BOOTSTRAP_BRIDGE_BODY
+)
+
+(define bulma-bootstrap-component-bridge-css #<<END_BULMA_BOOTSTRAP_COMPONENT_BRIDGE
+
+body {
+  color: hsl(var(--bulma-text-h), var(--bulma-text-s), var(--bulma-text-l));
+  background-color: hsl(var(--bulma-scheme-h), var(--bulma-scheme-s), var(--bulma-scheme-main-l));
+  font-family: var(--bulma-family-primary);
+  font-size: var(--bulma-size-normal);
+  font-weight: var(--bulma-weight-normal);
+  line-height: 1.5;
+  letter-spacing: normal;
+  text-shadow: none;
+}
+
+h1,
+.h1,
+.title {
+  color: hsl(var(--bulma-text-h), var(--bulma-text-s), var(--bulma-text-title-l, var(--bulma-text-strong-l)));
+  font-family: var(--bulma-family-secondary, var(--bulma-family-primary));
+  font-weight: var(--bulma-weight-semibold);
+  line-height: 1.125;
+  letter-spacing: normal;
+}
+
+a {
+  color: hsla(var(--bulma-link-h), var(--bulma-link-s), var(--bulma-link-l), 1);
+  font-weight: inherit;
+}
+
+strong,
+b {
+  color: hsl(var(--bulma-text-h), var(--bulma-text-s), var(--bulma-text-strong-l));
+  font-weight: var(--bulma-weight-bold);
+}
+
+.lead {
+  color: hsl(var(--bulma-text-h), var(--bulma-text-s), var(--bulma-text-weak-l));
+  font-size: var(--bulma-size-medium);
+  font-weight: var(--bulma-weight-normal);
+  line-height: 1.5;
+}
+
+.btn,
+button {
+  --bs-btn-padding-x: 1em;
+  --bs-btn-padding-y: 0.5em;
+  --bs-btn-font-size: var(--bulma-size-normal);
+  --bs-btn-font-weight: var(--bulma-weight-medium);
+  --bs-btn-line-height: 1.5;
+  --bs-btn-border-width: var(--bulma-control-border-width);
+  --bs-btn-border-radius: var(--bulma-control-radius);
+  --bs-btn-box-shadow: 0px 0.0625em 0.125em hsla(var(--bulma-shadow-h), var(--bulma-shadow-s), var(--bulma-shadow-l), 0.05), 0px 0.125em 0.25em hsla(var(--bulma-shadow-h), var(--bulma-shadow-s), var(--bulma-shadow-l), 0.05);
+  padding: calc(var(--bs-btn-padding-y) - var(--bs-btn-border-width)) calc(var(--bs-btn-padding-x) - var(--bs-btn-border-width));
+  color: hsl(var(--bulma-text-h), var(--bulma-text-s), var(--bulma-text-strong-l));
+  font-family: var(--bulma-family-primary);
+  font-size: var(--bs-btn-font-size);
+  font-weight: var(--bs-btn-font-weight);
+  line-height: var(--bs-btn-line-height);
+  background-color: hsl(var(--bulma-scheme-h), var(--bulma-scheme-s), var(--bulma-scheme-main-l));
+  border: var(--bs-btn-border-width) solid hsl(var(--bulma-scheme-h), var(--bulma-scheme-s), var(--bulma-border-l));
+  border-radius: var(--bs-btn-border-radius);
+  box-shadow: var(--bs-btn-box-shadow);
+}
+
+.btn-primary {
+  --bs-btn-color: hsla(var(--bulma-primary-h), var(--bulma-primary-s), var(--bulma-primary-invert-l), 1);
+  --bs-btn-bg: hsla(var(--bulma-primary-h), var(--bulma-primary-s), var(--bulma-primary-l), 1);
+  --bs-btn-border-color: hsla(var(--bulma-primary-h), var(--bulma-primary-s), var(--bulma-primary-l), 1);
+  --bs-btn-hover-color: var(--bs-btn-color);
+  --bs-btn-hover-bg: color-mix(in oklch, var(--bs-btn-bg) 90%, hsl(var(--bulma-scheme-h), var(--bulma-scheme-s), var(--bulma-scheme-invert-l)));
+  --bs-btn-hover-border-color: var(--bs-btn-hover-bg);
+  color: var(--bs-btn-color);
+  background-color: var(--bs-btn-bg);
+  border-color: var(--bs-btn-border-color);
+}
+
+.btn-secondary,
+.btn-outline-primary,
+.btn-outline-secondary {
+  --bs-btn-color: hsla(var(--bulma-link-h), var(--bulma-link-s), var(--bulma-link-l), 1);
+  --bs-btn-bg: transparent;
+  --bs-btn-border-color: hsla(var(--bulma-link-h), var(--bulma-link-s), var(--bulma-link-l), 1);
+  --bs-btn-hover-color: hsla(var(--bulma-link-h), var(--bulma-link-s), var(--bulma-link-invert-l), 1);
+  --bs-btn-hover-bg: hsla(var(--bulma-link-h), var(--bulma-link-s), var(--bulma-link-l), 1);
+  --bs-btn-hover-border-color: hsla(var(--bulma-link-h), var(--bulma-link-s), var(--bulma-link-l), 1);
+  color: var(--bs-btn-color);
+  background-color: var(--bs-btn-bg);
+  border-color: var(--bs-btn-border-color);
+}
+
+.btn-light {
+  --bs-btn-color: hsl(var(--bulma-text-h), var(--bulma-text-s), var(--bulma-text-l));
+  --bs-btn-bg: hsl(var(--bulma-scheme-h), var(--bulma-scheme-s), var(--bulma-scheme-main-bis-l));
+  --bs-btn-border-color: hsl(var(--bulma-scheme-h), var(--bulma-scheme-s), var(--bulma-border-l));
+  color: var(--bs-btn-color);
+  background-color: var(--bs-btn-bg);
+  border-color: var(--bs-btn-border-color);
+}
+
+.btn-sm {
+  --bs-btn-padding-x: 0.75em;
+  --bs-btn-padding-y: 0.375em;
+  --bs-btn-font-size: var(--bulma-size-small);
+}
+
+.btn-lg {
+  --bs-btn-padding-x: 1.25em;
+  --bs-btn-padding-y: 0.625em;
+  --bs-btn-font-size: var(--bulma-size-medium);
+}
+
+.btn-group,
+.btn-group-vertical {
+  border-radius: var(--bulma-control-radius);
+}
+
+.card {
+  color: hsl(var(--bulma-text-h), var(--bulma-text-s), var(--bulma-text-l));
+  background-color: hsl(var(--bulma-scheme-h), var(--bulma-scheme-s), var(--bulma-scheme-main-l));
+  border-color: hsl(var(--bulma-scheme-h), var(--bulma-scheme-s), var(--bulma-border-weak-l));
+  border-style: solid;
+  border-width: 0;
+  border-radius: var(--bulma-radius-large);
+  box-shadow: var(--bulma-shadow);
+}
+
+.card-header {
+  color: hsl(var(--bulma-text-h), var(--bulma-text-s), var(--bulma-text-strong-l));
+  background-color: hsl(var(--bulma-scheme-h), var(--bulma-scheme-s), var(--bulma-scheme-main-l));
+  border-color: hsl(var(--bulma-scheme-h), var(--bulma-scheme-s), var(--bulma-border-weak-l));
+  border-bottom-width: var(--bulma-control-border-width);
+  border-bottom-style: solid;
+  padding: 0.75rem 1rem;
+  font-weight: var(--bulma-weight-bold);
+}
+
+.card-body {
+  padding: 1.5rem;
+}
+
+.card-footer {
+  color: hsl(var(--bulma-text-h), var(--bulma-text-s), var(--bulma-text-weak-l));
+  background-color: hsl(var(--bulma-scheme-h), var(--bulma-scheme-s), var(--bulma-scheme-main-bis-l));
+  border-top: var(--bulma-control-border-width) solid hsl(var(--bulma-scheme-h), var(--bulma-scheme-s), var(--bulma-border-weak-l));
+  padding: 0.75rem 1rem;
+}
+
+.form-control,
+.form-select,
+input,
+textarea,
+select {
+  color: hsl(var(--bulma-text-h), var(--bulma-text-s), var(--bulma-text-strong-l));
+  background-color: hsl(var(--bulma-scheme-h), var(--bulma-scheme-s), var(--bulma-scheme-main-l));
+  border-color: hsl(var(--bulma-scheme-h), var(--bulma-scheme-s), var(--bulma-border-l));
+  border-style: solid;
+  border-width: var(--bulma-control-border-width);
+  border-radius: var(--bulma-control-radius);
+  padding: calc(0.5em - var(--bulma-control-border-width)) calc(0.75em - var(--bulma-control-border-width));
+  font-family: var(--bulma-family-primary);
+  font-size: var(--bulma-size-normal);
+  line-height: 1.5;
+  box-shadow: inset 0 0.0625em 0.125em hsla(var(--bulma-shadow-h), var(--bulma-shadow-s), var(--bulma-shadow-l), 0.05);
+}
+
+.form-control:focus,
+.form-select:focus,
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: hsla(var(--bulma-link-h), var(--bulma-link-s), var(--bulma-link-l), 1);
+  box-shadow: 0 0 0 0.125em hsla(var(--bulma-link-h), var(--bulma-link-s), var(--bulma-link-on-scheme-l), 0.25);
+}
+
+.form-check-input {
+  width: 1em;
+  height: 1em;
+  background-color: hsl(var(--bulma-scheme-h), var(--bulma-scheme-s), var(--bulma-scheme-main-l));
+  border: var(--bulma-control-border-width) solid hsl(var(--bulma-scheme-h), var(--bulma-scheme-s), var(--bulma-border-l));
+  border-radius: var(--bulma-radius-small);
+}
+
+.form-check-input:checked {
+  background-color: hsla(var(--bulma-link-h), var(--bulma-link-s), var(--bulma-link-l), 1);
+  border-color: hsla(var(--bulma-link-h), var(--bulma-link-s), var(--bulma-link-l), 1);
+}
+
+.table {
+  color: hsl(var(--bulma-text-h), var(--bulma-text-s), var(--bulma-text-l));
+  background-color: hsl(var(--bulma-scheme-h), var(--bulma-scheme-s), var(--bulma-scheme-main-l));
+  border-color: hsl(var(--bulma-scheme-h), var(--bulma-scheme-s), var(--bulma-border-l));
+}
+
+.table th {
+  color: hsl(var(--bulma-text-h), var(--bulma-text-s), var(--bulma-text-strong-l));
+  background-color: hsl(var(--bulma-scheme-h), var(--bulma-scheme-s), var(--bulma-scheme-main-bis-l));
+  border-color: hsl(var(--bulma-scheme-h), var(--bulma-scheme-s), var(--bulma-border-l));
+}
+
+.navbar,
+.nav {
+  color: hsl(var(--bulma-text-h), var(--bulma-text-s), var(--bulma-text-l));
+  background-color: hsl(var(--bulma-scheme-h), var(--bulma-scheme-s), var(--bulma-scheme-main-l));
+  border-color: hsl(var(--bulma-scheme-h), var(--bulma-scheme-s), var(--bulma-border-weak-l));
+  box-shadow: none;
+  border-radius: 0;
+  padding: 0.5rem 0.75rem;
+}
+
+.navbar-brand,
+.navbar .nav-link,
+.nav-link {
+  color: hsl(var(--bulma-text-h), var(--bulma-text-s), var(--bulma-text-l));
+  font-weight: var(--bulma-weight-normal);
+  padding: 0.5rem 0.75rem;
+}
+
+.navbar .nav-link:hover,
+.nav-link:hover,
+.navbar .nav-link.active,
+.nav-link.active {
+  color: hsla(var(--bulma-link-h), var(--bulma-link-s), var(--bulma-link-l), 1);
+}
+
+.dropdown-menu {
+  --bs-dropdown-min-width: 12rem;
+  color: hsl(var(--bulma-text-h), var(--bulma-text-s), var(--bulma-text-l));
+  background-color: hsl(var(--bulma-scheme-h), var(--bulma-scheme-s), var(--bulma-scheme-main-l));
+  border-color: hsl(var(--bulma-scheme-h), var(--bulma-scheme-s), var(--bulma-border-weak-l));
+  border-style: solid;
+  border-width: var(--bulma-control-border-width);
+  border-radius: var(--bulma-radius);
+  box-shadow: var(--bulma-shadow);
+  min-width: var(--bs-dropdown-min-width);
+  padding: 0.5rem 0;
+}
+
+.dropdown-item {
+  color: hsl(var(--bulma-text-h), var(--bulma-text-s), var(--bulma-text-l));
+  padding: 0.375rem 1rem;
+}
+
+.dropdown-item:hover,
+.dropdown-item.active {
+  color: hsl(var(--bulma-text-h), var(--bulma-text-s), var(--bulma-text-strong-l));
+  background-color: hsl(var(--bulma-scheme-h), var(--bulma-scheme-s), var(--bulma-background-l));
+}
+
+.accordion,
+.modal-content,
+.offcanvas,
+.alert {
+  color: hsl(var(--bulma-text-h), var(--bulma-text-s), var(--bulma-text-l));
+  background-color: hsl(var(--bulma-scheme-h), var(--bulma-scheme-s), var(--bulma-scheme-main-l));
+  border-color: hsl(var(--bulma-scheme-h), var(--bulma-scheme-s), var(--bulma-border-weak-l));
+  border-style: solid;
+  border-width: var(--bulma-control-border-width);
+  border-radius: var(--bulma-radius-large);
+  box-shadow: var(--bulma-shadow);
+}
+
+.alert-primary {
+  color: hsla(var(--bulma-primary-h), var(--bulma-primary-s), var(--bulma-primary-invert-l), 1);
+  background-color: hsla(var(--bulma-primary-h), var(--bulma-primary-s), var(--bulma-primary-l), 1);
+  border-color: hsla(var(--bulma-primary-h), var(--bulma-primary-s), var(--bulma-primary-l), 1);
+}
+
+.alert-success {
+  color: hsla(var(--bulma-success-h), var(--bulma-success-s), var(--bulma-success-invert-l), 1);
+  background-color: hsla(var(--bulma-success-h), var(--bulma-success-s), var(--bulma-success-l), 1);
+  border-color: hsla(var(--bulma-success-h), var(--bulma-success-s), var(--bulma-success-l), 1);
+}
+
+.alert-danger {
+  color: hsla(var(--bulma-danger-h), var(--bulma-danger-s), var(--bulma-danger-invert-l), 1);
+  background-color: hsla(var(--bulma-danger-h), var(--bulma-danger-s), var(--bulma-danger-l), 1);
+  border-color: hsla(var(--bulma-danger-h), var(--bulma-danger-s), var(--bulma-danger-l), 1);
+}
+
+.badge {
+  color: hsl(var(--bulma-text-h), var(--bulma-text-s), var(--bulma-text-strong-l));
+  background-color: hsl(var(--bulma-scheme-h), var(--bulma-scheme-s), var(--bulma-scheme-main-ter-l));
+  border-radius: var(--bulma-radius-rounded);
+  padding: 0.35em 0.65em;
+  font-size: var(--bulma-size-small);
+  font-weight: var(--bulma-weight-semibold);
+}
+
+.tooltip-inner {
+  color: hsl(var(--bulma-scheme-h), var(--bulma-scheme-s), var(--bulma-scheme-main-l));
+  background-color: hsl(var(--bulma-text-h), var(--bulma-text-s), var(--bulma-text-strong-l));
+  border-radius: var(--bulma-radius);
+}
+
+.progress {
+  background-color: hsl(var(--bulma-scheme-h), var(--bulma-scheme-s), var(--bulma-background-l));
+  border-radius: var(--bulma-radius-rounded);
+}
+
+.progress-bar {
+  background-color: hsla(var(--bulma-primary-h), var(--bulma-primary-s), var(--bulma-primary-l), 1);
+}
+END_BULMA_BOOTSTRAP_COMPONENT_BRIDGE
+)
+
+(define daisyui-bootstrap-bridge-body #<<END_DAISYUI_BOOTSTRAP_BRIDGE_BODY
+  --bs-body-color: var(--color-base-content);
+  --bs-body-bg: var(--color-base-100);
+  --bs-body-font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --bs-body-font-size: 1rem;
+  --bs-body-font-weight: 400;
+  --bs-body-line-height: 1.5;
+  --bs-emphasis-color: var(--color-base-content);
+  --bs-secondary-color: color-mix(in oklch, var(--color-base-content) 68%, var(--color-base-100));
+  --bs-tertiary-color: color-mix(in oklch, var(--color-base-content) 48%, var(--color-base-100));
+  --bs-secondary-bg: var(--color-base-200);
+  --bs-tertiary-bg: var(--color-base-300);
+  --bs-border-color: var(--color-base-300);
+  --bs-border-color-translucent: color-mix(in oklch, var(--color-base-content) 16%, var(--color-base-300));
+  --bs-primary: var(--color-primary);
+  --bs-primary-text-emphasis: var(--color-primary);
+  --bs-primary-bg-subtle: color-mix(in oklch, var(--color-primary) 18%, var(--color-base-100));
+  --bs-primary-border-subtle: color-mix(in oklch, var(--color-primary) 44%, var(--color-base-300));
+  --bs-secondary: var(--color-secondary);
+  --bs-secondary-text-emphasis: var(--color-secondary);
+  --bs-secondary-bg-subtle: color-mix(in oklch, var(--color-secondary) 18%, var(--color-base-100));
+  --bs-secondary-border-subtle: color-mix(in oklch, var(--color-secondary) 44%, var(--color-base-300));
+  --bs-success: var(--color-success);
+  --bs-success-text-emphasis: var(--color-success);
+  --bs-success-bg-subtle: color-mix(in oklch, var(--color-success) 18%, var(--color-base-100));
+  --bs-success-border-subtle: color-mix(in oklch, var(--color-success) 44%, var(--color-base-300));
+  --bs-info: var(--color-info);
+  --bs-info-text-emphasis: var(--color-info);
+  --bs-info-bg-subtle: color-mix(in oklch, var(--color-info) 18%, var(--color-base-100));
+  --bs-info-border-subtle: color-mix(in oklch, var(--color-info) 44%, var(--color-base-300));
+  --bs-warning: var(--color-warning);
+  --bs-warning-text-emphasis: var(--color-warning);
+  --bs-warning-bg-subtle: color-mix(in oklch, var(--color-warning) 22%, var(--color-base-100));
+  --bs-warning-border-subtle: color-mix(in oklch, var(--color-warning) 48%, var(--color-base-300));
+  --bs-danger: var(--color-error);
+  --bs-danger-text-emphasis: var(--color-error);
+  --bs-danger-bg-subtle: color-mix(in oklch, var(--color-error) 18%, var(--color-base-100));
+  --bs-danger-border-subtle: color-mix(in oklch, var(--color-error) 44%, var(--color-base-300));
+  --bs-light: var(--color-base-200);
+  --bs-light-text-emphasis: var(--color-base-content);
+  --bs-light-bg-subtle: var(--color-base-100);
+  --bs-light-border-subtle: var(--color-base-300);
+  --bs-dark: var(--color-neutral);
+  --bs-dark-text-emphasis: var(--color-neutral);
+  --bs-dark-bg-subtle: color-mix(in oklch, var(--color-neutral) 18%, var(--color-base-100));
+  --bs-dark-border-subtle: color-mix(in oklch, var(--color-neutral) 44%, var(--color-base-300));
+  --bs-link-color: var(--color-primary);
+  --bs-link-hover-color: color-mix(in oklch, var(--color-primary) 84%, var(--color-base-content));
+  --bs-border-width: var(--border);
+  --bs-border-style: solid;
+  --bs-border-radius-sm: var(--radius-selector);
+  --bs-border-radius: var(--radius-field);
+  --bs-border-radius-lg: var(--radius-box);
+  --bs-border-radius-pill: 9999px;
+  --bs-box-shadow-sm: 0 calc(var(--depth) * 0.0625rem) calc(var(--depth) * 0.125rem) color-mix(in oklch, var(--color-base-content) 12%, transparent);
+  --bs-box-shadow: 0 calc(var(--depth) * 0.25rem) calc(var(--depth) * 0.75rem) color-mix(in oklch, var(--color-base-content) 14%, transparent);
+  --bs-box-shadow-lg: 0 calc(var(--depth) * 0.5rem) calc(var(--depth) * 1.5rem) color-mix(in oklch, var(--color-base-content) 16%, transparent);
+  --bs-focus-ring-color: color-mix(in oklch, var(--color-primary) 32%, transparent);
+  --bs-form-valid-color: var(--color-success);
+  --bs-form-valid-border-color: var(--color-success);
+  --bs-form-invalid-color: var(--color-error);
+  --bs-form-invalid-border-color: var(--color-error);
+END_DAISYUI_BOOTSTRAP_BRIDGE_BODY
+)
+
+(define daisyui-bootstrap-component-bridge-css #<<END_DAISYUI_BOOTSTRAP_COMPONENT_BRIDGE
+
+body {
+  color: var(--color-base-content);
+  background-color: var(--color-base-100);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 1rem;
+  font-weight: 400;
+  line-height: 1.5;
+  letter-spacing: normal;
+  text-shadow: none;
+}
+
+h1,
+.h1 {
+  color: var(--color-base-content);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.025em;
+}
+
+a {
+  color: var(--color-primary);
+  font-weight: 500;
+}
+
+strong,
+b {
+  font-weight: 700;
+}
+
+.lead {
+  color: color-mix(in oklch, var(--color-base-content) 82%, var(--color-base-100));
+  font-size: 1.25rem;
+  font-weight: 400;
+  line-height: 1.55;
+}
+
+.btn,
+button {
+  --bs-btn-padding-x: calc(var(--size-field) * 4);
+  --bs-btn-padding-y: calc(var(--size-field) * 2);
+  --bs-btn-font-size: 1rem;
+  --bs-btn-font-weight: 600;
+  --bs-btn-line-height: 1.5;
+  --bs-btn-border-width: var(--border);
+  --bs-btn-border-radius: var(--radius-field);
+  --bs-btn-box-shadow: var(--bs-box-shadow-sm);
+  padding: var(--bs-btn-padding-y) var(--bs-btn-padding-x);
+  color: var(--color-primary-content);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: var(--bs-btn-font-size);
+  font-weight: var(--bs-btn-font-weight);
+  line-height: var(--bs-btn-line-height);
+  background-color: var(--color-primary);
+  border: var(--bs-btn-border-width) solid var(--color-primary);
+  border-radius: var(--bs-btn-border-radius);
+  box-shadow: var(--bs-btn-box-shadow);
+}
+
+.btn-primary {
+  --bs-btn-color: var(--color-primary-content);
+  --bs-btn-bg: var(--color-primary);
+  --bs-btn-border-color: var(--color-primary);
+  --bs-btn-hover-color: var(--color-primary-content);
+  --bs-btn-hover-bg: color-mix(in oklch, var(--color-primary) 86%, var(--color-base-content));
+  --bs-btn-hover-border-color: color-mix(in oklch, var(--color-primary) 86%, var(--color-base-content));
+  color: var(--bs-btn-color);
+  background-color: var(--bs-btn-bg);
+  border-color: var(--bs-btn-border-color);
+}
+
+.btn-secondary {
+  --bs-btn-color: var(--color-secondary-content);
+  --bs-btn-bg: var(--color-secondary);
+  --bs-btn-border-color: var(--color-secondary);
+  --bs-btn-hover-color: var(--color-secondary-content);
+  --bs-btn-hover-bg: color-mix(in oklch, var(--color-secondary) 86%, var(--color-base-content));
+  --bs-btn-hover-border-color: color-mix(in oklch, var(--color-secondary) 86%, var(--color-base-content));
+  color: var(--bs-btn-color);
+  background-color: var(--bs-btn-bg);
+  border-color: var(--bs-btn-border-color);
+}
+
+.btn-success { --bs-btn-color: var(--color-success-content); --bs-btn-bg: var(--color-success); --bs-btn-border-color: var(--color-success); color: var(--bs-btn-color); background-color: var(--bs-btn-bg); border-color: var(--bs-btn-border-color); }
+.btn-info { --bs-btn-color: var(--color-info-content); --bs-btn-bg: var(--color-info); --bs-btn-border-color: var(--color-info); color: var(--bs-btn-color); background-color: var(--bs-btn-bg); border-color: var(--bs-btn-border-color); }
+.btn-warning { --bs-btn-color: var(--color-warning-content); --bs-btn-bg: var(--color-warning); --bs-btn-border-color: var(--color-warning); color: var(--bs-btn-color); background-color: var(--bs-btn-bg); border-color: var(--bs-btn-border-color); }
+.btn-danger { --bs-btn-color: var(--color-error-content); --bs-btn-bg: var(--color-error); --bs-btn-border-color: var(--color-error); color: var(--bs-btn-color); background-color: var(--bs-btn-bg); border-color: var(--bs-btn-border-color); }
+.btn-light { --bs-btn-color: var(--color-base-content); --bs-btn-bg: var(--color-base-200); --bs-btn-border-color: var(--color-base-300); color: var(--bs-btn-color); background-color: var(--bs-btn-bg); border-color: var(--bs-btn-border-color); }
+.btn-dark { --bs-btn-color: var(--color-neutral-content); --bs-btn-bg: var(--color-neutral); --bs-btn-border-color: var(--color-neutral); color: var(--bs-btn-color); background-color: var(--bs-btn-bg); border-color: var(--bs-btn-border-color); }
+
+.btn-outline-primary {
+  --bs-btn-color: var(--color-primary);
+  --bs-btn-bg: transparent;
+  --bs-btn-border-color: var(--color-primary);
+  --bs-btn-hover-color: var(--color-primary-content);
+  --bs-btn-hover-bg: var(--color-primary);
+  --bs-btn-hover-border-color: var(--color-primary);
+  color: var(--bs-btn-color);
+  background-color: var(--bs-btn-bg);
+  border-color: var(--bs-btn-border-color);
+}
+
+.btn-outline-secondary {
+  --bs-btn-color: var(--color-secondary);
+  --bs-btn-bg: transparent;
+  --bs-btn-border-color: var(--color-secondary);
+  --bs-btn-hover-color: var(--color-secondary-content);
+  --bs-btn-hover-bg: var(--color-secondary);
+  --bs-btn-hover-border-color: var(--color-secondary);
+  color: var(--bs-btn-color);
+  background-color: var(--bs-btn-bg);
+  border-color: var(--bs-btn-border-color);
+}
+
+.btn-sm {
+  --bs-btn-padding-x: calc(var(--size-field) * 3);
+  --bs-btn-padding-y: calc(var(--size-field) * 1.5);
+  --bs-btn-font-size: 0.875rem;
+}
+
+.btn-lg {
+  --bs-btn-padding-x: calc(var(--size-field) * 5);
+  --bs-btn-padding-y: calc(var(--size-field) * 3);
+  --bs-btn-font-size: 1.125rem;
+}
+
+.btn-group,
+.btn-group-vertical {
+  border-radius: var(--radius-field);
+  box-shadow: var(--bs-box-shadow-sm);
+}
+
+.btn-group .btn + .btn {
+  border-left: var(--border) solid color-mix(in oklch, var(--color-base-content) 16%, var(--color-base-300));
+}
+
+.card {
+  --bs-card-color: var(--color-base-content);
+  --bs-card-bg: var(--color-base-100);
+  --bs-card-border-color: var(--color-base-300);
+  --bs-card-border-width: var(--border);
+  --bs-card-border-radius: var(--radius-box);
+  --bs-card-box-shadow: var(--bs-box-shadow);
+  --bs-card-cap-bg: var(--color-base-200);
+  --bs-card-cap-color: var(--color-base-content);
+  --bs-card-spacer-x: 1rem;
+  --bs-card-spacer-y: 1rem;
+  color: var(--bs-card-color);
+  background-color: var(--bs-card-bg);
+  border: var(--bs-card-border-width) solid var(--bs-card-border-color);
+  border-radius: var(--bs-card-border-radius);
+  box-shadow: var(--bs-card-box-shadow);
+}
+
+.card-header,
+.card-footer {
+  padding: 1rem;
+  color: var(--color-base-content);
+  background-color: var(--color-base-200);
+  border-color: var(--color-base-300);
+  font-weight: 700;
+}
+
+.card-header {
+  border-bottom: var(--border) solid var(--color-base-300);
+}
+
+.card-footer {
+  border-top: var(--border) solid var(--color-base-300);
+}
+
+.card-body {
+  padding: 1rem;
+}
+
+.form-control,
+.form-select,
+.input-group-text {
+  padding: calc(var(--size-field) * 2) calc(var(--size-field) * 4);
+  color: var(--color-base-content);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 1rem;
+  font-weight: 400;
+  line-height: 1.5;
+  background-color: var(--color-base-100);
+  border: var(--border) solid var(--color-base-300);
+  border-radius: var(--radius-field);
+  box-shadow: none;
+}
+
+.form-control:focus,
+.form-select:focus {
+  color: var(--color-base-content);
+  background-color: var(--color-base-100);
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 0.25rem color-mix(in oklch, var(--color-primary) 30%, transparent);
+}
+
+.form-control:disabled,
+.form-select:disabled {
+  color: color-mix(in oklch, var(--color-base-content) 45%, var(--color-base-100));
+  background-color: var(--color-base-200);
+  border-color: var(--color-base-300);
+  opacity: 0.65;
+}
+
+.form-control.is-valid,
+.form-select.is-valid {
+  color: var(--color-base-content);
+  border-color: var(--color-success);
+}
+
+.form-control.is-invalid,
+.form-select.is-invalid {
+  color: var(--color-base-content);
+  border-color: var(--color-error);
+}
+
+.form-text {
+  color: color-mix(in oklch, var(--color-base-content) 68%, var(--color-base-100));
+  font-size: 0.875em;
+  line-height: 1.5;
+}
+
+.form-check-input {
+  width: 1em;
+  height: 1em;
+  background-color: var(--color-base-100);
+  border: var(--border) solid var(--color-base-300);
+  border-radius: var(--radius-selector);
+}
+
+.form-check-input:checked {
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.form-check-label,
+label {
+  color: var(--color-base-content);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 1rem;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.table {
+  color: var(--color-base-content);
+  background-color: var(--color-base-100);
+  font-size: 1rem;
+  border-color: var(--color-base-300);
+}
+
+.table > :not(caption) > * > * {
+  padding: 0.75rem 1rem;
+  border-bottom: var(--border) solid var(--color-base-300);
+}
+
+.table-striped > tbody > tr:nth-of-type(odd) > * {
+  background-color: var(--color-base-200);
+}
+
+.table-hover > tbody > tr:hover > * {
+  background-color: color-mix(in oklch, var(--color-base-content) 7%, var(--color-base-100));
+}
+
+.nav {
+  gap: 0.25rem;
+}
+
+.nav-link {
+  padding: calc(var(--size-field) * 2) calc(var(--size-field) * 4);
+  color: var(--color-primary);
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.5;
+  border-radius: var(--radius-field);
+}
+
+.nav-link:hover {
+  color: color-mix(in oklch, var(--color-primary) 84%, var(--color-base-content));
+}
+
+.nav-link.disabled {
+  color: color-mix(in oklch, var(--color-base-content) 42%, var(--color-base-100));
+}
+
+.nav-pills .nav-link.active {
+  color: var(--color-primary-content);
+  background-color: var(--color-primary);
+}
+
+.nav-tabs .nav-link {
+  border: var(--border) solid transparent;
+}
+
+.nav-tabs .nav-link.active {
+  color: var(--color-base-content);
+  background-color: var(--color-base-100);
+  border-color: var(--color-base-300);
+}
+
+.navbar {
+  padding: calc(var(--size-field) * 2) calc(var(--size-field) * 4);
+  color: var(--color-base-content);
+  background-color: var(--color-base-200);
+  border: var(--border) solid var(--color-base-300);
+  border-radius: var(--radius-box);
+  box-shadow: var(--bs-box-shadow-sm);
+}
+
+.navbar-brand {
+  color: var(--color-base-content);
+  font-size: 1.25rem;
+  font-weight: 800;
+}
+
+.dropdown-menu {
+  color: var(--color-base-content);
+  background-color: var(--color-base-100);
+  border: var(--border) solid var(--color-base-300);
+  border-radius: var(--radius-box);
+  box-shadow: var(--bs-box-shadow);
+}
+
+.dropdown-header {
+  color: color-mix(in oklch, var(--color-base-content) 68%, var(--color-base-100));
+}
+
+.dropdown-item {
+  color: var(--color-base-content);
+  border-radius: var(--radius-field);
+}
+
+.dropdown-item:hover,
+.dropdown-item:focus {
+  color: var(--color-base-content);
+  background-color: var(--color-base-200);
+}
+
+.dropdown-item.active,
+.dropdown-item:active {
+  color: var(--color-primary-content);
+  background-color: var(--color-primary);
+}
+
+.accordion {
+  color: var(--color-base-content);
+  background-color: var(--color-base-100);
+  border-color: var(--color-base-300);
+  border-radius: var(--radius-box);
+}
+
+.accordion-button {
+  padding: 1rem;
+  color: var(--color-base-content);
+  background-color: var(--color-base-100);
+  border-color: var(--color-base-300);
+  font-weight: 700;
+}
+
+.accordion-button:not(.collapsed) {
+  color: var(--color-primary);
+  background-color: var(--color-base-200);
+}
+
+.modal-content,
+.offcanvas {
+  color: var(--color-base-content);
+  background-color: var(--color-base-100);
+  border: var(--border) solid var(--color-base-300);
+  border-radius: var(--radius-box);
+  box-shadow: var(--bs-box-shadow-lg);
+}
+
+.modal-header,
+.modal-footer,
+.offcanvas-header {
+  padding: 1rem;
+  background-color: var(--color-base-200);
+  border-color: var(--color-base-300);
+}
+
+.modal-header,
+.offcanvas-header {
+  border-bottom: var(--border) solid var(--color-base-300);
+}
+
+.modal-footer {
+  border-top: var(--border) solid var(--color-base-300);
+}
+
+.modal-body,
+.offcanvas-body {
+  padding: 1rem;
+}
+
+.modal-title,
+.offcanvas-title {
+  color: var(--color-base-content);
+  font-size: 1.25rem;
+  font-weight: 800;
+}
+
+.alert {
+  --bs-alert-padding-x: 1rem;
+  --bs-alert-padding-y: 1rem;
+  --bs-alert-border-width: var(--border);
+  --bs-alert-border-color: var(--color-base-300);
+  --bs-alert-border-radius: var(--radius-box);
+  padding: var(--bs-alert-padding-y) var(--bs-alert-padding-x);
+  color: var(--bs-alert-color, var(--color-base-content));
+  background-color: var(--bs-alert-bg, var(--color-base-200));
+  border: var(--bs-alert-border-width) solid var(--bs-alert-border-color);
+  border-radius: var(--bs-alert-border-radius);
+}
+
+.alert-primary { --bs-alert-color: var(--color-primary); --bs-alert-bg: color-mix(in oklch, var(--color-primary) 18%, var(--color-base-100)); --bs-alert-border-color: color-mix(in oklch, var(--color-primary) 44%, var(--color-base-300)); --bs-alert-link-color: var(--color-primary); }
+.alert-secondary { --bs-alert-color: var(--color-secondary); --bs-alert-bg: color-mix(in oklch, var(--color-secondary) 18%, var(--color-base-100)); --bs-alert-border-color: color-mix(in oklch, var(--color-secondary) 44%, var(--color-base-300)); --bs-alert-link-color: var(--color-secondary); }
+.alert-success { --bs-alert-color: var(--color-success); --bs-alert-bg: color-mix(in oklch, var(--color-success) 18%, var(--color-base-100)); --bs-alert-border-color: color-mix(in oklch, var(--color-success) 44%, var(--color-base-300)); --bs-alert-link-color: var(--color-success); }
+.alert-info { --bs-alert-color: var(--color-info); --bs-alert-bg: color-mix(in oklch, var(--color-info) 18%, var(--color-base-100)); --bs-alert-border-color: color-mix(in oklch, var(--color-info) 44%, var(--color-base-300)); --bs-alert-link-color: var(--color-info); }
+.alert-warning { --bs-alert-color: var(--color-warning); --bs-alert-bg: color-mix(in oklch, var(--color-warning) 22%, var(--color-base-100)); --bs-alert-border-color: color-mix(in oklch, var(--color-warning) 48%, var(--color-base-300)); --bs-alert-link-color: var(--color-warning); }
+.alert-danger { --bs-alert-color: var(--color-error); --bs-alert-bg: color-mix(in oklch, var(--color-error) 18%, var(--color-base-100)); --bs-alert-border-color: color-mix(in oklch, var(--color-error) 44%, var(--color-base-300)); --bs-alert-link-color: var(--color-error); }
+.alert-light { --bs-alert-color: var(--color-base-content); --bs-alert-bg: var(--color-base-100); --bs-alert-border-color: var(--color-base-300); --bs-alert-link-color: var(--color-primary); }
+.alert-dark { --bs-alert-color: var(--color-neutral); --bs-alert-bg: color-mix(in oklch, var(--color-neutral) 18%, var(--color-base-100)); --bs-alert-border-color: color-mix(in oklch, var(--color-neutral) 44%, var(--color-base-300)); --bs-alert-link-color: var(--color-neutral); }
+
+.badge {
+  padding: calc(var(--size-selector) * 1.25) calc(var(--size-selector) * 2.5);
+  color: var(--color-primary-content);
+  background-color: var(--color-primary);
+  border: var(--border) solid var(--color-primary);
+  border-radius: var(--radius-selector);
+  font-weight: 700;
+}
+
+.tooltip-inner {
+  color: var(--color-neutral-content);
+  background-color: var(--color-neutral);
+  border-radius: var(--radius-field);
+}
+
+.progress {
+  background-color: var(--color-base-300);
+  border-radius: var(--radius-box);
+}
+
+.progress-bar {
+  color: var(--color-primary-content);
+  background-color: var(--color-primary);
+}
+END_DAISYUI_BOOTSTRAP_COMPONENT_BRIDGE
+)
+
+;; regexp-match*-first-captures : regexp? string? -> (listof string?)
+;;   Return first capture groups for all matches of rx in source.
+(define (regexp-match*-first-captures rx source)
+  (for/list ([m (in-list
+                 (regexp-match* rx
+                                source
+                                #:match-select (lambda (match) match)))])
+    (second m)))
+
+;; bulma-theme-names : string? -> (listof string?)
+;;   Discover Bulma theme names referenced by compiled theme selectors.
+(define (bulma-theme-names source)
+  (remove-duplicates
+   (append (regexp-match*-first-captures bulma-data-theme-regexp source)
+           (regexp-match*-first-captures bulma-class-theme-regexp source))
+   string=?))
+
+;; bulma-bridge-selectors : string? -> (listof string?)
+;;   Selectors that should receive the Bootstrap-shaped custom-property bridge.
+(define (bulma-bridge-selectors source)
+  (remove-duplicates
+   (append '(":root")
+           (append-map
+            (lambda (name)
+              (list (format "[data-theme=~a]" name)
+                    (format ".theme-~a" name)))
+            (bulma-theme-names source)))
+   string=?))
+
+;; bulma-base-custom-properties/rules : css-stylesheet? -> hash?
+;;   Pick the most complete Bulma light/base custom-property set for inheritance.
+(define (bulma-base-custom-properties/rules rules)
+  (define candidates
+    (for/list ([selector (in-list '("[data-theme=light]" ".theme-light" ":root"))])
+      (css-compute-custom-properties-for-selector-group rules selector #:resolve-vars? #t)))
+  (define non-empty (filter (lambda (props) (positive? (hash-count props))) candidates))
+  (if (null? non-empty)
+      (hash)
+      (argmax hash-count non-empty)))
+
+;; pico-base-custom-properties/rules : css-stylesheet? -> hash?
+;;   Pick the most complete Pico light/base custom-property set for inheritance.
+(define (pico-base-custom-properties/rules rules)
+  (define candidates
+    (for/list ([selector (in-list '("[data-bs-theme=light]" ":root"))])
+      (css-compute-custom-properties-for-selector-group rules selector #:resolve-vars? #t)))
+  (define non-empty (filter (lambda (props) (positive? (hash-count props))) candidates))
+  (if (null? non-empty)
+      (hash)
+      (argmax hash-count non-empty)))
+
+;; prepend-css-preamble : string? string? -> string?
+;;   Insert preamble after an optional @charset rule so the CSS remains valid.
+(define (prepend-css-preamble source preamble)
+  (cond
+    [(string-empty-or-whitespace? preamble)
+     source]
+    [else
+     (define m (regexp-match #px"^(@charset\\s+[^;]+;\\s*)" source))
+     (if m
+         (let* ([prefix (car m)]
+                [start (string-length prefix)])
+           (string-append prefix preamble (substring source start)))
+         (string-append preamble source))]))
+
+;; make-bulma-inheritance-preamble-css : hash? (listof string?) -> string?
+;;   Seed scoped Bulma themes with inherited base variables before source overrides.
+(define (make-bulma-inheritance-preamble-css base-props selectors)
+  (define scoped-selectors (filter (lambda (selector) (not (string=? selector ":root"))) selectors))
+  (cond
+    [(or (null? scoped-selectors) (zero? (hash-count base-props)))
+     ""]
+    [else
+     (string-append
+      "\n/* Thematic Bulma bridge: seed scoped themes with inherited base variables. */\n"
+      (string-join scoped-selectors ",\n")
+      " {\n"
+      (apply string-append
+             (for/list ([key (in-list (sort (hash-keys base-props) string<?))]
+                        #:when (and (regexp-match? bulma-custom-property-regexp key)
+                                    (present-css-value? (hash-ref base-props key))))
+               (format "  ~a: ~a;\n" key (hash-ref base-props key))))
+      "}\n")]))
+
+;; make-pico-inheritance-preamble-css : hash? -> string?
+;;   Seed scoped Pico theme selectors with inherited base variables before overrides.
+(define (make-pico-inheritance-preamble-css base-props)
+  (define scoped-selectors '("[data-bs-theme=light]" "[data-bs-theme=dark]"))
+  (cond
+    [(zero? (hash-count base-props))
+     ""]
+    [else
+     (string-append
+      "\n/* Thematic Pico bridge: seed scoped themes with inherited base variables. */\n"
+      (string-join scoped-selectors ",\n")
+      " {\n"
+      (apply string-append
+             (for/list ([key (in-list (sort (hash-keys base-props) string<?))]
+                        #:when (and (regexp-match? pico-custom-property-regexp key)
+                                    (present-css-value? (hash-ref base-props key))))
+               (format "  ~a: ~a;\n" key (hash-ref base-props key))))
+      "}\n")]))
+
+;; make-bulma-bootstrap-bridge-css : (listof string?) -> string?
+;;   Build the Bulma-to-Bootstrap semantic bridge for all source theme roots.
+(define (make-bulma-bootstrap-bridge-css selectors)
+  (string-append
+   "\n/* Thematic Bulma bridge: map Bulma theme variables to Bootstrap-shaped theme inputs. */\n"
+   (string-join selectors ",\n")
+   " {\n"
+   bulma-bootstrap-bridge-body
+   "}\n"
+   bulma-bootstrap-component-bridge-css))
+
+;; daisyui-theme-names : string? -> (listof string?)
+;;   Discover daisyUI theme names referenced by compiled theme selectors.
+(define (daisyui-theme-names source)
+  (remove-duplicates
+   (append (regexp-match*-first-captures daisyui-data-theme-regexp source)
+           (regexp-match*-first-captures daisyui-theme-controller-regexp source))
+   string=?))
+
+;; daisyui-bridge-selectors : string? -> (listof string?)
+;;   Selectors that should receive the Bootstrap-shaped custom-property bridge.
+(define (daisyui-bridge-selectors source)
+  (remove-duplicates
+   (append '(":root")
+           (for/list ([name (in-list (daisyui-theme-names source))])
+             (format "[data-theme=~a]" name)))
+   string=?))
+
+;; make-daisyui-bootstrap-bridge-css : string? -> string?
+;;   Build the daisyUI-to-Bootstrap semantic bridge for all source theme roots.
+(define (make-daisyui-bootstrap-bridge-css source)
+  (string-append
+   "\n/* Thematic daisyUI bridge: map daisyUI theme variables to Bootstrap-shaped theme inputs. */\n"
+   (string-join (daisyui-bridge-selectors source) ",\n")
+   " {\n"
+   daisyui-bootstrap-bridge-body
+   "}\n"
+   daisyui-bootstrap-component-bridge-css))
+
+;; normalize-pico-source : string? -> string?
+;;   Add a Bootstrap-shaped semantic bridge over Pico's CSS-variable theme dialect.
+(define (normalize-pico-source source)
+  (define rewritten-source (rewrite-pico-theme-selectors source))
+  (define preamble
+    (make-pico-inheritance-preamble-css
+     (pico-base-custom-properties/rules (read-css-rules rewritten-source))))
+  (string-append (prepend-css-preamble rewritten-source preamble)
+                 pico-bootstrap-bridge-css))
+
+;; normalize-bulma-source : string? -> string?
+;;   Add a Bootstrap-shaped semantic bridge over Bulma's CSS-variable theme dialect.
+(define (normalize-bulma-source source)
+  (define rules (read-css-rules source))
+  (define selectors (bulma-bridge-selectors source))
+  (define preamble
+    (make-bulma-inheritance-preamble-css
+     (bulma-base-custom-properties/rules rules)
+     selectors))
+  (string-append
+   (prepend-css-preamble source preamble)
+   (make-bulma-bootstrap-bridge-css selectors)))
+
+;; normalize-daisyui-source : string? -> string?
+;;   Add a Bootstrap-shaped semantic bridge over daisyUI's CSS-variable theme dialect.
+(define (normalize-daisyui-source source)
+  (string-append source
+                 (make-daisyui-bootstrap-bridge-css source)))
+
+;; detect-source-dialect : string? -> string?
+;;   Infer which compiled theme dialect is being converted.
+(define (detect-source-dialect source)
+  (cond
+    [(regexp-match? pico-custom-property-regexp source)
+     "pico"]
+    [(regexp-match? bulma-custom-property-regexp source)
+     "bulma"]
+    [(regexp-match? daisyui-custom-property-regexp source)
+     "daisyui"]
+    [(regexp-match? tabler-custom-property-regexp source)
+     "tabler"]
+    [else
+     "bootstrap"]))
+
+;; normalize-theme-source : string? string? -> string?
+;;   Normalize supported theme dialects before parsing and semantic extraction.
+(define (normalize-theme-source source source-dialect)
+  (define dialect (string-downcase source-dialect))
+  (case (string->symbol dialect)
+    [(auto)
+     (normalize-theme-source source (detect-source-dialect source))]
+    [(bootstrap)
+     source]
+    [(tabler)
+     (normalize-tabler-source source)]
+    [(pico)
+     (normalize-pico-source source)]
+    [(bulma)
+     (normalize-bulma-source source)]
+    [(daisyui daisy-ui)
+     (normalize-daisyui-source source)]
+    [else
+     (fail "unsupported source dialect ~s; use auto, bootstrap, tabler, pico, bulma, or daisyui"
+           source-dialect)]))
+
 ;; extract-top-level-imports/rules : css-stylesheet? -> (listof string?)
 ;;   Preserve top-level @import rules from a parsed stylesheet for re-emission.
 (define (extract-top-level-imports/rules stylesheet)
@@ -166,7 +1774,7 @@
 ;;   Check that selector is one of the supported Bootstrap theme roots.
 (define (validate-bootstrap-selector! selector)
   (unless (regexp-match? selector-regexp selector)
-    (fail "unsupported selector ~s; use :root, [data-bs-theme=light], or [data-bs-theme=dark]"
+    (fail "unsupported selector ~s; use :root, [data-bs-theme=light], [data-bs-theme=dark], [data-theme=name], or .theme-name"
           selector)))
 
 ;; extract-bootstrap-theme : string? string? -> (hash/c string? string?)
@@ -5591,9 +7199,28 @@
   (define body-letter-spacing
     (or (theme-style-ref "body" "letter-spacing")
         "normal"))
+  (define body-color
+    (or (theme-style-ref "body" "color")
+        (prop-ref* props "--bs-body-color")))
+  (define body-bg
+    (or (theme-style-ref "body" "background-color")
+        (prop-ref* props "--bs-body-bg")))
+  (define body-font-family
+    (or (theme-style-ref "body" "font-family")
+        (prop-ref* props "--bs-body-font-family")))
+  (define body-font-size
+    (or (theme-style-ref "body" "font-size")
+        (prop-ref* props "--bs-body-font-size")))
+  (define body-font-weight
+    (or (theme-style-ref "body" "font-weight")
+        (hash-ref props "--bs-body-font-weight" #f)
+        "400"))
+  (define body-line-height
+    (or (theme-style-ref "body" "line-height")
+        (prop-ref* props "--bs-body-line-height")))
   (bootstrap-theme
-   (prop-ref* props "--bs-body-color")
-   (prop-ref* props "--bs-body-bg")
+   body-color
+   body-bg
    (or (theme-style-ref "body" "background-image")
        "none")
    body-text-shadow
@@ -5608,26 +7235,18 @@
    (prop-ref* props "--bs-danger")
    (prop-ref* props "--bs-light")
    (prop-ref* props "--bs-dark")
-   (prop-ref* props "--bs-body-font-family")
+   body-font-family
    headings-font-family
    headings-font-weight
    headings-line-height
    headings-letter-spacing
    headings-text-transform
    "0.875rem"
-   (prop-ref* props "--bs-body-font-size")
+   body-font-size
    "1.15rem"
-   (prop-ref* props "--bs-body-line-height")
+   body-line-height
    body-letter-spacing
-   (or (hash-ref props "--bs-body-font-weight" #f)
-       (and rules
-            (hash-ref (css-compute-style-for-selector-group rules
-                                                            "body"
-                                                            #:resolve-vars? #t
-                                                            #:defaults props)
-                      "font-weight"
-                      #f))
-       "400")
+   body-font-weight
    "600"
    "700"
    (prop-ref* props "--bs-border-radius-sm")
@@ -5787,6 +7406,22 @@
        (clamp-byte (mix-one (rgb-g c1) (rgb-g c2)))
        (clamp-byte (mix-one (rgb-b c1) (rgb-b c2)))
        (clamp-alpha (mix-one (rgb-a c1) (rgb-a c2)))))
+
+;; css-color-mix : string? string? real? -> string?
+;;   Render a CSS-native color mix with the same "c1 toward c2" semantics.
+(define (css-color-mix c1 c2 ratio)
+  (define t (min 1.0 (max 0.0 ratio)))
+  (define (percent-string v)
+    (define pct (* 100.0 v))
+    (define rounded (round pct))
+    (if (< (abs (- pct rounded)) 0.001)
+        (~a (inexact->exact rounded))
+        (~r pct #:precision '(= 3))))
+  (format "color-mix(in oklch, ~a ~a%, ~a ~a%)"
+          c1
+          (percent-string (- 1.0 t))
+          c2
+          (percent-string t)))
 
 ;; rgb->css : rgb? -> string?
 ;;   Render c as #rrggbb or rgba(...).
@@ -6050,6 +7685,16 @@
 ;;   Derive the complete web-easy token set for emitted CSS.
 (define (build-token-lines theme [boost? #f])
   (define dark? (infer-light-or-dark-theme? theme))
+  (define (unparsed-value value)
+    (and (present-css-value? value)
+         (not (parse-css-color value))
+         value))
+  (define (unparsed-theme-prop key)
+    (unparsed-value (theme-prop-ref theme key)))
+  (define raw-bg
+    (unparsed-value (bootstrap-theme-bg theme)))
+  (define raw-fg
+    (unparsed-value (bootstrap-theme-fg theme)))
   (define bg (or (parse-css-color (bootstrap-theme-bg theme))
                  (parse-css-color (hash-ref bootstrap-defaults "--bs-body-bg"))))
   (define fg (or (parse-css-color (bootstrap-theme-fg theme))
@@ -6057,6 +7702,12 @@
   (define emphasis-fg
     (or (parse-css-color (theme-prop-ref theme "--bs-emphasis-color"))
         fg))
+  (define raw-emphasis-fg
+    (or (unparsed-theme-prop "--bs-emphasis-color")
+        raw-fg))
+  (define emphasis-text
+    (or raw-emphasis-fg
+        (rgb->css emphasis-fg)))
   (define secondary-fg
     (or (parse-css-color (theme-prop-ref theme "--bs-secondary-color"))
         (derive-muted-color fg bg)))
@@ -6078,15 +7729,29 @@
   (define border-soft
     (or (parse-css-color (bootstrap-theme-border-soft theme))
         (mix-colors border bg 0.25)))
+  (define raw-border
+    (or (unparsed-value (bootstrap-theme-border theme))
+        (unparsed-theme-prop "--bs-border-color")))
+  (define raw-border-soft
+    (or (unparsed-value (bootstrap-theme-border-soft theme))
+        (unparsed-theme-prop "--bs-border-color-translucent")))
   (define focus-base
     (or (parse-css-color (theme-prop-ref theme "--bs-focus-ring-color"))
         (parse-css-color (bootstrap-theme-primary theme))
         (parse-css-color (hash-ref bootstrap-defaults "--bs-primary"))))
+  (define raw-primary
+    (unparsed-value (bootstrap-theme-primary theme)))
+  (define raw-focus-color
+    (or (unparsed-theme-prop "--bs-link-hover-color")
+        (and (present-css-value? (bootstrap-theme-primary theme))
+             (not (parse-css-color (bootstrap-theme-primary theme)))
+             (bootstrap-theme-primary theme))))
   (define focus-color-source
     (or (parse-css-color (theme-prop-ref theme "--bs-link-hover-color"))
         (derive-emphasis-color focus-base dark?)))
   (define focus-color
-    (rgb->css focus-color-source))
+    (or raw-focus-color
+        (rgb->css focus-color-source)))
   (define focus-tint
     (or (theme-prop-ref theme "--bs-focus-ring-color")
         (rgb->css
@@ -6095,23 +7760,52 @@
     (derive-surface-colors bg fg dark? secondary-bg tertiary-bg
                            neutral-secondary neutral-light neutral-dark
                            focus-base boost?))
+  (define raw-secondary-bg
+    (unparsed-theme-prop "--bs-secondary-bg"))
+  (define raw-tertiary-bg
+    (unparsed-theme-prop "--bs-tertiary-bg"))
+  (define surface-raised
+    (or raw-tertiary-bg
+        raw-secondary-bg
+        (hash-ref surface-map 'surface-raised)))
+  (define surface-subtle
+    (or raw-secondary-bg
+        (hash-ref surface-map 'surface-subtle)))
+  (define surface-muted
+    (or raw-tertiary-bg
+        raw-secondary-bg
+        (hash-ref surface-map 'surface-muted)))
+  (define surface-hover
+    (or raw-tertiary-bg
+        (hash-ref surface-map 'surface-hover)))
+  (define surface-active
+    (or (unparsed-theme-prop "--bs-primary-bg-subtle")
+        (hash-ref surface-map 'surface-active)))
+  (define table-header-bg-token
+    (or raw-secondary-bg
+        (hash-ref surface-map 'table-header-bg)))
   (define default-primary-subtle
     (derive-subtle-color focus-base bg dark?))
   (define bg-selected
-    (let ([explicit (parse-css-color (theme-prop-ref theme "--bs-primary-bg-subtle"))])
+    (let ([explicit-text (theme-prop-ref theme "--bs-primary-bg-subtle")]
+          [explicit (parse-css-color (theme-prop-ref theme "--bs-primary-bg-subtle"))])
       (cond
         [(and explicit boost?)
          (rgb->css (boost-subtle-color explicit focus-base bg dark?))]
         [explicit
          (rgb->css explicit)]
+        [(present-css-value? explicit-text)
+         explicit-text]
         [else
          (rgb->css default-primary-subtle)])))
   (define bg-disabled
-    (rgb->css (mix-colors bg fg (if dark? 0.12 0.05))))
+    (or raw-secondary-bg
+        (rgb->css (mix-colors bg fg (if dark? 0.12 0.05)))))
   (define bg-hover
-    (hash-ref surface-map 'surface-hover))
+    surface-hover)
   (define fg-muted
-    (rgb->css secondary-fg))
+    (or (unparsed-theme-prop "--bs-secondary-color")
+        (rgb->css secondary-fg)))
   (define lead-color
     (or (theme-component-ref theme 'lead-color)
         (bootstrap-theme-fg theme)))
@@ -6215,31 +7909,83 @@
     (or (theme-component-ref theme 'blockquote-footer-margin-left)
         "0"))
   (define border-muted
-    (rgb->css (mix-colors border bg 0.18)))
+    (cond
+      [(and raw-border raw-bg)
+       (css-color-mix raw-border raw-bg 0.18)]
+      [raw-border
+       raw-border]
+      [else
+       (rgb->css (mix-colors border bg 0.18))]))
   (define border-hover-rgb
     (mix-colors border fg 0.22))
   (define border-hover
-    (rgb->css border-hover-rgb))
+    (cond
+      [(and raw-border raw-emphasis-fg)
+       (css-color-mix raw-border raw-emphasis-fg 0.22)]
+      [raw-border
+       raw-border]
+      [else
+       (rgb->css border-hover-rgb)]))
   (define border-strong
-    (rgb->css (mix-colors border focus-base 0.55)))
+    (cond
+      [(and raw-border raw-primary)
+       (css-color-mix raw-border raw-primary 0.55)]
+      [raw-border
+       raw-border]
+      [else
+       (rgb->css (mix-colors border focus-base 0.55))]))
   (define separator
-    (rgb->css (mix-colors border bg 0.28)))
+    (cond
+      [(and raw-border raw-bg)
+       (css-color-mix raw-border raw-bg 0.28)]
+      [raw-border
+       raw-border]
+      [else
+       (rgb->css (mix-colors border bg 0.28))]))
   (define separator-strong
-    (rgb->css (mix-colors border fg 0.12)))
+    (cond
+      [(and raw-border raw-emphasis-fg)
+       (css-color-mix raw-border raw-emphasis-fg 0.12)]
+      [raw-border
+       raw-border]
+      [else
+       (rgb->css (mix-colors border fg 0.12))]))
   (define control-border
-    (rgb->css (mix-colors border border-soft 0.40)))
+    (or raw-border
+        raw-border-soft
+        (rgb->css (mix-colors border border-soft 0.40))))
   (define control-border-hover
-    (rgb->css (mix-colors border-hover-rgb fg 0.18)))
+    (cond
+      [(and raw-border raw-emphasis-fg)
+       (css-color-mix border-hover raw-emphasis-fg 0.18)]
+      [raw-border
+       raw-border]
+      [else
+       (rgb->css (mix-colors border-hover-rgb fg 0.18))]))
   (define control-border-focus
-    (rgb->css (mix-colors focus-base fg (if dark? 0.12 0.05))))
+    (cond
+      [(and raw-primary raw-emphasis-fg)
+       (css-color-mix raw-primary raw-emphasis-fg (if dark? 0.12 0.05))]
+      [raw-primary
+       raw-primary]
+      [else
+       (rgb->css (mix-colors focus-base fg (if dark? 0.12 0.05)))]))
   (define control-border-disabled
-    (rgb->css (mix-colors border bg 0.35)))
+    (cond
+      [(and raw-border raw-bg)
+       (css-color-mix raw-border raw-bg 0.35)]
+      [raw-border
+       raw-border]
+      [else
+       (rgb->css (mix-colors border bg 0.35))]))
   (define popup-bg
-    (hash-ref surface-map 'surface-raised))
+    surface-raised)
   (define popup-border
-    (rgb->css border))
+    (or raw-border
+        (rgb->css border)))
   (define placeholder
-    (rgb->css tertiary-fg))
+    (or (unparsed-theme-prop "--bs-tertiary-color")
+        (rgb->css tertiary-fg)))
   (define navbar-bg
     (or (theme-prop-ref theme "--bs-tertiary-bg")
         (hash-ref surface-map 'surface-subtle)))
@@ -6261,10 +8007,10 @@
   (define navbar-link-hover
     (or (theme-component-ref theme 'navbar-link-hover)
         (theme-component-ref theme 'nav-link-hover)
-        (rgb->css emphasis-fg)))
+        emphasis-text))
   (define navbar-link-active
     (or (theme-component-ref theme 'navbar-link-active)
-        (rgb->css emphasis-fg)))
+        emphasis-text))
   (define navbar-link-disabled
     (or (theme-component-ref theme 'navbar-link-disabled)
         (theme-component-ref theme 'nav-link-disabled)
@@ -6465,7 +8211,7 @@
         bg-selected))
   (define tab-active-color
     (or (theme-component-ref theme 'tab-active-color)
-        (rgb->css emphasis-fg)))
+        emphasis-text))
   (define tab-active-border-width
     (or (theme-component-ref theme 'tab-active-border-width)
         tab-border-width))
@@ -6724,7 +8470,7 @@
         bg-selected))
   (define menu-item-active-fg
     (or (theme-component-ref theme 'dropdown-item-active-color)
-        (rgb->css emphasis-fg)))
+        emphasis-text))
   (define menu-item-disabled-color
     (or (theme-component-ref theme 'dropdown-item-disabled-color)
         fg-muted))
@@ -7087,7 +8833,7 @@
   (define button-secondary-color
     (or (theme-component-ref theme 'btn-secondary-color)
         (theme-component-ref theme 'btn-outline-secondary-color)
-        (rgb->css emphasis-fg)))
+        emphasis-text))
   (define button-secondary-hover-bg
     (or (theme-component-ref theme 'btn-secondary-hover-bg)
         bg-hover))
@@ -7134,7 +8880,7 @@
   (define button-light-color
     (or (theme-component-ref theme 'btn-light-color)
         (theme-prop-ref theme "--bs-light-text-emphasis")
-        (rgb->css emphasis-fg)))
+        emphasis-text))
   (define button-light-hover-bg
     (or (theme-component-ref theme 'btn-light-hover-bg)
         button-light-bg))
@@ -7414,16 +9160,16 @@
         "transparent"))
   (define badge-color
     (or (theme-component-ref theme 'badge-color)
-        (rgb->css emphasis-fg)))
+        emphasis-text))
   (define badge-secondary-bg
     (or (theme-component-ref theme 'badge-secondary-bg)
         (bootstrap-theme-secondary theme)))
   (define badge-secondary-color
     (or (theme-component-ref theme 'badge-secondary-color)
-        (rgb->css emphasis-fg)))
+        emphasis-text))
   (define badge-light-color
     (or (theme-component-ref theme 'badge-light-color)
-        (rgb->css emphasis-fg)))
+        emphasis-text))
   (define accordion-bg
     (or (theme-component-ref theme 'accordion-bg)
         (hash-ref surface-map 'surface)))
@@ -7713,7 +9459,7 @@
   (define breadcrumb-link-color
     (or (theme-component-ref theme 'breadcrumb-link-color)
         (theme-prop-ref theme "--bs-link-color")
-        (rgb->css emphasis-fg)))
+        emphasis-text))
   (define toast-padding-x
     (or (theme-component-ref theme 'toast-padding-x)
         "0.75rem"))
@@ -8260,7 +10006,7 @@
         bg-selected))
   (define list-group-active-color
     (or (theme-component-ref theme 'list-group-active-color)
-        (rgb->css emphasis-fg)))
+        emphasis-text))
   (define list-group-active-border
     (or (theme-component-ref theme 'list-group-active-border)
         (theme-prop-ref theme "--bs-primary-border-subtle")
@@ -9186,7 +10932,7 @@
   (define dialog-title-color
     (or (theme-component-ref theme 'modal-title-color)
         dialog-color
-        (rgb->css emphasis-fg)))
+        emphasis-text))
   (define dialog-title-font-size
     (or (theme-component-ref theme 'modal-title-font-size)
         (bootstrap-theme-font-size-lg theme)))
@@ -9229,23 +10975,29 @@
          (or (theme-component-ref theme (string->symbol (format "btn-~a-color" name)))
              (derive-on-color parsed)))
        (define subtle
-         (let ([explicit (parse-css-color (theme-prop-ref theme (format "--bs-~a-bg-subtle" name)))]
+         (let ([explicit-text (theme-prop-ref theme (format "--bs-~a-bg-subtle" name))]
+               [explicit (parse-css-color (theme-prop-ref theme (format "--bs-~a-bg-subtle" name)))]
                [derived (derive-subtle-color parsed bg dark?)])
            (cond
              [(and explicit boost?)
               (rgb->css (boost-subtle-color explicit parsed bg dark?))]
              [explicit
               (rgb->css explicit)]
+             [(present-css-value? explicit-text)
+              explicit-text]
              [else
               (rgb->css derived)])))
        (define border*
-         (let ([explicit (parse-css-color (theme-prop-ref theme (format "--bs-~a-border-subtle" name)))]
+         (let ([explicit-text (theme-prop-ref theme (format "--bs-~a-border-subtle" name))]
+               [explicit (parse-css-color (theme-prop-ref theme (format "--bs-~a-border-subtle" name)))]
                [derived (derive-border-color parsed border dark?)])
            (cond
              [(and explicit boost?)
               (rgb->css (boost-border-color explicit parsed border dark?))]
              [explicit
               (rgb->css explicit)]
+             [(present-css-value? explicit-text)
+              explicit-text]
              [else
               (rgb->css derived)])))
        (define emphasis
@@ -9281,14 +11033,16 @@
     (cons "--we-bg-image" (bootstrap-theme-bg-image theme))
     (cons "--we-text-shadow" (bootstrap-theme-text-shadow theme))
     (cons "--we-heading-text-shadow" (bootstrap-theme-heading-text-shadow theme))
-    (cons "--we-bg-subtle" (hash-ref surface-map 'surface-subtle))
+    (cons "--we-bg-subtle" surface-subtle)
     (cons "--we-bg-selected" bg-selected)
     (cons "--we-bg-disabled" bg-disabled)
     (cons "--we-bg-hover" bg-hover)
     (cons "--we-border" (bootstrap-theme-border theme))
     (cons "--we-border-menu" popup-border)
     (cons "--we-border-muted" border-muted)
-    (cons "--we-border-soft" (maybe-color->css border-soft (bootstrap-theme-border-soft theme)))
+    (cons "--we-border-soft"
+          (or raw-border-soft
+              (maybe-color->css border-soft (bootstrap-theme-border-soft theme))))
     (cons "--we-border-hover" border-hover)
     (cons "--we-border-strong" border-strong)
     (cons "--we-fg-muted" fg-muted)
@@ -10249,16 +12003,16 @@
     (cons "--we-dialog-title-text-shadow" dialog-title-text-shadow)
     (cons "--we-dialog-close-icon" dialog-close-icon)
     (cons "--we-input-placeholder" placeholder)
-    (cons "--we-surface" (hash-ref surface-map 'surface))
-    (cons "--we-surface-raised" (hash-ref surface-map 'surface-raised))
-    (cons "--we-surface-subtle" (hash-ref surface-map 'surface-subtle))
-    (cons "--we-surface-muted" (hash-ref surface-map 'surface-muted))
-    (cons "--we-surface-hover" (hash-ref surface-map 'surface-hover))
-    (cons "--we-surface-active" (hash-ref surface-map 'surface-active))
+    (cons "--we-surface" (bootstrap-theme-bg theme))
+    (cons "--we-surface-raised" surface-raised)
+    (cons "--we-surface-subtle" surface-subtle)
+    (cons "--we-surface-muted" surface-muted)
+    (cons "--we-surface-hover" surface-hover)
+    (cons "--we-surface-active" surface-active)
     (cons "--we-separator" separator)
     (cons "--we-separator-strong" separator-strong)
-    (cons "--we-table-header-bg" (hash-ref surface-map 'table-header-bg))
-    (cons "--we-table-header-fg" (rgb->css emphasis-fg))
+    (cons "--we-table-header-bg" table-header-bg-token)
+    (cons "--we-table-header-fg" emphasis-text)
     (cons "--we-table-cell-border" separator)
     (cons "--we-control-border" control-border)
     (cons "--we-control-border-hover" control-border-hover)
@@ -10401,10 +12155,10 @@
    (token-block->string theme-class (build-token-lines theme boost?))
    (theme-template-suffix theme-class)))
 
-;; write-generated-theme! : path-string? path-string? string? string? boolean? -> void
+;; write-generated-theme! : path-string? path-string? string? string? boolean? string? -> void
 ;;   Generate and write one theme stylesheet from Bootstrap CSS.
-(define (write-generated-theme! input-path output-path theme-class selector boost?)
-  (define source (file->string input-path))
+(define (write-generated-theme! input-path output-path theme-class selector boost? source-dialect)
+  (define source (normalize-theme-source (file->string input-path) source-dialect))
   (define rules (read-css-rules source))
   (define import-lines (extract-top-level-imports/rules rules))
   (define theme (bootstrap-rules->theme-model rules selector))
@@ -10422,6 +12176,7 @@
   (define theme-class "we-theme-bootstrap")
   (define selector ":root")
   (define boost? #f)
+  (define source-dialect "auto")
   (command-line
    #:program "thematic"
    #:once-each
@@ -10433,13 +12188,15 @@
                       (set! theme-class class-name)]
    [("--selector") selector-text "Bootstrap selector to read, such as :root."
                    (set! selector selector-text)]
+   [("--source-dialect") dialect "Source dialect: auto, bootstrap, tabler, pico, bulma, or daisyui."
+                         (set! source-dialect dialect)]
    [("--accent-boost") "Strengthen low-contrast accent companions for web-easy."
                        (set! boost? #t)])
   (unless input-path
     (fail "missing required --input path"))
   (unless output-path
     (fail "missing required --output path"))
-  (write-generated-theme! input-path output-path theme-class selector boost?))
+  (write-generated-theme! input-path output-path theme-class selector boost? source-dialect))
 
 (module+ main
   (main))
@@ -11566,6 +13323,32 @@
      "  background-image: url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%2355595c'%3e%3cpath d='M.293.293a1 1 0 0 1 1.414 0L8 6.586 14.293.293a1 1 0 1 1 1.414 1.414L9.414 8l6.293 6.293a1 1 0 0 1-1.414 1.414L8 9.414l-6.293 6.293a1 1 0 0 1-1.414-1.414L6.586 8 .293 1.707a1 1 0 0 1 0-1.414'/%3e%3c/svg%3e\");\n"
      "}\n"))
 
+  ;; emitted-test-theme-css : string? string? string? -> string?
+  ;;   Emit CSS through the same normalized-rules path used by the CLI.
+  (define (emitted-test-theme-css normalized-source selector theme-class)
+    (define rules (read-css-rules normalized-source))
+    (emit-theme-stylesheet (bootstrap-rules->theme-model rules selector)
+                           theme-class
+                           (extract-top-level-imports/rules rules)))
+
+  ;; check-generated-css-has-no-source-vars : string? string? string? (listof string?) -> void
+  ;;   Verify emitted themes are standalone and do not require source dialect vars.
+  (define (check-generated-css-has-no-source-vars normalized-source
+                                                  selector
+                                                  theme-class
+                                                  var-prefixes)
+    (define css (emitted-test-theme-css normalized-source selector theme-class))
+    (for ([var-prefix (in-list var-prefixes)])
+      (define match
+        (regexp-match (regexp (format "var\\(\\s*~a[-_a-zA-Z0-9]*"
+                                      (regexp-quote var-prefix)))
+                      css))
+      (check-false
+       match
+       (format "generated CSS leaked a runtime reference to ~a: ~a"
+               var-prefix
+               (and match (car match))))))
+
   (test-case "read-css-rules parses top-level declarations"
     (define rules (read-css-rules sample-bootstrap))
     (define style-rules
@@ -11594,6 +13377,473 @@
                   "rgba(13, 110, 253, 0.25)")
     (check-equal? (hash-ref props "--bs-primary")
                   "rgb(13 110 253 / 92%)"))
+
+  (test-case "computed body declarations override root body token defaults"
+    (define body-override-css
+      (string-append
+       ":root {\n"
+       "  --bs-body-color: #111111;\n"
+       "  --bs-body-bg: #eeeeee;\n"
+       "  --bs-body-font-family: Root Sans, sans-serif;\n"
+       "  --bs-body-font-size: 0.875rem;\n"
+       "  --bs-body-font-weight: 400;\n"
+       "  --bs-body-line-height: 1.5;\n"
+       "  --bs-border-color: #dddddd;\n"
+       "  --bs-border-color-translucent: rgba(0, 0, 0, 0.1);\n"
+       "  --bs-primary: #0055aa;\n"
+       "  --bs-secondary: #666666;\n"
+       "  --bs-success: #228833;\n"
+       "  --bs-info: #227799;\n"
+       "  --bs-warning: #aa7700;\n"
+       "  --bs-danger: #aa2222;\n"
+       "  --bs-light: #f8f9fa;\n"
+       "  --bs-dark: #212529;\n"
+       "  --bs-border-radius: 0.375rem;\n"
+       "  --bs-border-radius-sm: 0.25rem;\n"
+       "  --bs-border-radius-lg: 0.5rem;\n"
+       "  --bs-border-radius-pill: 50rem;\n"
+       "  --bs-box-shadow-sm: none;\n"
+       "  --bs-box-shadow: none;\n"
+       "  --bs-box-shadow-lg: none;\n"
+       "}\n"
+       "body {\n"
+       "  color: #222222;\n"
+       "  background-color: #fafafa;\n"
+       "  font-family: Body Sans, sans-serif;\n"
+       "  font-size: 16px;\n"
+       "  font-weight: 450;\n"
+       "  line-height: 1.25;\n"
+       "}\n"))
+    (define token-map (bootstrap-rules->token-map (read-css-rules body-override-css)))
+    (check-equal? (hash-ref token-map "--we-fg") "#222222")
+    (check-equal? (hash-ref token-map "--we-bg") "#fafafa")
+    (check-equal? (hash-ref token-map "--we-font-family-base")
+                  "Body Sans, sans-serif")
+    (check-equal? (hash-ref token-map "--we-font-size-md") "16px")
+    (check-equal? (hash-ref token-map "--we-font-weight-normal") "450")
+    (check-equal? (hash-ref token-map "--we-line-height-base") "1.25"))
+
+  (test-case "tabler dialect normalizes custom properties into bootstrap-shaped tokens"
+    (define tabler-like-css
+      (string-append
+       ":root, [data-bs-theme=light] {\n"
+       "  --tblr-font-sans-serif: \"Local Sans\", sans-serif;\n"
+       "  --tblr-body-font-family: var(--tblr-font-sans-serif);\n"
+       "  --tblr-body-font-size: 0.875rem;\n"
+       "  --tblr-body-font-weight: 400;\n"
+       "  --tblr-body-line-height: 1.4285714286;\n"
+       "  --tblr-body-color: #1f2937;\n"
+       "  --tblr-body-bg: #f9fafb;\n"
+       "  --tblr-border-color: #e5e7eb;\n"
+       "  --tblr-border-width: 1px;\n"
+       "  --tblr-border-style: solid;\n"
+       "  --tblr-border-radius: 6px;\n"
+       "  --tblr-border-radius-sm: 4px;\n"
+       "  --tblr-border-radius-lg: 8px;\n"
+       "  --tblr-border-radius-pill: 100rem;\n"
+       "  --tblr-primary: #066fd1;\n"
+       "  --tblr-primary-bg-subtle: #cfe6ff;\n"
+       "  --tblr-primary-border-subtle: #9bcfff;\n"
+       "  --tblr-secondary: #6b7280;\n"
+       "  --tblr-success: #2fb344;\n"
+       "  --tblr-info: #4299e1;\n"
+       "  --tblr-warning: #f59f00;\n"
+       "  --tblr-danger: #d63939;\n"
+       "  --tblr-light: #f9fafb;\n"
+       "  --tblr-dark: #1f2937;\n"
+       "}\n"
+       ".btn {\n"
+       "  --tblr-btn-padding-x: 0.625rem;\n"
+       "  --tblr-btn-padding-y: 0.375rem;\n"
+       "  --tblr-btn-font-size: 0.875rem;\n"
+       "  --tblr-btn-font-weight: 500;\n"
+       "  --tblr-btn-line-height: 1.4285714286;\n"
+       "  --tblr-btn-border-width: var(--tblr-border-width);\n"
+       "  --tblr-btn-border-radius: var(--tblr-border-radius);\n"
+       "  padding: var(--tblr-btn-padding-y) var(--tblr-btn-padding-x);\n"
+       "  font-size: var(--tblr-btn-font-size);\n"
+       "  font-weight: var(--tblr-btn-font-weight);\n"
+       "  line-height: var(--tblr-btn-line-height);\n"
+       "  border: var(--tblr-btn-border-width) solid transparent;\n"
+       "  border-radius: var(--tblr-btn-border-radius);\n"
+       "}\n"
+       ".btn-primary {\n"
+       "  --tblr-btn-bg: var(--tblr-primary);\n"
+       "  --tblr-btn-color: #ffffff;\n"
+       "  --tblr-btn-border-color: var(--tblr-primary);\n"
+       "  color: var(--tblr-btn-color);\n"
+       "  background-color: var(--tblr-btn-bg);\n"
+       "  border-color: var(--tblr-btn-border-color);\n"
+       "}\n"))
+    (define normalized (normalize-theme-source tabler-like-css "auto"))
+    (check-true (regexp-match? #px"--bs-body-color" normalized))
+    (check-false (regexp-match? #px"--tblr-body-color" normalized))
+    (check-generated-css-has-no-source-vars normalized
+                                            ":root"
+                                            "we-theme-tabler-test"
+                                            '("--tblr-"))
+    (define token-map (bootstrap-rules->token-map (read-css-rules normalized)))
+    (check-equal? (hash-ref token-map "--we-bg") "#f9fafb")
+    (check-equal? (hash-ref token-map "--we-fg") "#1f2937")
+    (check-equal? (hash-ref token-map "--we-primary") "#066fd1")
+    (check-equal? (hash-ref token-map "--we-primary-subtle") "#cfe6ff")
+    (check-equal? (hash-ref token-map "--we-primary-border") "#9bcfff")
+    (check-equal? (hash-ref token-map "--we-font-family-base")
+                  "\"Local Sans\", sans-serif")
+    (check-equal? (hash-ref token-map "--we-radius-md") "6px")
+    (check-equal? (hash-ref token-map "--we-button-padding-x") "0.625rem")
+    (check-equal? (hash-ref token-map "--we-button-font-size") "0.875rem")
+    (check-equal? (hash-ref token-map "--we-button-font-weight") "500")
+    (check-equal? (hash-ref token-map "--we-button-primary-bg") "#066fd1")
+    (check-equal? (hash-ref token-map "--we-button-primary-color") "#ffffff"))
+
+  (test-case "pico dialect bridges semantic variables into bootstrap-shaped tokens"
+    (define pico-like-css
+      (string-append
+       ":root, :host {\n"
+       "  --pico-font-family: \"Pico Sans\", sans-serif;\n"
+       "  --pico-line-height: 1.5;\n"
+       "  --pico-font-weight: 400;\n"
+       "  --pico-font-size: 100%;\n"
+       "  --pico-border-radius: 0.25rem;\n"
+       "  --pico-border-width: 0.0625rem;\n"
+       "  --pico-outline-width: 0.125rem;\n"
+       "  --pico-spacing: 1rem;\n"
+       "  --pico-block-spacing-vertical: 1.25rem;\n"
+       "  --pico-block-spacing-horizontal: 1.5rem;\n"
+       "  --pico-form-element-spacing-vertical: 0.75rem;\n"
+       "  --pico-form-element-spacing-horizontal: 1rem;\n"
+       "  --pico-nav-element-spacing-vertical: 0.75rem;\n"
+       "  --pico-nav-element-spacing-horizontal: 0.5rem;\n"
+       "  --pico-nav-link-spacing-vertical: 0.5rem;\n"
+       "  --pico-nav-link-spacing-horizontal: 0.5rem;\n"
+       "  --pico-group-box-shadow: none;\n"
+       "}\n"
+       "[data-theme=light], :root:not([data-theme=dark]), :host(:not([data-theme=dark])) {\n"
+       "  --pico-background-color: #f8fafc;\n"
+       "  --pico-color: #1f2937;\n"
+       "  --pico-muted-color: #64748b;\n"
+       "  --pico-muted-border-color: #dbe3ec;\n"
+       "  --pico-primary: #0f766e;\n"
+       "  --pico-primary-background: #0f766e;\n"
+       "  --pico-primary-border: #0f766e;\n"
+       "  --pico-primary-hover: #115e59;\n"
+       "  --pico-primary-hover-background: #115e59;\n"
+       "  --pico-primary-hover-border: #115e59;\n"
+       "  --pico-primary-focus: rgba(15, 118, 110, 0.35);\n"
+       "  --pico-primary-inverse: #ffffff;\n"
+       "  --pico-secondary: #475569;\n"
+       "  --pico-secondary-background: #475569;\n"
+       "  --pico-secondary-border: #475569;\n"
+       "  --pico-secondary-hover-background: #334155;\n"
+       "  --pico-secondary-hover-border: #334155;\n"
+       "  --pico-secondary-inverse: #ffffff;\n"
+       "  --pico-contrast: #0f172a;\n"
+       "  --pico-ins-color: #15803d;\n"
+       "  --pico-mark-background-color: #fde68a;\n"
+       "  --pico-del-color: #b91c1c;\n"
+       "  --pico-box-shadow: 0 0.5rem 1rem rgba(15, 23, 42, 0.12);\n"
+       "  --pico-button-box-shadow: none;\n"
+       "  --pico-card-background-color: #ffffff;\n"
+       "  --pico-card-border-color: #dbe3ec;\n"
+       "  --pico-card-box-shadow: 0 0.5rem 1rem rgba(15, 23, 42, 0.12);\n"
+       "  --pico-card-sectioning-background-color: #f1f5f9;\n"
+       "  --pico-form-element-background-color: #ffffff;\n"
+       "  --pico-form-element-selected-background-color: #e2e8f0;\n"
+       "  --pico-form-element-border-color: #cbd5e1;\n"
+       "  --pico-form-element-color: #0f172a;\n"
+       "  --pico-form-element-active-background-color: #ffffff;\n"
+       "  --pico-form-element-active-border-color: #0f766e;\n"
+       "  --pico-form-element-focus-color: rgba(15, 118, 110, 0.35);\n"
+       "  --pico-form-element-disabled-opacity: 0.5;\n"
+       "  --pico-form-element-valid-border-color: #15803d;\n"
+       "  --pico-form-element-invalid-border-color: #b91c1c;\n"
+       "  --pico-table-border-color: #dbe3ec;\n"
+       "  --pico-table-row-stripped-background-color: #f8fafc;\n"
+       "  --pico-dropdown-background-color: #ffffff;\n"
+       "  --pico-dropdown-border-color: #dbe3ec;\n"
+       "  --pico-dropdown-box-shadow: 0 0.5rem 1rem rgba(15, 23, 42, 0.12);\n"
+       "  --pico-dropdown-color: #1f2937;\n"
+       "  --pico-dropdown-hover-background-color: #f1f5f9;\n"
+       "  --pico-accordion-border-color: #dbe3ec;\n"
+       "  --pico-accordion-active-summary-color: #0f766e;\n"
+       "  --pico-tooltip-background-color: #0f172a;\n"
+       "  --pico-tooltip-color: #ffffff;\n"
+       "  --pico-progress-background-color: #e2e8f0;\n"
+       "  --pico-progress-color: #0f766e;\n"
+       "}\n"
+       "@media (prefers-color-scheme: dark) {\n"
+       "  :root:not([data-theme]), :host(:not([data-theme])) {\n"
+       "    --pico-background-color: #111820;\n"
+       "    --pico-color: #d9e3ef;\n"
+       "    --pico-muted-border-color: #263241;\n"
+       "    --pico-primary: #2dd4bf;\n"
+       "    --pico-primary-background: #0f766e;\n"
+       "    --pico-primary-border: #0f766e;\n"
+       "    --pico-primary-focus: rgba(45, 212, 191, 0.35);\n"
+       "  }\n"
+       "}\n"))
+    (define normalized (normalize-theme-source pico-like-css "auto"))
+    (check-true (regexp-match? #px"--bs-body-color" normalized))
+    (check-true (regexp-match? #px"\\[data-bs-theme=dark\\]" normalized))
+    (check-generated-css-has-no-source-vars normalized
+                                            ":root"
+                                            "we-theme-pico-test"
+                                            '("--pico-"))
+    (check-generated-css-has-no-source-vars normalized
+                                            "[data-bs-theme=dark]"
+                                            "we-theme-pico-dark-test"
+                                            '("--pico-"))
+    (define token-map (bootstrap-rules->token-map (read-css-rules normalized)))
+    (check-equal? (hash-ref token-map "--we-bg") "#f8fafc")
+    (check-equal? (hash-ref token-map "--we-fg") "#1f2937")
+    (check-equal? (hash-ref token-map "--we-primary") "#0f766e")
+    (check-equal? (hash-ref token-map "--we-font-family-base")
+                  "\"Pico Sans\", sans-serif")
+    (check-equal? (hash-ref token-map "--we-font-size-md") "1rem")
+    (check-equal? (hash-ref token-map "--we-radius-md") "0.25rem")
+    (check-equal? (hash-ref token-map "--we-button-padding-x") "1rem")
+    (check-equal? (hash-ref token-map "--we-button-primary-bg") "#0f766e")
+    (check-equal? (hash-ref token-map "--we-button-primary-color") "#ffffff")
+    (check-equal? (hash-ref token-map "--we-card-bg") "#ffffff")
+    (check-equal? (hash-ref token-map "--we-card-cap-bg") "#f1f5f9")
+    (check-equal? (hash-ref token-map "--we-field-bg") "#ffffff")
+    (define dark-map
+      (bootstrap-rules->token-map (read-css-rules normalized) "[data-bs-theme=dark]"))
+    (check-equal? (hash-ref dark-map "--we-bg") "#111820")
+    (check-equal? (hash-ref dark-map "--we-fg") "#d9e3ef")
+    (check-equal? (hash-ref dark-map "--we-primary") "#2dd4bf"))
+
+  (test-case "daisyUI dialect bridges data-theme variables into bootstrap-shaped tokens"
+    (define daisyui-like-css
+      (string-append
+       ":root, :root:has(input.theme-controller[value=light]:checked), [data-theme=light] {\n"
+       "  color-scheme: light;\n"
+       "  --color-base-100: #ffffff;\n"
+       "  --color-base-200: #f4f6fb;\n"
+       "  --color-base-300: #d8dfec;\n"
+       "  --color-base-content: #152033;\n"
+       "  --color-primary: #2563eb;\n"
+       "  --color-primary-content: #ffffff;\n"
+       "  --color-secondary: #db2777;\n"
+       "  --color-secondary-content: #ffffff;\n"
+       "  --color-accent: #14b8a6;\n"
+       "  --color-accent-content: #042f2e;\n"
+       "  --color-neutral: #111827;\n"
+       "  --color-neutral-content: #f9fafb;\n"
+       "  --color-info: #0ea5e9;\n"
+       "  --color-info-content: #082f49;\n"
+       "  --color-success: #16a34a;\n"
+       "  --color-success-content: #052e16;\n"
+       "  --color-warning: #f59e0b;\n"
+       "  --color-warning-content: #451a03;\n"
+       "  --color-error: #dc2626;\n"
+       "  --color-error-content: #ffffff;\n"
+       "  --radius-selector: 0.5rem;\n"
+       "  --radius-field: 0.375rem;\n"
+       "  --radius-box: 0.75rem;\n"
+       "  --size-selector: 0.25rem;\n"
+       "  --size-field: 0.25rem;\n"
+       "  --border: 2px;\n"
+       "  --depth: 1;\n"
+       "  --noise: 0;\n"
+       "}\n"
+       "[data-theme=synthwave] {\n"
+       "  color-scheme: dark;\n"
+       "  --color-base-100: oklch(15% 0.09 281.288);\n"
+       "  --color-base-200: oklch(20% 0.09 281.288);\n"
+       "  --color-base-300: oklch(25% 0.09 281.288);\n"
+       "  --color-base-content: oklch(78% 0.115 274.713);\n"
+       "  --color-primary: oklch(71% 0.202 349.761);\n"
+       "  --color-primary-content: oklch(28% 0.109 3.907);\n"
+       "  --color-secondary: oklch(82% 0.111 230.318);\n"
+       "  --color-secondary-content: oklch(29% 0.066 243.157);\n"
+       "  --color-accent: oklch(75% 0.183 55.934);\n"
+       "  --color-accent-content: oklch(26% 0.079 36.259);\n"
+       "  --color-neutral: oklch(45% 0.24 277.023);\n"
+       "  --color-neutral-content: oklch(87% 0.065 274.039);\n"
+       "  --color-info: oklch(74% 0.16 232.661);\n"
+       "  --color-info-content: oklch(29% 0.066 243.157);\n"
+       "  --color-success: oklch(77% 0.152 181.912);\n"
+       "  --color-success-content: oklch(27% 0.046 192.524);\n"
+       "  --color-warning: oklch(90% 0.182 98.111);\n"
+       "  --color-warning-content: oklch(42% 0.095 57.708);\n"
+       "  --color-error: oklch(73.7% 0.121 32.639);\n"
+       "  --color-error-content: oklch(23.501% 0.096 290.329);\n"
+       "  --radius-selector: 1rem;\n"
+       "  --radius-field: 0.5rem;\n"
+       "  --radius-box: 1rem;\n"
+       "  --size-selector: 0.25rem;\n"
+       "  --size-field: 0.25rem;\n"
+       "  --border: 1px;\n"
+       "  --depth: 0;\n"
+       "  --noise: 0;\n"
+       "}\n"))
+    (define normalized (normalize-theme-source daisyui-like-css "auto"))
+    (check-true (regexp-match? #px"--bs-body-color" normalized))
+    (check-true (regexp-match? #px"\\[data-theme=synthwave\\]" normalized))
+    (define daisyui-source-prefixes
+      '("--color-" "--radius-" "--size-" "--border" "--depth" "--noise"))
+    (check-generated-css-has-no-source-vars normalized
+                                            ":root"
+                                            "we-theme-daisyui-light-test"
+                                            daisyui-source-prefixes)
+    (check-generated-css-has-no-source-vars normalized
+                                            "[data-theme=synthwave]"
+                                            "we-theme-daisyui-synthwave-test"
+                                            daisyui-source-prefixes)
+    (define token-map (bootstrap-rules->token-map (read-css-rules normalized)))
+    (check-equal? (hash-ref token-map "--we-bg") "#ffffff")
+    (check-equal? (hash-ref token-map "--we-fg") "#152033")
+    (check-equal? (hash-ref token-map "--we-primary") "#2563eb")
+    (check-equal? (hash-ref token-map "--we-radius-md") "0.375rem")
+    (check-equal? (hash-ref token-map "--we-radius-lg") "0.75rem")
+    (check-equal? (hash-ref token-map "--we-button-padding-x") "calc(0.25rem * 4)")
+    (check-equal? (hash-ref token-map "--we-button-primary-bg") "#2563eb")
+    (check-equal? (hash-ref token-map "--we-button-primary-color") "#ffffff")
+    (check-equal? (hash-ref token-map "--we-card-bg") "#ffffff")
+    (check-equal? (hash-ref token-map "--we-card-cap-bg") "#f4f6fb")
+    (check-equal? (hash-ref token-map "--we-field-border-width") "2px")
+    (define synthwave-map
+      (bootstrap-rules->token-map (read-css-rules normalized) "[data-theme=synthwave]"))
+    (check-equal? (hash-ref synthwave-map "--we-bg") "oklch(15% 0.09 281.288)")
+    (check-equal? (hash-ref synthwave-map "--we-fg") "oklch(78% 0.115 274.713)")
+    (check-equal? (hash-ref synthwave-map "--we-primary") "oklch(71% 0.202 349.761)")
+    (check-equal? (hash-ref synthwave-map "--we-surface-subtle") "oklch(20% 0.09 281.288)")
+    (check-equal? (hash-ref synthwave-map "--we-button-primary-color")
+                  "oklch(28% 0.109 3.907)")
+    (check-equal? (hash-ref synthwave-map "--we-border-menu")
+                  "oklch(25% 0.09 281.288)")
+    (check-true
+     (regexp-match? #px"^color-mix\\(in oklch,"
+                    (hash-ref synthwave-map "--we-border-muted")))
+    (check-equal? (hash-ref synthwave-map "--we-navbar-link-hover-color")
+                  "oklch(78% 0.115 274.713)")
+    (check-equal? (hash-ref synthwave-map "--we-table-header-fg")
+                  "oklch(78% 0.115 274.713)")
+    (check-equal? (hash-ref synthwave-map "--we-control-border")
+                  "oklch(25% 0.09 281.288)"))
+
+  (test-case "Bulma dialect bridges partial scoped themes with inherited variables"
+    (define bulma-like-css
+      (string-append
+       "@charset \"UTF-8\";\n"
+       ":root, [data-theme=light], .theme-light {\n"
+       "  --bulma-scheme-h: 221;\n"
+       "  --bulma-scheme-s: 14%;\n"
+       "  --bulma-scheme-main-l: 100%;\n"
+       "  --bulma-scheme-main-bis-l: 98%;\n"
+       "  --bulma-scheme-main-ter-l: 96%;\n"
+       "  --bulma-scheme-invert-l: 4%;\n"
+       "  --bulma-background-l: 96%;\n"
+       "  --bulma-border-weak-l: 93%;\n"
+       "  --bulma-border-l: 86%;\n"
+       "  --bulma-text-h: 221deg;\n"
+       "  --bulma-text-s: 14%;\n"
+       "  --bulma-text-l: 29%;\n"
+       "  --bulma-text-weak-l: 48%;\n"
+       "  --bulma-text-strong-l: 21%;\n"
+       "  --bulma-text-title-l: 14%;\n"
+       "  --bulma-primary-h: 171deg;\n"
+       "  --bulma-primary-s: 100%;\n"
+       "  --bulma-primary-l: 41%;\n"
+       "  --bulma-primary-invert-l: 10%;\n"
+       "  --bulma-link-h: 233deg;\n"
+       "  --bulma-link-s: 100%;\n"
+       "  --bulma-link-l: 63%;\n"
+       "  --bulma-link-invert-l: 100%;\n"
+       "  --bulma-link-on-scheme-l: 58%;\n"
+       "  --bulma-info-h: 204deg;\n"
+       "  --bulma-info-s: 86%;\n"
+       "  --bulma-info-l: 53%;\n"
+       "  --bulma-info-invert-l: 10%;\n"
+       "  --bulma-success-h: 153deg;\n"
+       "  --bulma-success-s: 53%;\n"
+       "  --bulma-success-l: 53%;\n"
+       "  --bulma-success-invert-l: 10%;\n"
+       "  --bulma-warning-h: 42deg;\n"
+       "  --bulma-warning-s: 100%;\n"
+       "  --bulma-warning-l: 53%;\n"
+       "  --bulma-warning-invert-l: 10%;\n"
+       "  --bulma-danger-h: 348deg;\n"
+       "  --bulma-danger-s: 100%;\n"
+       "  --bulma-danger-l: 70%;\n"
+       "  --bulma-danger-invert-l: 10%;\n"
+       "  --bulma-family-primary: Inter, sans-serif;\n"
+       "  --bulma-family-secondary: Georgia, serif;\n"
+       "  --bulma-size-small: 0.75rem;\n"
+       "  --bulma-size-normal: 1rem;\n"
+       "  --bulma-size-medium: 1.25rem;\n"
+       "  --bulma-weight-normal: 400;\n"
+       "  --bulma-weight-semibold: 600;\n"
+       "  --bulma-weight-bold: 700;\n"
+       "  --bulma-radius-small: 0.25rem;\n"
+       "  --bulma-radius: 0.375rem;\n"
+       "  --bulma-radius-large: 0.75rem;\n"
+       "  --bulma-radius-rounded: 9999px;\n"
+       "  --bulma-control-border-width: 1px;\n"
+       "  --bulma-control-radius: var(--bulma-radius);\n"
+       "  --bulma-button-padding-horizontal: 1em;\n"
+       "  --bulma-button-padding-vertical: 0.5em;\n"
+       "  --bulma-button-weight: var(--bulma-weight-medium);\n"
+       "  --bulma-weight-medium: 500;\n"
+       "  --bulma-shadow-h: 221deg;\n"
+       "  --bulma-shadow-s: 14%;\n"
+       "  --bulma-shadow-l: 4%;\n"
+       "  --bulma-shadow: 0 0.5em 1em -0.125em hsla(var(--bulma-shadow-h), var(--bulma-shadow-s), var(--bulma-shadow-l), 0.1);\n"
+       "  --bulma-hover-color-l-delta: -5%;\n"
+       "  --bulma-hover-background-l-delta: -5%;\n"
+       "  --bulma-active-background-l-delta: -10%;\n"
+       "  --bulma-hover-border-l-delta: -10%;\n"
+       "  --bulma-active-border-l-delta: -20%;\n"
+       "  --bulma-focus-h: var(--bulma-link-h);\n"
+       "  --bulma-focus-s: var(--bulma-link-s);\n"
+       "  --bulma-focus-l: var(--bulma-link-l);\n"
+       "  --bulma-focus-shadow-alpha: 0.25;\n"
+       "}\n"
+       "[data-theme=dark], .theme-dark {\n"
+       "  --bulma-scheme-main-l: 9%;\n"
+       "  --bulma-scheme-main-bis-l: 14%;\n"
+       "  --bulma-scheme-main-ter-l: 21%;\n"
+       "  --bulma-scheme-invert-l: 100%;\n"
+       "  --bulma-background-l: 14%;\n"
+       "  --bulma-border-weak-l: 21%;\n"
+       "  --bulma-border-l: 29%;\n"
+       "  --bulma-text-l: 71%;\n"
+       "  --bulma-text-weak-l: 53%;\n"
+       "  --bulma-text-strong-l: 96%;\n"
+       "  --bulma-text-title-l: 100%;\n"
+       "  --bulma-hover-color-l-delta: 5%;\n"
+       "  --bulma-hover-background-l-delta: 5%;\n"
+       "}\n"))
+    (define normalized (normalize-theme-source bulma-like-css "auto"))
+    (check-true (regexp-match? #px"--bs-body-color" normalized))
+    (check-true (regexp-match? #px"\\.theme-dark" normalized))
+    (check-generated-css-has-no-source-vars normalized
+                                            "[data-theme=light]"
+                                            "we-theme-bulma-light-test"
+                                            '("--bulma-"))
+    (check-generated-css-has-no-source-vars normalized
+                                            "[data-theme=dark]"
+                                            "we-theme-bulma-dark-test"
+                                            '("--bulma-"))
+    (define light-map
+      (bootstrap-rules->token-map (read-css-rules normalized) "[data-theme=light]"))
+    (check-equal? (hash-ref light-map "--we-bg") "hsl(221, 14%, 100%)")
+    (check-equal? (hash-ref light-map "--we-fg") "hsl(221deg, 14%, 29%)")
+    (check-equal? (hash-ref light-map "--we-primary")
+                  "hsla(171deg, 100%, 41%, 1)")
+    (check-equal? (hash-ref light-map "--we-radius-md") "0.375rem")
+    (check-equal? (hash-ref light-map "--we-button-padding-x") "1em")
+    (define dark-map
+      (bootstrap-rules->token-map (read-css-rules normalized) "[data-theme=dark]"))
+    (check-equal? (hash-ref dark-map "--we-bg") "hsl(221, 14%, 9%)")
+    (check-equal? (hash-ref dark-map "--we-fg") "hsl(221deg, 14%, 71%)")
+    (check-equal? (hash-ref dark-map "--we-primary")
+                  "hsla(171deg, 100%, 41%, 1)")
+    (check-equal? (hash-ref dark-map "--we-radius-md") "0.375rem")
+    (check-equal? (hash-ref dark-map "--we-button-primary-bg")
+                  "hsla(171deg, 100%, 41%, 1)"))
 
   (test-case "bootstrap mapping falls back for headings font family"
     (define theme

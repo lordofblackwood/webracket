@@ -595,6 +595,7 @@
           <option value="flatly">Flatly</option>
           <option value="zephyr">Zephyr</option>
           <option value="cyborg">Cyborg</option>
+          <option value="tabler">Tabler (local)</option>
         </select>
         <span id="current">current=lux</span>
         <a href="../../../lib/web-easy/smoke/test-browser-theme-thematic.html">Open Widget Preview</a>
@@ -2276,7 +2277,8 @@
       materia: { bootstrap: "materia", web: "materia", label: "Materia" },
       flatly: { bootstrap: "flatly", web: "flatly", label: "Flatly" },
       zephyr: { bootstrap: "zephyr", web: "zephyr", label: "Zephyr" },
-      cyborg: { bootstrap: "cyborg", web: "cyborg", label: "Cyborg" }
+      cyborg: { bootstrap: "cyborg", web: "cyborg", label: "Cyborg" },
+      tabler: { bootstrap: "tabler", web: "tabler", label: "Tabler" }
     };
 
     function webThemeNames(theme) {
