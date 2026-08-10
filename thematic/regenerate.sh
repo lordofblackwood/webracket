@@ -5,6 +5,7 @@ set -eu
 ROOT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 OUT_DIR="$ROOT_DIR/thematic/generated"
 SMOKE_OUT_DIR="$ROOT_DIR/lib/web-easy/smoke/generated"
+TEST_OUT_DIR="$ROOT_DIR/pkgs/thematic/test/generated"
 RACKET=${RACKET:-racket}
 
 run_racket_tool() {
@@ -15,6 +16,7 @@ run_racket_tool() {
 
 mkdir -p "$OUT_DIR"
 mkdir -p "$SMOKE_OUT_DIR"
+mkdir -p "$TEST_OUT_DIR"
 
 for theme in superhero sketchy lux sandstone vapor brite quartz morph materia flatly zephyr cyborg
 do
@@ -24,12 +26,14 @@ do
     --theme-class "we-theme-$theme" \
     --selector ':root'
   cp "$OUT_DIR/$theme.css" "$SMOKE_OUT_DIR/thematic-$theme.css"
+  cp "$OUT_DIR/$theme.css" "$TEST_OUT_DIR/thematic-$theme.css"
 
   run_racket_tool "$ROOT_DIR/tools/thematic-scope" \
     --input "$ROOT_DIR/thematic/original/$theme/bootstrap.css" \
     --output "$OUT_DIR/bootstrap-$theme-scoped.css" \
     --scope '.bs-preview'
   cp "$OUT_DIR/bootstrap-$theme-scoped.css" "$SMOKE_OUT_DIR/bootstrap-$theme-scoped.css"
+  cp "$OUT_DIR/bootstrap-$theme-scoped.css" "$TEST_OUT_DIR/bootstrap-$theme-scoped.css"
 done
 
 for theme in lux sandstone
@@ -41,4 +45,5 @@ do
     --selector ':root' \
     --accent-boost
   cp "$OUT_DIR/$theme-boost.css" "$SMOKE_OUT_DIR/thematic-$theme-boost.css"
+  cp "$OUT_DIR/$theme-boost.css" "$TEST_OUT_DIR/thematic-$theme-boost.css"
 done

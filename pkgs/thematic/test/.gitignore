@@ -1,0 +1,3 @@
+generated/*
+!generated/.gitkeep
+test-browser-theme-thematic-bootstrap-compare.html

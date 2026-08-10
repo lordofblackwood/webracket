@@ -7,8 +7,10 @@ PORT="${SMOKE_PORT:-8765}"
 HOST="${SMOKE_HOST:-127.0.0.1}"
 BASE_URL="${SMOKE_BASE_URL:-http://${HOST}:${PORT}}"
 LOCAL_TOOLS_DIR="${SMOKE_LOCAL_TOOLS_DIR:-$ROOT_DIR/.local-tools}"
+RACKET="${RACKET:-racket}"
 PAGE_NAME="test-browser-theme-thematic-bootstrap-compare.html"
-SERVER_LOG="/tmp/web-easy-thematic-bootstrap-compare.log"
+PAGE_PATH="pkgs/thematic/test/${PAGE_NAME}"
+SERVER_LOG="/tmp/thematic-bootstrap-compare.log"
 
 if ! command -v node >/dev/null 2>&1; then
   echo "node is required for thematic Bootstrap compare."
@@ -29,6 +31,8 @@ if [ "${THEMATIC_COMPARE_SKIP_REGENERATE:-0}" != "1" ]; then
   "$ROOT_DIR/thematic/regenerate.sh"
 fi
 
+"$RACKET" -e '(use-compiled-file-paths null)' -t "$SCRIPT_DIR/bootstrap-compare-page.rkt" -- "$SCRIPT_DIR/$PAGE_NAME"
+
 if ! command -v raco >/dev/null 2>&1; then
   echo "raco is required to serve smoke files via static-web."
   exit 2
@@ -39,7 +43,7 @@ if ! raco static-web --help >/dev/null 2>&1; then
   exit 2
 fi
 
-raco static-web --port "$PORT" --dir "$SCRIPT_DIR" >"$SERVER_LOG" 2>&1 &
+raco static-web --port "$PORT" --dir "$ROOT_DIR" >"$SERVER_LOG" 2>&1 &
 SERVER_PID=$!
 
 cleanup() {
@@ -51,13 +55,13 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 server_ready() {
-  node -e 'const http = require("node:http"); const https = require("node:https"); const url = new URL(process.argv[1]); const lib = url.protocol === "https:" ? https : http; const req = lib.get(url, (res) => { res.resume(); process.exit(res.statusCode >= 200 && res.statusCode < 500 ? 0 : 1); }); req.on("error", () => process.exit(1)); req.setTimeout(1000, () => { req.destroy(); process.exit(1); });' "$BASE_URL/$PAGE_NAME"
+  node -e 'const http = require("node:http"); const https = require("node:https"); const url = new URL(process.argv[1]); const lib = url.protocol === "https:" ? https : http; const req = lib.get(url, (res) => { res.resume(); process.exit(res.statusCode >= 200 && res.statusCode < 500 ? 0 : 1); }); req.on("error", () => process.exit(1)); req.setTimeout(1000, () => { req.destroy(); process.exit(1); });' "$BASE_URL/$PAGE_PATH"
 }
 
 READY=0
 for _ in {1..50}; do
   if ! kill -0 "$SERVER_PID" >/dev/null 2>&1; then
-    echo "raco static-web exited before serving $PAGE_NAME."
+    echo "raco static-web exited before serving $PAGE_PATH."
     sed -n '1,120p' "$SERVER_LOG" || true
     exit 1
   fi
@@ -69,7 +73,7 @@ for _ in {1..50}; do
 done
 
 if [ "$READY" != "1" ]; then
-  echo "Timed out waiting for $BASE_URL/$PAGE_NAME."
+  echo "Timed out waiting for $BASE_URL/$PAGE_PATH."
   sed -n '1,120p' "$SERVER_LOG" || true
   exit 1
 fi

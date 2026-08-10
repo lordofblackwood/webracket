@@ -1,10 +1,23 @@
+#lang racket/base
+
+;; bootstrap-compare-page : module
+;;   Generate the browser compare page used by the Thematic Bootstrap parity test.
+
+(provide default-output-path page-html write-page)
+
+(require racket/runtime-path)
+
+(define-runtime-path default-output-path
+  "test-browser-theme-thematic-bootstrap-compare.html")
+
+(define page-html #<<END_THEMATIC_BOOTSTRAP_COMPARE_HTML
 <!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>thematic bootstrap compare</title>
-  <link rel="stylesheet" href="../themes/web-easy-core.css">
+  <link rel="stylesheet" href="../../../lib/web-easy/themes/web-easy-core.css">
   <link id="bootstrap-theme-link" rel="stylesheet" href="./generated/bootstrap-lux-scoped.css">
   <style id="we-theme-style"></style>
   <style>
@@ -584,8 +597,8 @@
           <option value="cyborg">Cyborg</option>
         </select>
         <span id="current">current=lux</span>
-        <a href="./test-browser-theme-thematic.html">Open Widget Preview</a>
-        <a href="./test-browser-theme-thematic-compare.html">Open Boost Compare</a>
+        <a href="../../../lib/web-easy/smoke/test-browser-theme-thematic.html">Open Widget Preview</a>
+        <a href="../../../lib/web-easy/smoke/test-browser-theme-thematic-compare.html">Open Boost Compare</a>
       </div>
     </div>
   </header>
@@ -2305,3 +2318,21 @@
   </script>
 </body>
 </html>
+END_THEMATIC_BOOTSTRAP_COMPARE_HTML
+)
+
+;; write-page : [path-string?] -> void?
+;;   Write the generated compare page to path.
+(define (write-page [path default-output-path])
+  (call-with-output-file path
+    #:exists 'replace
+    (lambda (out)
+      (display page-html out))))
+
+(module+ main
+  (define args (current-command-line-arguments))
+  (define output-path
+    (if (zero? (vector-length args))
+        default-output-path
+        (vector-ref args 0)))
+  (write-page output-path))

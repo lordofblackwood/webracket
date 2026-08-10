@@ -2,13 +2,13 @@
 
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { installPlaywrightErrorGuard } from "./playwright-error-guard.mjs";
+import { installPlaywrightErrorGuard } from "../../../lib/web-easy/smoke/playwright-error-guard.mjs";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(scriptDir, "../../..");
 const baseUrl =
   process.env.THEMATIC_COMPARE_URL ||
-  `${process.env.SMOKE_BASE_URL || "http://127.0.0.1:8765"}/test-browser-theme-thematic-bootstrap-compare.html`;
+  `${process.env.SMOKE_BASE_URL || "http://127.0.0.1:8765"}/pkgs/thematic/test/test-browser-theme-thematic-bootstrap-compare.html`;
 const themes = (process.env.THEMATIC_COMPARE_THEMES ||
   "brite,quartz,lux,sketchy,sandstone,superhero,lux-boost,sandstone-boost,vapor,morph,materia,flatly,zephyr,cyborg")
   .split(",")

@@ -184,7 +184,7 @@ smoke-compare-buttons:
 smoke-compare-all: smoke-compare-buttons smoke-compare-navbars
 
 smoke-thematic-bootstrap-compare:
-	cd $(SMOKE_DIR) && ./check-thematic-bootstrap-compare.sh
+	./pkgs/thematic/test/check-thematic-bootstrap-compare.sh
 
 smoke-solar-parity:
 	cd $(SMOKE_DIR) && ./check-solar-parity-sweep.sh
