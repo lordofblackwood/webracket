@@ -6,7 +6,7 @@
 
 (require racket/runtime-path)
 
-(define-runtime-path tool-path "../thematic/main.rkt")
+(define-runtime-path tool-path "../pkgs/thematic/main.rkt")
 
 (parameterize ([current-command-line-arguments (current-command-line-arguments)])
   ((dynamic-require tool-path 'main)))

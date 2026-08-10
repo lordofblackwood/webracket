@@ -16,7 +16,7 @@
          racket/string)
 
 (define-runtime-path theme-template-path
-  "../lib/web-easy/themes/theme-light.css")
+  "../../lib/web-easy/themes/theme-light.css")
 
 (struct rgb (r g b a) #:transparent)
 
@@ -2726,6 +2726,17 @@
   (define placeholder-opacity
     (or (computed-style-ref ".placeholder" "opacity")
         "0.5"))
+  (define (breadcrumb-context-ref key)
+    (or (navmetric-custom-ref ".breadcrumb" key)
+        (present-ref (hash-ref props key #f))
+        (present-ref (hash-ref bootstrap-defaults key #f))))
+  (define (breadcrumb-direct-ref selectors property)
+    (last-direct-declaration-value rules
+                                   selectors
+                                   property
+                                   breadcrumb-context-ref))
+  (define breadcrumb-link-selectors
+    '(".breadcrumb-item a" ".breadcrumb a"))
   (define breadcrumb-divider-color
     (or (navmetric-custom-ref ".breadcrumb" "--bs-breadcrumb-divider-color")
         (navmetric-style-ref ".breadcrumb-item + .breadcrumb-item::before" "color")))
@@ -2771,33 +2782,39 @@
                              "padding-right")
         breadcrumb-item-padding-x))
   (define breadcrumb-font-size
-    (selector-ref* navmetric-style-ref
-                   '(".breadcrumb-item a" ".breadcrumb-item.active" ".breadcrumb-item" ".breadcrumb" "body")
-                   "font-size"))
+    (or (breadcrumb-direct-ref breadcrumb-link-selectors "font-size")
+        (selector-ref* navmetric-style-ref
+                       '(".breadcrumb-item a" ".breadcrumb a" ".breadcrumb-item.active" ".breadcrumb-item" ".breadcrumb" "body")
+                       "font-size")))
   (define breadcrumb-font-weight
-    (or (selector-ref* navmetric-style-ref
-                       '(".breadcrumb-item a" ".breadcrumb-item.active" ".breadcrumb-item" ".breadcrumb")
+    (or (breadcrumb-direct-ref breadcrumb-link-selectors "font-weight")
+        (selector-ref* navmetric-style-ref
+                       '(".breadcrumb-item a" ".breadcrumb a" ".breadcrumb-item.active" ".breadcrumb-item" ".breadcrumb")
                        "font-weight")
         (hash-ref props "--bs-body-font-weight" #f)))
   (define breadcrumb-line-height
-    (or (selector-ref* navmetric-style-ref
-                       '(".breadcrumb-item a" ".breadcrumb-item.active" ".breadcrumb-item" ".breadcrumb")
+    (or (breadcrumb-direct-ref breadcrumb-link-selectors "line-height")
+        (selector-ref* navmetric-style-ref
+                       '(".breadcrumb-item a" ".breadcrumb a" ".breadcrumb-item.active" ".breadcrumb-item" ".breadcrumb")
                        "line-height")
         (hash-ref props "--bs-body-line-height" #f)))
   (define breadcrumb-letter-spacing
-    (selector-ref* navmetric-style-ref
-                   '(".breadcrumb-item a" ".breadcrumb-item.active" ".breadcrumb-item" ".breadcrumb" "body")
-                   "letter-spacing"))
+    (or (breadcrumb-direct-ref breadcrumb-link-selectors "letter-spacing")
+        (selector-ref* navmetric-style-ref
+                       '(".breadcrumb-item a" ".breadcrumb a" ".breadcrumb-item.active" ".breadcrumb-item" ".breadcrumb" "body")
+                       "letter-spacing")))
   (define breadcrumb-text-transform
-    (or (selector-ref* navmetric-style-ref
-                       '(".breadcrumb-item a" ".breadcrumb-item.active" ".breadcrumb-item" ".breadcrumb")
+    (or (breadcrumb-direct-ref breadcrumb-link-selectors "text-transform")
+        (selector-ref* navmetric-style-ref
+                       '(".breadcrumb-item a" ".breadcrumb a" ".breadcrumb-item.active" ".breadcrumb-item" ".breadcrumb")
                        "text-transform")
         "none"))
   (define breadcrumb-active-color
     (or (navmetric-custom-ref ".breadcrumb" "--bs-breadcrumb-item-active-color")
         (navmetric-style-ref ".breadcrumb-item.active" "color")))
   (define breadcrumb-link-color
-    (or (navmetric-style-ref ".breadcrumb-item a" "color")
+    (or (breadcrumb-direct-ref breadcrumb-link-selectors "color")
+        (selector-ref* navmetric-style-ref breadcrumb-link-selectors "color")
         (hash-ref props "--bs-link-color" #f)))
   (define-values (toast-style-ref toast-custom-ref)
     (make-computed-selector-refs props rules))
@@ -11508,6 +11525,9 @@
      ".breadcrumb-item a {\n"
      "  color: #1a1a1a;\n"
      "}\n"
+     ".breadcrumb a {\n"
+     "  color: #fff;\n"
+     "}\n"
      ".toast {\n"
      "  --bs-toast-padding-x: 0.75rem;\n"
      "  --bs-toast-padding-y: 0.5rem;\n"
@@ -12507,7 +12527,7 @@
   (test-case "component rule extraction feeds breadcrumb and toast tokens"
     (define rules (read-css-rules breadcrumb-toast-bootstrap))
     (define token-map (bootstrap-rules->token-map rules))
-    (check-equal? (hash-ref token-map "--we-breadcrumb-link-color") "#1a1a1a")
+    (check-equal? (hash-ref token-map "--we-breadcrumb-link-color") "#fff")
     (check-equal? (hash-ref token-map "--we-breadcrumb-active-color") "rgba(85, 89, 92, 0.75)")
     (check-equal? (hash-ref token-map "--we-breadcrumb-font-size") "13px")
     (check-equal? (hash-ref token-map "--we-breadcrumb-font-weight") "500")

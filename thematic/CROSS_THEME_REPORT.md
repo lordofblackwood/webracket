@@ -1,7 +1,7 @@
 # Thematic Cross-Theme Report
 
-This report captures a small validation pass for `tools/thematic` against
-several real Bootswatch themes.
+This report captures a small validation pass for the `pkgs/thematic` package
+via `tools/thematic` against several real Bootswatch themes.
 
 ## Inputs
 

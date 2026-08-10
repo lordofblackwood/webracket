@@ -6,7 +6,7 @@
 
 Current status:
 
-- source lives in [`thematic/main.rkt`](/Users/soegaard/Dropbox/GitHub/webracket/thematic/main.rkt)
+- source lives in the [`pkgs/thematic`](/Users/soegaard/Dropbox/GitHub/webracket/pkgs/thematic) package
 - launcher lives in [`tools/thematic`](/Users/soegaard/Dropbox/GitHub/webracket/tools/thematic)
 - generated reference outputs live in [`thematic/generated`](/Users/soegaard/Dropbox/GitHub/webracket/thematic/generated)
 - smoke preview pages live in [`lib/web-easy/smoke/test-browser-theme-thematic.html`](/Users/soegaard/Dropbox/GitHub/webracket/lib/web-easy/smoke/test-browser-theme-thematic.html) and [`lib/web-easy/smoke/test-browser-theme-thematic-compare.html`](/Users/soegaard/Dropbox/GitHub/webracket/lib/web-easy/smoke/test-browser-theme-thematic-compare.html)

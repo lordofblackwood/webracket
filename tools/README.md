@@ -767,7 +767,7 @@ node tools/fetch-html-element-attributes.mjs \
 thematic
 --------
 Launcher for Thematic 2000. It runs the implementation in
-`thematic/main.rkt`.
+`pkgs/thematic/main.rkt`.
 
 Thematic generates a starter `web-easy` external theme from Bootstrap custom
 properties. It reads one selector from a Bootstrap stylesheet, maps `--bs-*`
