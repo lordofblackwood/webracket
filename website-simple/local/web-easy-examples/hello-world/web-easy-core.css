@@ -325,6 +325,74 @@
   max-height: none;
 }
 
+.we-dialog-panel,
+.we-modal-panel {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  min-width: min(280px, calc(100vw - 2rem));
+  max-width: min(var(--we-dialog-max-width, 520px), calc(100vw - 2rem));
+  overflow: hidden;
+  border: var(--we-dialog-border-width, 1px) solid var(--we-dialog-border-color, var(--we-border, #888888));
+  border-radius: var(--we-dialog-radius, 8px);
+  background: linear-gradient(var(--we-dialog-bg, var(--we-bg, #ffffff)), var(--we-dialog-bg, var(--we-bg, #ffffff))), var(--we-surface, #ffffff);
+  color: var(--we-dialog-color, var(--we-fg, #111111));
+  box-shadow: var(--we-dialog-shadow, var(--we-shadow, 0 8px 22px rgba(0, 0, 0, 0.28)));
+}
+
+.we-dialog-size-sm {
+  --we-dialog-max-width: 360px;
+}
+
+.we-dialog-size-md {
+  --we-dialog-max-width: 520px;
+}
+
+.we-dialog-size-lg {
+  --we-dialog-max-width: 720px;
+}
+
+.we-dialog-size-xl {
+  --we-dialog-max-width: 960px;
+}
+
+.we-dialog-header,
+.we-modal-header {
+  display: flex;
+  align-items: center;
+  gap: var(--we-dialog-header-gap, 8px);
+  margin: 0;
+  border-bottom: var(--we-dialog-header-border-width, 1px) solid var(--we-dialog-header-border-color, var(--we-separator, #d0d7e2));
+  padding: var(--we-dialog-header-padding-y, 0.75rem) var(--we-dialog-header-padding-x, 1rem);
+}
+
+.we-dialog-body,
+.we-modal-body {
+  padding: var(--we-dialog-body-padding-y, 1rem) var(--we-dialog-body-padding-x, 1rem);
+}
+
+.we-dialog-footer,
+.we-modal-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--we-dialog-footer-gap, 0.5rem);
+  margin: 0;
+  border-top: var(--we-dialog-footer-border-width, 1px) solid var(--we-dialog-footer-border-color, var(--we-separator, #d0d7e2));
+  padding: var(--we-dialog-footer-padding-y, 0.75rem) var(--we-dialog-footer-padding-x, 1rem);
+}
+
+.we-dialog-title,
+.we-modal-title {
+  margin: 0;
+  color: var(--we-dialog-title-color, var(--we-fg, #111111));
+  font-family: var(--we-font-family-heading, inherit);
+  font-size: var(--we-dialog-title-font-size, 1.25rem);
+  font-weight: var(--we-dialog-title-font-weight, var(--we-font-weight-normal, 600));
+  text-transform: var(--we-dialog-title-text-transform, none);
+}
+
 
 /* Prevent the list group collapsing, when there is no list items */
 

@@ -1,7 +1,7 @@
 #lang webracket/base
 
 ;;;
-;;; Formula 1 countdown page (WebRacket simple site)
+;;; Formula 1 countdown page
 ;;;
 
 (require (for-syntax racket/base)
@@ -35,20 +35,23 @@
                    (img (@ (src "../../assets/hex-racket-wasm-logo.svg")
                            (alt "")
                            (class "wordmark-logo")))
-                   (span (@ (class "wordmark-muted")) "Web")
+                   (span (@ (class "wordmark-muted"))  "Web")
                    (span (@ (class "wordmark-strong")) "Racket"))
                 (div (@ (class "nav-links"))
-                     ,(nav-link "Quick Start" "../../site.html#quick-start")
-                     ,(nav-link "Examples" "../../site.html#examples")
+                     ,(nav-link "Quick Start"   "../../site.html#quick-start")
+                     ,(nav-link "Examples"      "../../site.html#examples")
                      ,(nav-link "Documentation" "../../docs/webracket/index.html")
-                     ,(nav-link "GitHub" "https://github.com/soegaard/webracket")))))
+                     ,(nav-link "GitHub"        "https://github.com/soegaard/webracket")))))
 
 (define (footer-section)
   `(footer (@ (class "site-footer"))
            (p "Formula 1 Countdown, ported from the old WebRacket website.")))
 
 (define (code-pill url text)
-  `(a (@ (class "code-pill") (href ,url) (target "_blank") (rel "noreferrer noopener"))
+  `(a (@ (class  "code-pill")
+         (href   ,url)
+         (target "_blank")
+         (rel    "noreferrer noopener"))
       ,text))
 
 ;;;

@@ -6,7 +6,7 @@
 
 (require web-easy)
 
-(define docs-url "docs/webracket/Library__web-easy.html")
+(define docs-url   "docs/webracket/Library__web-easy.html")
 (define github-url "https://github.com/soegaard/webracket")
 
 (define (attrs xs) xs)
@@ -42,51 +42,51 @@
 
 (define handwritten-examples
   (list
-   (example "Hello World" "hello-world" "hello-world" "The smallest page: render a view and mount it.")
-   (example "A Single Counter" "a-single-counter" "a-single-counter" "A compact state update loop around one value.")
+   (example "Hello World"       "hello-world"       "hello-world"       "The smallest page: render a view and mount it.")
+   (example "A Single Counter"  "a-single-counter"  "a-single-counter"  "A compact state update loop around one value.")
    (example "Multiple Counters" "multiple-counters" "multiple-counters" "Repeated controls backed by independent state.")
-   (example "Dynamic Counters" "dynamic-counters" "dynamic-counters" "Add and remove counters while the UI stays in sync.")
-   (example "Add Two Numbers" "add-two-numbers" "add-two-numbers" "Inputs, conversion, and computed display.")
-   (example "Todo Lists" "todo-lists" "todo-lists" "A small list editor with persistent UI state.")))
+   (example "Dynamic Counters"  "dynamic-counters"  "dynamic-counters"  "Add and remove counters while the UI stays in sync.")
+   (example "Add Two Numbers"   "add-two-numbers"   "add-two-numbers"   "Inputs, conversion, and computed display.")
+   (example "Todo Lists"        "todo-lists"        "todo-lists"        "A small list editor with persistent UI state.")))
 
 (define rquery-examples
   (list
-   (example "RQuery Helpers" "rquery-helpers" "rquery-helpers" "Selectors and small DOM update helpers.")
-   (example "RQuery Counter" "rquery-counter" "rquery-counter" "A counter written with rquery-style event wiring.")
-   (example "RQuery Toggle" "rquery-toggle" "rquery-toggle" "Toggle state through small DOM commands.")
+   (example "RQuery Helpers"       "rquery-helpers"       "rquery-helpers"       "Selectors and small DOM update helpers.")
+   (example "RQuery Counter"       "rquery-counter"       "rquery-counter"       "A counter written with rquery-style event wiring.")
+   (example "RQuery Toggle"        "rquery-toggle"        "rquery-toggle"        "Toggle state through small DOM commands.")
    (example "RQuery Delegate List" "rquery-delegate-list" "rquery-delegate-list" "Selector-based delegated event handling.")
-   (example "RQuery Once" "rquery-once" "rquery-once" "One-shot event handlers.")
-   (example "RQuery Trigger" "rquery-trigger" "rquery-trigger" "Programmatic event triggering.")))
+   (example "RQuery Once"          "rquery-once"          "rquery-once"          "One-shot event handlers.")
+   (example "RQuery Trigger"       "rquery-trigger"       "rquery-trigger"       "Programmatic event triggering.")))
 
 (define seven-gui-examples
   (list
-   (example "7 GUI Counter" "7gui-counter" "7gui-counter" "The benchmark's minimal state update.")
+   (example "7 GUI Counter"               "7gui-counter"               "7gui-counter"         "The benchmark's minimal state update.")
    (example "7 GUI Temperature Converter" "7gui-temperature-converter" "7gui-temperature-converter" "Two synchronized inputs with validation.")
-   (example "7 GUI Flight Booker" "7gui-flight-booker" "7gui-flight-booker" "A form with dependent controls and date validation.")
-   (example "7 GUI Timer" "7gui-timer" "7gui-timer" "Progress over time, reset, and elapsed display.")
-   (example "7 GUI CRUD" "7gui-crud" "7gui-crud" "Filtering, selection, editing, creating, and deleting records.")
-   (example "7 GUI Circle" "7gui-circle" "7gui-circle" "Canvas interaction with undoable circle creation.")
-   (example "7 GUI Circle Extended" "7gui-circle-extended" "7gui-circle-extended" "A larger circle editor with more interaction state.")))
+   (example "7 GUI Flight Booker"         "7gui-flight-booker"         "7gui-flight-booker"   "A form with dependent controls and date validation.")
+   (example "7 GUI Timer"                 "7gui-timer"                 "7gui-timer"           "Progress over time, reset, and elapsed display.")
+   (example "7 GUI CRUD"                  "7gui-crud"                  "7gui-crud"            "Filtering, selection, editing, creating, and deleting records.")
+   (example "7 GUI Circle"                "7gui-circle"                "7gui-circle"          "Canvas interaction with undoable circle creation.")
+   (example "7 GUI Circle Extended"       "7gui-circle-extended"       "7gui-circle-extended" "A larger circle editor with more interaction state.")))
 
 (define pict-examples
   (list
-   (example "Pict Playground" "pict-playground" "pict-playground" "Controls that render web-pict output.")
-   (example "Pict Fish School" "pict-fish-school" "pict-fish-school" "A playful canvas scene driven by Racket values.")
-   (example "Pict Hungry Fish" "pict-hungry-fish" "pict-hungry-fish" "Interactive pict rendering with animation.")))
+   (example "Pict Playground"  "pict-playground"  "pict-playground"  "Control the classic standard fish.")
+   (example "Pict Fish School" "pict-fish-school" "pict-fish-school" "Animation of a fish school.")
+   (example "Pict Hungry Fish" "pict-hungry-fish" "pict-hungry-fish" "A little fish eats fish game.")))
 
 (define browser-api-examples
   (list
-   (example "Audio Oscillator" "audio-oscillator" "audio-oscillator" "Browser audio synthesis from a web-easy interface.")
-   (example "Audio Buffer Playback" "audio-buffer-playback" "audio-buffer-playback" "Load and play audio buffers through browser APIs.")
-   (example "Audio Analyser" "audio-analyser" "audio-analyser" "Read audio analysis data into the UI.")
-   (example "Audio Effects" "audio-effects" "audio-effects" "Compose controls around a small effects chain.")
-   (example "WebSocket" "websocket" "websocket" "A browser WebSocket interface rendered with web-easy.")))
+   (example "Audio Oscillator"      "audio-oscillator"      "audio-oscillator"      "Audio synthesis.")
+   (example "Audio Buffer Playback" "audio-buffer-playback" "audio-buffer-playback" "Load and play audio buffers.")
+   (example "Audio Analyser"        "audio-analyser"        "audio-analyser"        "Audio analysis.")
+   (example "Audio Effects"         "audio-effects"         "audio-effects"         "Experiment with a small effects chain.")
+   (example "WebSocket"             "websocket"             "websocket"             "A browser WebSocket interface.")))
 
 (define (example-card item)
-  (define label (car item))
+  (define label      (car item))
   (define example-id (cadr item))
-  (define file-name (caddr item))
-  (define summary (cadddr item))
+  (define file-name  (caddr item))
+  (define summary    (cadddr item))
   (Article
    (H3 label)
    (P summary)
@@ -155,19 +155,19 @@
     (Header
      (Nav
       (A
-       (Img #:src "assets/hex-racket-wasm-logo.svg"
+       (Img #:src   "assets/hex-racket-wasm-logo.svg"
             #:class "wordmark-logo"
             #:attrs '((alt "")))
-       (Span "Web" #:class "wordmark-muted")
+       (Span "Web"    #:class "wordmark-muted")
        (Span "Racket" #:class "wordmark-strong")
        #:class "wordmark"
        #:attrs '((href "site.html") (aria-label "WebRacket home")))
       (Div
-       (nav-link "Quick Start" "site.html#quick-start")
-       (nav-link "Examples" "site.html#examples")
-       (nav-link "web-easy" "web-easy.html")
+       (nav-link "Quick Start"   "site.html#quick-start")
+       (nav-link "Examples"      "site.html#examples")
+       (nav-link "web-easy"      "web-easy.html")
        (nav-link "Documentation" "docs/webracket/index.html")
-       (nav-link "GitHub" github-url)
+       (nav-link "GitHub"        github-url)
        #:class "nav-links")
       #:class "top-nav")
      #:class "site-header")
@@ -180,8 +180,8 @@
         "web-easy is WebRacket's small UI library for describing browser interfaces as Racket values. It gives you named HTML constructors, themes, stateful rendering, event handling, and a browser backend that turns Racket views into DOM updates."
         #:class "hero-lede")
        (Div
-        (cta-link "button-primary" "Open examples" "#examples")
-        (cta-link "button-secondary" "Read docs" docs-url)
+        (cta-link "button-primary"   "Open examples" "#examples")
+        (cta-link "button-secondary" "Read docs"     docs-url)
         #:class "hero-actions")
        #:class "web-easy-hero-copy")
       (Div
