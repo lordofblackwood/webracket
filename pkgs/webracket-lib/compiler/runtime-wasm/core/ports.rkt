@@ -216,6 +216,7 @@
 (define port-core-runtime-helper-names
   '($raise-check-string-port
     $input-port-like?/i32
+    $output-port?
     $close-input-port
     $current-input-port
     $flush-output

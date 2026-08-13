@@ -210,6 +210,8 @@
     $syntax/make
     $syntax-build
     $identifier?
+    $phase?/i32
+    $syntax-local-phase-level
     $free-identifier=?
     $datum->syntax/convert
     $syntax->datum/convert))

@@ -5077,6 +5077,7 @@
       $error
       $raise-result-error
       $raise-arguments-error
+      $raise-argument-error/position
       $raise-expected-fixnum)
     bootstrap-error-runtime-only-helper-names
     exception-promoted-main-runtime-helper-names)))

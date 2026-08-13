@@ -33,6 +33,7 @@
          parameter-runtime-only-helpers
          parameter-width-core-runtime-helper-forms
          parameter-width-runtime-helper-forms
+         parameter-error-rendering-core-runtime-helper-forms
          parameter-error-rendering-runtime-helper-forms
          parameter-directory-runtime-helper-forms
          environment-parameter-global-forms
@@ -583,13 +584,25 @@
            parameter-width-helper-names
            eq?))
 
-;; parameter-error-rendering-runtime-only-helper-names : (listof symbol?)
+;; parameter-error-rendering-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for error rendering parameters.
-(define parameter-error-rendering-runtime-only-helper-names
+(define parameter-error-rendering-helper-names
   '($error-syntax->name-handler
     $error-value->string-handler
     $error-syntax->string-handler
     $error-module-path->string-handler))
+
+;; parameter-error-rendering-core-runtime-helper-names : (listof symbol?)
+;;   Name error-rendering parameter helpers available in core runtime.
+(define parameter-error-rendering-core-runtime-helper-names
+  parameter-error-rendering-helper-names)
+
+;; parameter-error-rendering-runtime-only-helper-names : (listof symbol?)
+;;   Preserve runtime-only error-rendering parameter emission order.
+(define parameter-error-rendering-runtime-only-helper-names
+  (remove* parameter-error-rendering-core-runtime-helper-names
+           parameter-error-rendering-helper-names
+           eq?))
 
 ;; parameter-directory-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for current directory parameters.
@@ -816,6 +829,11 @@
 ;;   Render error rendering parameter helpers in runtime assembly order.
 (define (parameter-error-rendering-runtime-helper-forms helper-index)
   (parameter-helper-forms helper-index parameter-error-rendering-runtime-only-helper-names))
+
+;; parameter-error-rendering-core-runtime-helper-forms : hasheq? -> (listof datum?)
+;;   Render error rendering parameter helpers shared with core runtime.
+(define (parameter-error-rendering-core-runtime-helper-forms helper-index)
+  (parameter-helper-forms helper-index parameter-error-rendering-core-runtime-helper-names))
 
 ;; parameter-directory-runtime-helper-forms : hasheq? -> (listof datum?)
 ;;   Render current directory parameter helpers in runtime assembly order.
@@ -1851,7 +1869,8 @@
                                   current-print-core-runtime-helper-names
                                   current-readtable-core-runtime-helper-names
                                   namespace-parameter-core-runtime-helper-names
-                                  parameter-width-core-runtime-helper-names)))
+                                  parameter-width-core-runtime-helper-names
+                                  parameter-error-rendering-core-runtime-helper-names)))
 
 ;; parameter-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate parameterization helpers used only by the monolithic runtime.
@@ -1865,7 +1884,8 @@
                                   current-print-core-runtime-helper-names
                                   current-readtable-core-runtime-helper-names
                                   namespace-parameter-core-runtime-helper-names
-                                  parameter-width-core-runtime-helper-names)))
+                                  parameter-width-core-runtime-helper-names
+                                  parameter-error-rendering-core-runtime-helper-names)))
 
 (module+ test
   (require rackunit)
@@ -1965,6 +1985,11 @@
    (map form-name (parameter-width-core-runtime-helper-forms
                    parameter-core-helper-index))
    parameter-width-core-runtime-helper-names)
+
+  (check-equal?
+   (map form-name (parameter-error-rendering-core-runtime-helper-forms
+                   parameter-core-helper-index))
+   parameter-error-rendering-core-runtime-helper-names)
 
   (check-equal?
    (map form-name (parameterization-binding-core-runtime-helper-forms

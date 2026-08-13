@@ -289,6 +289,7 @@
                   parameterization-binding-runtime-helper-forms
                   parameterization-call-runtime-helper-forms
                   parameter-directory-runtime-helper-forms
+                  parameter-error-rendering-core-runtime-helper-forms
                   parameter-error-rendering-runtime-helper-forms
                   parameterization-global-forms
                   parameterization-initializer-forms
@@ -2051,6 +2052,7 @@
                ,@(io-handler-error-runtime-helper-forms runtime-helper-index)
 
                ;;   Implemented in runtime-wasm/core/parameters.rkt.
+               ,@(parameter-error-rendering-core-runtime-helper-forms core-runtime-helper-index)
                ,@(parameter-error-rendering-runtime-helper-forms runtime-helper-index)
 
                ;;   Implemented in runtime-wasm/core/parameters.rkt.
