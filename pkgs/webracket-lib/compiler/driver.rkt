@@ -1667,7 +1667,7 @@
 
 ;; module-bridge-provider-compiled-fragment-cache-version : exact-positive-integer?
 ;;   Bump when compiled provider-fragment WAT cache semantics change.
-(define module-bridge-provider-compiled-fragment-cache-version 5)
+(define module-bridge-provider-compiled-fragment-cache-version 6)
 
 ;; module-bridge-provider-compiled-fragment-cache-key :
 ;;   any/c #:browser? boolean? #:enable-cc-analysis? boolean?

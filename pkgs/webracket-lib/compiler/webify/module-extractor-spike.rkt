@@ -3305,6 +3305,18 @@
                         candidates))
               (if (null? stream-cons-candidates) candidates stream-cons-candidates)]
              [else candidates]))
+         (define (prefer-for-check-list-provider candidates)
+           ;; `for`-expanded list iterations import the `check-list` helper
+           ;; from racket/private/for. Other list providers can expose a helper
+           ;; with the same name, so prefer the loop expander's provider.
+           (cond
+             [(and (symbolic-name=? external 'check-list)
+                   (for/or ([candidate (in-list candidates)])
+                     (eq? (cadr candidate) 'racket/private/for)))
+              (filter (lambda (candidate)
+                        (eq? (cadr candidate) 'racket/private/for))
+                      candidates)]
+             [else candidates]))
          (define (prefer-list-member-provider candidates)
            ;; `#lang webracket/full` can expose both pico's lower helper and
            ;; the list-layer `member`. Prefer the list layer only after export
@@ -3428,7 +3440,8 @@
                 (prefer-public-racket-provider
                 (prefer-list-member-provider
                  (prefer-stream-cons
-                  (if (null? preferred-candidates) candidates preferred-candidates))))))))))
+                  (prefer-for-check-list-provider
+                   (if (null? preferred-candidates) candidates preferred-candidates)))))))))))
          (define (candidate-reason candidate)
            (list local
                  (cadr candidate)

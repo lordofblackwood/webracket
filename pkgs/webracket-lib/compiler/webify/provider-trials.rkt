@@ -671,9 +671,12 @@
     racket/private/map
     racket/private/member
     racket/private/more-scheme
+    racket/private/old-path
     racket/private/pico
     racket/private/port
     racket/private/promise
+    racket/private/qq-and-or
+    racket/private/qqstx
     racket/private/reverse
     racket/private/sort
     racket/private/reqprov
@@ -681,7 +684,9 @@
     racket/private/serialize-structs
     racket/private/stx
     racket/private/stxcase
+    racket/private/stxcase-scheme
     racket/private/string
+    racket/private/with-stx
     racket/private/custom-hash
     racket/private/class-c
     racket/private/class-internal
