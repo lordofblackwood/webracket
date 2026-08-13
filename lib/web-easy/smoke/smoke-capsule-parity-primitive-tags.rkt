@@ -29,6 +29,16 @@
                (P "Parity Primitive P" #:id "parity-prim-p")
                (Span "Parity Primitive Span" #:id "parity-prim-span")
                (Img #:src "avatar-icon.png" #:alt "Parity Primitive Img" #:id "parity-prim-img")
+               (Details
+                (Summary (text "Parity open details"))
+                (text "parity details body")
+                #:id "parity-prim-details-open"
+                #:open #t)
+               (Details
+                (Summary (text "Parity closed details"))
+                (text "parity closed details body")
+                #:id "parity-prim-details-closed"
+                #:open #f)
                (Div #:id "parity-prim-div"
                     (Span "Parity Div child" #:id "parity-prim-div-child"))))))
       (mount-renderer! parity-primitive-tags-renderer root)

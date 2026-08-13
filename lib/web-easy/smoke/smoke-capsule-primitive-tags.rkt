@@ -27,6 +27,16 @@
                (P "Primitive P" #:id "prim-p")
                (Span "Primitive Span" #:id "prim-span")
                (Img #:src "avatar-icon.png" #:alt "Primitive Img" #:id "prim-img")
+               (Details
+                (Summary (text "Open details"))
+                (text "details body")
+                #:id "prim-details-open"
+                #:open #t)
+               (Details
+                (Summary (text "Closed details"))
+                (text "closed details body")
+                #:id "prim-details-closed"
+                #:open #f)
                (Div #:id "prim-div"
                     (Span "Div child" #:id "prim-div-child"))))))
       (mount-renderer! primitive-tags-renderer root)

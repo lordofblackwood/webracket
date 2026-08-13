@@ -32,6 +32,8 @@
         const p = doc.querySelector("#prim-p");
         const span = doc.querySelector("#prim-span");
         const img = doc.querySelector("#prim-img");
+        const detailsOpen = doc.querySelector("#prim-details-open");
+        const detailsClosed = doc.querySelector("#prim-details-closed");
         const div = doc.querySelector("#prim-div");
         const divChild = doc.querySelector("#prim-div-child");
 
@@ -39,6 +41,12 @@
         H.assertEqual(p.tagName.toLowerCase(), "p", "P initial tag is p");
         H.assertEqual(span.tagName.toLowerCase(), "span", "Span initial tag is span");
         H.assertEqual(img.tagName.toLowerCase(), "img", "Img initial tag is img");
+        H.assertEqual(detailsOpen.tagName.toLowerCase(), "details", "Details initial tag is details");
+        H.assertEqual(detailsClosed.tagName.toLowerCase(), "details", "closed Details initial tag is details");
+        H.assertEqual(detailsOpen.open, true, "Details #:open #t sets details.open");
+        H.assertEqual(detailsOpen.hasAttribute("open"), true, "Details #:open #t sets open attribute");
+        H.assertEqual(detailsClosed.open, false, "Details #:open #f leaves details.open false");
+        H.assertEqual(detailsClosed.hasAttribute("open"), false, "Details #:open #f omits open attribute");
         H.assertEqual(div.tagName.toLowerCase(), "div", "Div initial tag is div");
         H.assertEqual(divChild.tagName.toLowerCase(), "span", "Div child Span initial tag is span");
 

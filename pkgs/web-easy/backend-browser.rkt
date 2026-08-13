@@ -616,6 +616,15 @@
     (define (boolean-attribute? x)
       (and (memq x boolean-attributes) #t))
 
+    ;; apply-boolean-attribute! : any/c symbol? any/c -> void?
+    ;;   Set or remove a reflected boolean attribute on native.
+    (define (apply-boolean-attribute! native name value)
+      (define attr-name  (symbol->attr-name name))
+      (define attr-value (value->attr-string value))
+      (if value
+          (js-set-attribute!    native attr-name attr-value)
+          (js-remove-attribute! native attr-name)))
+
     ;; menu-popup-attr? : list? -> boolean?
     ;;   Report whether attrs mark a standalone menu popup container.
     (define (menu-popup-attr? attrs)
@@ -651,7 +660,9 @@
                      (void)]
                     [(open)
                      (when (eq? tag 'dialog)
-                       (js-set! native "open" (if value #t #f)))]
+                       (js-set! native "open" (if value #t #f)))
+                     (unless (eq? tag 'dialog)
+                       (apply-boolean-attribute! native name value))]
                     [(selected)
                      (when (or (eq? tag 'select)
                                (eq? tag 'choice))
@@ -667,9 +678,7 @@
                      (define attr-value (value->attr-string value))
                      (cond
                        [(boolean-attribute? name)
-                        (if value
-                            (js-set-attribute!    native attr-name attr-value)
-                            (js-remove-attribute! native attr-name))]
+                        (apply-boolean-attribute! native name value)]
                        [else
                         (js-set-attribute!    native attr-name attr-value)])]))
                 attrs)

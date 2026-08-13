@@ -32,6 +32,8 @@
         const p = doc.querySelector("#parity-prim-p");
         const span = doc.querySelector("#parity-prim-span");
         const img = doc.querySelector("#parity-prim-img");
+        const detailsOpen = doc.querySelector("#parity-prim-details-open");
+        const detailsClosed = doc.querySelector("#parity-prim-details-closed");
         const div = doc.querySelector("#parity-prim-div");
         const divChild = doc.querySelector("#parity-prim-div-child");
 
@@ -39,6 +41,12 @@
         H.assertEqual(p.tagName.toLowerCase(), "p", "parity P initial tag is p");
         H.assertEqual(span.tagName.toLowerCase(), "span", "parity Span initial tag is span");
         H.assertEqual(img.tagName.toLowerCase(), "img", "parity Img initial tag is img");
+        H.assertEqual(detailsOpen.tagName.toLowerCase(), "details", "parity Details initial tag is details");
+        H.assertEqual(detailsClosed.tagName.toLowerCase(), "details", "parity closed Details initial tag is details");
+        H.assertEqual(detailsOpen.open, true, "parity Details #:open #t sets details.open");
+        H.assertEqual(detailsOpen.hasAttribute("open"), true, "parity Details #:open #t sets open attribute");
+        H.assertEqual(detailsClosed.open, false, "parity Details #:open #f leaves details.open false");
+        H.assertEqual(detailsClosed.hasAttribute("open"), false, "parity Details #:open #f omits open attribute");
         H.assertEqual(div.tagName.toLowerCase(), "div", "parity Div initial tag is div");
         H.assertEqual(divChild.tagName.toLowerCase(), "span", "parity Div child Span initial tag is span");
 
