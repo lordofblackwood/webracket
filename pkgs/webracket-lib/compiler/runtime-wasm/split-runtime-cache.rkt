@@ -50,12 +50,12 @@
 ;; split-runtime-boundary-cache-directory : string?
 ;;   Stable cache directory for split-boundary metadata.
 (define split-runtime-boundary-cache-directory
-  "split-runtime-boundary-v1")
+  "split-runtime-boundary-v2")
 
 ;; split-runtime-boundary-cache-version : exact-integer?
-;;   Bump when the serialized split-boundary metadata layout changes.
+;;   Bump when the serialized split-boundary metadata layout or meaning changes.
 (define split-runtime-boundary-cache-version
-  1)
+  2)
 
 ;; wasm-data-cache-tag : symbol?
 ;;   Tags custom WAT data fragments in split-runtime FASL caches.

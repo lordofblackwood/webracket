@@ -1192,7 +1192,8 @@
 ;; generated-import-name? : symbol? -> boolean?
 ;;   Heuristically recognize generated internal import names in decompiled linklets.
 (define (generated-import-name? name)
-  (regexp-match? #rx"[.][0-9]+$" (symbol->string name)))
+  (and (symbol? name)
+       (regexp-match? #rx"[.][0-9]+$" (symbol->string name))))
 
 ;; generated-base-name : symbol? -> string?
 ;;   Strip Racket's generated numeric suffix from a decompiled linklet name.
@@ -1203,11 +1204,13 @@
 ;; symbolic-name=? : symbol? symbol? -> boolean?
 ;;   Match generated symbols that print the same but are not necessarily eq?.
 (define (symbolic-name=? a b)
-  (or (eq? a b)
-      (string=? (symbol->string a) (symbol->string b))
-      (string=? (generated-base-name a) (generated-base-name b))
-      (string=? (generated-base-name a) (symbol->string b))
-      (string=? (symbol->string a) (generated-base-name b))))
+  (and (symbol? a)
+       (symbol? b)
+       (or (eq? a b)
+           (string=? (symbol->string a) (symbol->string b))
+           (string=? (generated-base-name a) (generated-base-name b))
+           (string=? (generated-base-name a) (symbol->string b))
+           (string=? (symbol->string a) (generated-base-name b)))))
 
 ;; dependency-export-key-symbols : symbol? -> (listof symbol?)
 ;;   Return exact and generated-base lookup keys for dependency export matching.
@@ -1357,7 +1360,8 @@
 ;; require-order-provider? : symbol? symbol? -> boolean?
 ;;   Keep only providers that can plausibly correspond to unresolved import groups.
 (define (require-order-provider? self-name name)
-  (and (not (eq? name self-name))
+  (and (symbol? name)
+       (not (eq? name self-name))
        (not (memq name '(webracket/base racket/base racket/private/base)))
        (not (regexp-match? #rx"^racket/private/" (symbol->string name)))))
 
@@ -2224,6 +2228,33 @@
     prop:chaperone-unsafe-undefined
     chaperone-struct-unsafe-undefined))
 
+(define provider-owned-missing-import-names
+  '(format))
+
+;; linklet-import-local-names : importss -> (listof symbol?)
+;;   Return the normalized local names already imported by a linklet.
+(define (linklet-import-local-names who importss)
+  (for*/list ([group   (in-list importss)]
+              [binding (in-list group)])
+    (car (normalize-linklet-import-binding who binding))))
+
+;; add-missing-imports : importss (listof symbol?) (listof symbol?) -> importss
+;;   Repair machine-independent decompile gaps for same-name imports.
+(define (add-missing-imports who importss candidate-names needed)
+  (define present (linklet-import-local-names who importss))
+  (define missing
+    (filter (lambda (name)
+              (and (memq name needed)
+                   (not (memq name present))))
+            candidate-names))
+  (cond
+    [(null? missing) importss]
+    [else
+     (append importss
+             (list
+              (for/list ([name (in-list missing)])
+                (list name name))))]))
+
 ;; generated-effect-definition-name? : symbol? -> boolean?
 ;;   Recognize module body expressions lowered by webify as effect definitions.
 (define (generated-effect-definition-name? name)
@@ -2232,23 +2263,18 @@
 ;; add-missing-unsafe-undefined-imports : importss (listof symbol?) -> importss
 ;;   Repair machine-independent decompile gaps for unsafe-undefined imports.
 (define (add-missing-unsafe-undefined-imports importss needed)
-  (define present
-    (for*/list ([group   (in-list importss)]
-                [binding (in-list group)])
-      (car (normalize-linklet-import-binding 'add-missing-unsafe-undefined-imports
-                                             binding))))
-  (define missing
-    (filter (lambda (name)
-              (and (memq name needed)
-                   (not (memq name present))))
-            unsafe-undefined-import-names))
-  (cond
-    [(null? missing) importss]
-    [else
-     (append importss
-             (list
-              (for/list ([name (in-list missing)])
-                (list name name))))]))
+  (add-missing-imports 'add-missing-unsafe-undefined-imports
+                       importss
+                       unsafe-undefined-import-names
+                       needed))
+
+;; add-missing-provider-owned-imports : importss (listof symbol?) -> importss
+;;   Repair decompiled provider linklets that use provider-owned bindings as free ids.
+(define (add-missing-provider-owned-imports importss needed)
+  (add-missing-imports 'add-missing-provider-owned-imports
+                       importss
+                       provider-owned-missing-import-names
+                       needed))
 
 ;; webify-module-extractor-spike/slice-exports : report (listof symbol?) -> report
 ;;   Produce a demand-sliced report containing only needed exports/imports/definitions.
@@ -2387,8 +2413,10 @@
                          unsafe-undefined-import-names)
                  '()))))
   (define sliced-importss
-    (add-missing-unsafe-undefined-imports
-     (filter-importss raw-importss demanded-imports)
+    (add-missing-provider-owned-imports
+     (add-missing-unsafe-undefined-imports
+      (filter-importss raw-importss demanded-imports)
+      demanded-imports)
      demanded-imports))
   (define sliced-exports
     (remove-duplicates
@@ -2423,9 +2451,9 @@
    (cons "report was sliced to demanded phase-0 exports"
          (webify-module-extractor-spike-notes report))))
 
-;; repair-class-internal-linklet : symbol? linklet-datum? -> linklet-datum?
-;;   Repair a machine-independent decompile gap for unsafe-undefined imports.
-(define (repair-class-internal-linklet name linklet)
+;; repair-extracted-linklet-imports : symbol? linklet-datum? -> linklet-datum?
+;;   Repair machine-independent decompile gaps for imports implied by free ids.
+(define (repair-extracted-linklet-imports name linklet)
   (define linklet/readable (readable-linklet-datum linklet))
   (match linklet/readable
     [`(linklet ,importss ,exports . ,body)
@@ -2446,19 +2474,45 @@
          (append* (for/list ([form (in-list body)])
                     (free-vars form))))
         defined))
+     (define repaired-importss
+       (add-missing-provider-owned-imports
+        (if (eq? name 'racket/private/class-internal)
+            (add-missing-unsafe-undefined-imports importss free)
+            importss)
+        free))
      (define needs-repair?
-       (or (memq 'unsafe-undefined free)
-           (memq 'prop:chaperone-unsafe-undefined free)))
+       (not (equal? repaired-importss importss)))
      (cond
        [(not needs-repair?) linklet/readable]
        [else
-        (define repaired-importss
-          (add-missing-unsafe-undefined-imports importss free))
         `(linklet
           ,repaired-importss
           ,exports
           ,@body)])]
     [_ linklet]))
+
+;; repaired-phase0-bundle-entry : symbol? webify-module-bundle-entry? -> webify-module-bundle-entry?
+;;   Rewrite a phase-0 entry so report metadata and decompiled linklet imports agree.
+(define (repaired-phase0-bundle-entry name entry)
+  (define datum (webify-module-bundle-entry-datum entry))
+  (cond
+    [(linklet-datum? datum)
+     (define repaired (repair-extracted-linklet-imports name datum))
+     (match-define `(linklet ,imports ,exports . ,_body) repaired)
+     (struct-copy webify-module-bundle-entry entry
+                  [imports imports]
+                  [exports exports]
+                  [datum repaired])]
+    [else entry]))
+
+;; replace-bundle-entry : (listof webify-module-bundle-entry?) webify-module-bundle-entry? -> list?
+;;   Replace the entry with the same bundle key while preserving entry order.
+(define (replace-bundle-entry entries replacement)
+  (for/list ([entry (in-list entries)])
+    (if (equal? (webify-module-bundle-entry-key entry)
+                (webify-module-bundle-entry-key replacement))
+        replacement
+        entry)))
 
 ;; webify-module-extractor-spikes->required-provider-closure : reports ... -> (listof report)
 ;;   Discover transitive provider reports starting from root reports.
@@ -3299,6 +3353,14 @@
                                      racket/private/list))
                  (symbolic-name=? external 'sort))
             (list local 'webracket/private/sort-public)]
+           [(and (memq module-name '(racket-src/io/format/main-web
+                                     racket-src/io/format/main-web.rkt))
+                 (symbolic-name=? external 'do-printf))
+            (list local 'racket-src/io/format/printf-web)]
+           [(and (memq module-name '(racket-src/io/format/main-web
+                                     racket-src/io/format/main-web.rkt))
+                 (symbolic-name=? external 'print-boolean-long-form))
+            (list local 'racket-src/io/format/printf-adapter)]
            [(and (memq module-name '(racket/list
                                      racket/private/list
                                      webracket/list))
@@ -3850,14 +3912,16 @@
      (define manifest-ready? (linklet-datum? phase0-linklet-datum))
      (cond
        [manifest-ready?
+        (define repaired-phase0-entry
+          (repaired-phase0-bundle-entry name phase0-entry))
         (webify-module-extractor-spike
          name
          '(#f)
          '(0)
-         (list phase0-entry)
-         (linklet-import-variables compiled)
-         (linklet-export-variables compiled)
-         phase0-linklet-datum
+         (list repaired-phase0-entry)
+         (webify-module-bundle-entry-imports repaired-phase0-entry)
+         (webify-module-bundle-entry-exports repaired-phase0-entry)
+         (webify-module-bundle-entry-datum repaired-phase0-entry)
          #t
          '("machine-independent compilation exposes a direct decompilable phase-0 linklet datum"))]
        [else
@@ -3919,14 +3983,16 @@
     (raise-arguments-error who
                            "parsed phase-0 entry did not contain a linklet datum"
                            "entry" phase0-entry))
+  (define repaired-phase0-entry
+    (repaired-phase0-bundle-entry name phase0-entry))
   (webify-module-extractor-spike
    name
    directory-keys
    (sort (hash-keys bundle-hash) key<?)
-   bundle-entries
-   (webify-module-bundle-entry-imports phase0-entry)
-   (webify-module-bundle-entry-exports phase0-entry)
-   phase0-linklet-datum
+   (replace-bundle-entry bundle-entries repaired-phase0-entry)
+   (webify-module-bundle-entry-imports repaired-phase0-entry)
+   (webify-module-bundle-entry-exports repaired-phase0-entry)
+   (webify-module-bundle-entry-datum repaired-phase0-entry)
    #t
    '("machine-independent compiled expression parses to faslable-correlated linklets")))
 
@@ -3976,14 +4042,16 @@
      exports
      phase0-linklet-datum
      #f))
+  (define repaired-phase0-entry
+    (repaired-phase0-bundle-entry name phase0-entry))
   (webify-module-extractor-spike
    name
    '(#f)
    '(0)
-   (list phase0-entry)
-   imports
-   exports
-   phase0-linklet-datum
+   (list repaired-phase0-entry)
+   (webify-module-bundle-entry-imports repaired-phase0-entry)
+   (webify-module-bundle-entry-exports repaired-phase0-entry)
+   (webify-module-bundle-entry-datum repaired-phase0-entry)
    #t
    notes))
 
@@ -4053,14 +4121,25 @@
   (define phase0-linklet-datum
     (webify-module-bundle-entry-datum phase0-entry))
   (define manifest-ready? (linklet-datum? phase0-linklet-datum))
+  (define repaired-phase0-entry
+    (and manifest-ready?
+         (repaired-phase0-bundle-entry name phase0-entry)))
   (webify-module-extractor-spike
    name
    (sort (hash-keys directory-hash) key<?)
    (sort (hash-keys bundle-hash) key<?)
-   bundle-entries
-   (linklet-import-variables phase0-linklet)
-   (linklet-export-variables phase0-linklet)
-   phase0-linklet-datum
+   (if repaired-phase0-entry
+       (replace-bundle-entry bundle-entries repaired-phase0-entry)
+       bundle-entries)
+   (if repaired-phase0-entry
+       (webify-module-bundle-entry-imports repaired-phase0-entry)
+       (linklet-import-variables phase0-linklet))
+   (if repaired-phase0-entry
+       (webify-module-bundle-entry-exports repaired-phase0-entry)
+       (linklet-export-variables phase0-linklet))
+   (if repaired-phase0-entry
+       (webify-module-bundle-entry-datum repaired-phase0-entry)
+       phase0-linklet-datum)
    manifest-ready?
    (cond
      [manifest-ready?
@@ -4522,7 +4601,7 @@
   (define import-map (webify-module-extractor-spike-import-map report))
   (define raw-linklet (webify-module-extractor-spike-phase0-linklet-datum report))
   (define linklet
-    (repair-class-internal-linklet
+    (repair-extracted-linklet-imports
      (webify-module-extractor-spike-name report)
      (webify-normalize-linklet-imports raw-linklet)))
   (route-syntax-literal-import
@@ -4567,7 +4646,7 @@
   (define import-map (webify-module-extractor-spike-import-map report))
   (define raw-linklet (webify-module-extractor-spike-phase0-linklet-datum report))
   (define linklet
-    (repair-class-internal-linklet
+    (repair-extracted-linklet-imports
      (webify-module-extractor-spike-name report)
      (webify-normalize-linklet-imports raw-linklet)))
   (define provider-dependency-exports
@@ -4697,6 +4776,91 @@
    #:extra-reports extra-reports
    #:fetch-provider fetch-provider
    #:skip-provider? skip-provider?
-   #:dependencies dependencies
-   #:module-protocol-dependency module-protocol-dependency
-   #:demand-slice? demand-slice?))
+  #:dependencies dependencies
+  #:module-protocol-dependency module-protocol-dependency
+  #:demand-slice? demand-slice?))
+
+(module+ test
+  (require rackunit)
+
+  (define (phase0-importss linklet)
+    (match linklet
+      [`(linklet ,importss ,_exports . ,_body) importss]))
+
+  (define free-format-linklet
+    '(linklet
+      ()
+      (message)
+      (define-values (message)
+        (lambda (n)
+          (format "count: ~a" n)))))
+
+  (check-equal?
+   (phase0-importss
+    (repair-extracted-linklet-imports 'racket/private/string free-format-linklet))
+   '(((format format))))
+
+  (define locally-defined-format-linklet
+    '(linklet
+      ()
+      (message)
+      (define-values (format)
+        (lambda (template value)
+          template))
+      (define-values (message)
+        (format "count: ~a" 42))))
+
+  (check-equal?
+   (phase0-importss
+    (repair-extracted-linklet-imports 'local-module locally-defined-format-linklet))
+   '())
+
+  (define slice-format-linklet
+    '(linklet
+      ()
+      (message)
+      (define-values (format-message)
+        (lambda (n)
+          (format "count: ~a" n)))
+      (define-values (message)
+        format-message)))
+
+  (define slice-format-entry
+    (webify-module-bundle-entry
+     0
+     'linklet
+     '()
+     '(message)
+     slice-format-linklet
+     #f))
+
+  (define slice-format-report
+    (webify-module-extractor-spike
+     'racket/private/string
+     '(#f)
+     '(0)
+     (list slice-format-entry)
+     '()
+     '(message)
+     slice-format-linklet
+     #t
+     '()))
+
+  (check-equal?
+   (webify-module-extractor-spike-phase0-imports
+    (webify-module-extractor-spike/slice-exports slice-format-report '(message)))
+   '(((format format))))
+
+  (check-equal?
+   (compiled-primitive-alias-hint
+    'racket-src/io/format/main-web
+    'do-printf
+    'do-printf)
+   '(racket-src/io/format/printf-web do-printf))
+
+  (check-equal?
+   (compiled-primitive-alias-hint
+    'racket-src/io/format/main-web
+    '1/print-boolean-long-form
+    'print-boolean-long-form)
+   '(racket-src/io/format/printf-adapter print-boolean-long-form)))

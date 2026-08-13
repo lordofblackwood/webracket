@@ -731,7 +731,9 @@
     racket/splicing
     racket-src/io/format/main-web
     racket-src/io/format/main-web.rkt
+    racket-src/io/format/printf-adapter
     racket-src/io/format/printf-adapter.rkt
+    racket-src/io/format/printf-web
     racket-src/io/format/printf-web.rkt
     racket-src/racket/format-web
     racket/struct-info
@@ -958,7 +960,9 @@
     racket/splicing
     racket-src/io/format/main-web
     racket-src/io/format/main-web.rkt
+    racket-src/io/format/printf-adapter
     racket-src/io/format/printf-adapter.rkt
+    racket-src/io/format/printf-web
     racket-src/io/format/printf-web.rkt
     racket-src/racket/format-web
     racket/struct-info

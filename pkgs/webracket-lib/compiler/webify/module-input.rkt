@@ -1052,6 +1052,14 @@
                               racket/private/list))
           (symbolic-name=? external 'sort))
      '(webracket/private/sort-public sort)]
+    [(and (memq module-name '(racket-src/io/format/main-web
+                              racket-src/io/format/main-web.rkt))
+          (symbolic-name=? external 'do-printf))
+     '(racket-src/io/format/printf-web do-printf)]
+    [(and (memq module-name '(racket-src/io/format/main-web
+                              racket-src/io/format/main-web.rkt))
+          (symbolic-name=? external 'print-boolean-long-form))
+     '(racket-src/io/format/printf-adapter print-boolean-long-form)]
     [(and (eq? module-name 'racket/private/kw)
           (memq external '(make-keyword-procedure
                            keyword-apply

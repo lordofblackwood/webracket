@@ -689,6 +689,39 @@
    (build-split-form-indexes runtime-forms)
    (runtime-symbol-reference-names runtime-forms)))
 
+;; split-runtime-boundary-name-shape : split-runtime-boundary-metadata? -> any/c
+;;   Return the runtime-side names that cached boundary metadata must match.
+(define (split-runtime-boundary-name-shape metadata)
+  (define indexes
+    (split-runtime-boundary-metadata-runtime-index metadata))
+  `(split-runtime-boundary-name-shape
+    (function-defs
+     ,(sorted-hash-symbol-keys
+       (split-form-indexes-function-defs indexes)))
+    (global-defs
+     ,(sorted-hash-symbol-keys
+       (split-form-indexes-global-defs indexes)))
+    (tag-defs
+     ,(sorted-hash-symbol-keys
+       (split-form-indexes-tag-defs indexes)))
+    (data-forms
+     ,(sorted-hash-symbol-keys
+       (split-form-indexes-data-forms indexes)))
+    (function-names
+     ,(sorted-hash-symbol-keys
+       (split-form-indexes-function-names indexes)))
+    (data-names
+     ,(sorted-hash-symbol-keys
+       (split-form-indexes-data-names indexes)))))
+
+;; split-runtime-boundary-metadata/current? :
+;;   split-runtime-boundary-metadata? (listof datum?) -> boolean?
+;;   Check that cached boundary metadata still describes the runtime forms.
+(define (split-runtime-boundary-metadata/current? metadata runtime-forms)
+  (equal? (split-runtime-boundary-name-shape metadata)
+          (split-runtime-boundary-name-shape
+           (build-split-runtime-boundary-metadata runtime-forms))))
+
 ;; split-runtime-boundary-metadata/cached :
 ;;   (listof datum?) any/c -> split-runtime-boundary-metadata?
 ;;   Reuse stable runtime-side split metadata when a split-runtime cache key exists.
@@ -696,11 +729,15 @@
   (define cache-path (split-runtime-boundary-cache-path core-cache-key))
   (runtime-metric-add! "split-boundary-cache-enabled?"
                        (if cache-path "yes" "no"))
-  (or (and cache-path
-           (time-runtime-step
-            "runtime:split-boundary-cache-lookup"
-            (lambda ()
-              (read-split-runtime-boundary-cache cache-path core-cache-key))))
+  (define cached
+    (and cache-path
+         (time-runtime-step
+          "runtime:split-boundary-cache-lookup"
+          (lambda ()
+            (read-split-runtime-boundary-cache cache-path core-cache-key)))))
+  (if (and cached
+           (split-runtime-boundary-metadata/current? cached runtime-forms))
+      cached
       (let ([metadata
              (time-runtime-step
               "runtime:split-boundary-cache-build"
@@ -1764,11 +1801,22 @@
          #:ffi-import-module [ffi-import-module-name "ffi"]
          #:ffi-cache-key [ffi-cache-key #f])
   (define boundary-metadata
-    (or cached-boundary-metadata
-        (if runtime-forms
-            (split-runtime-boundary-metadata/cached runtime-forms core-cache-key)
-            (error 'split-classified-runtime-forms
-                   "runtime forms required when boundary metadata is absent"))))
+    (cond
+      [(and cached-boundary-metadata
+            runtime-forms
+            (split-runtime-boundary-metadata/current?
+             cached-boundary-metadata
+             runtime-forms))
+       cached-boundary-metadata]
+      [(and cached-boundary-metadata runtime-forms)
+       (split-runtime-boundary-metadata/cached runtime-forms core-cache-key)]
+      [cached-boundary-metadata
+       cached-boundary-metadata]
+      [runtime-forms
+       (split-runtime-boundary-metadata/cached runtime-forms core-cache-key)]
+      [else
+       (error 'split-classified-runtime-forms
+              "runtime forms required when boundary metadata is absent")]))
   (define runtime-source-index
     (split-runtime-boundary-metadata-runtime-index boundary-metadata))
   (define runtime-symbol-refs
@@ -2523,7 +2571,7 @@
                            'directory
                            tmp-root)))
   (define (split-boundary-cache-file-count root)
-    (define cache-dir (build-path root "split-runtime-boundary-v1"))
+    (define cache-dir (build-path root "split-runtime-boundary-v2"))
     (if (directory-exists? cache-dir)
         (length (directory-list cache-dir))
         0))
@@ -2596,6 +2644,32 @@
     (check-equal? (split-runtime-modules-core-cache-key
                    cached-boundary-program-only-split)
                   cached-boundary-core-cache-key))
+  (define stale-boundary-runtime-forms
+    '((func $runtime-helper
+            (result i32)
+            (i32.const 42))))
+  (define stale-boundary-metadata
+    (build-split-runtime-boundary-metadata
+     (append stale-boundary-runtime-forms
+             '((func $stale-program-helper
+                     (result i32)
+                     (i32.const 0))))))
+  (define stale-boundary-split
+    (split-classified-runtime-forms
+     stale-boundary-runtime-forms
+     '((func $entry
+             (result i32)
+             (i32.const 0)))
+     #:core-cache-key '(stale-boundary-core-key)
+     #:boundary-metadata stale-boundary-metadata))
+  (define stale-boundary-core-forms
+    (module-forms (split-runtime-modules-core-module stale-boundary-split)))
+  (check-false
+   (member '(export "$stale-program-helper" (func $stale-program-helper))
+           stale-boundary-core-forms))
+  (check-false
+   (for/or ([form (in-list stale-boundary-core-forms)])
+     (equal? (module-func-name form) '$stale-program-helper)))
   (define pulled-constant-split
     (split-classified-runtime-forms
      '((type $I8Array (array (mut i8)))

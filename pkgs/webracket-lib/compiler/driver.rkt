@@ -3448,7 +3448,9 @@
     (parameterize ([current-directory webracket-root])
       (webify-module-path->report (string->path "racket-src/racket/format-web.rkt"))))
   (list adapter-report
+        (webify-module-report/rename adapter-report 'racket-src/io/format/printf-adapter)
         printf-report
+        (webify-module-report/rename printf-report 'racket-src/io/format/printf-web)
         main-report
         (webify-module-report/rename main-report 'racket-src/io/format/main-web)
         map-report
@@ -7020,8 +7022,11 @@
                 (member 'webracket/private/format external-names)
                 (member 'racket/format external-names)
                 (member webify-io-format-root-name external-names)
+                (member 'racket-src/io/format/main-web external-names)
                 (member webify-io-format-printf-name external-names)
+                (member 'racket-src/io/format/printf-web external-names)
                 (member webify-io-format-adapter-name external-names)
+                (member 'racket-src/io/format/printf-adapter external-names)
                 (member 'racket-src/racket/format-web external-names)))))
        (define expander-read-support-report-names
          (with-module-bridge-timing
@@ -7040,8 +7045,11 @@
           (lambda ()
             (if needs-io-format-closure?
                 (list webify-io-format-adapter-name
+                      'racket-src/io/format/printf-adapter
                       webify-io-format-printf-name
+                      'racket-src/io/format/printf-web
                       webify-io-format-root-name
+                      'racket-src/io/format/main-web
                       webify-io-format-map-shim-name
                       'racket-src/racket/format-web
                       'racket/format)
