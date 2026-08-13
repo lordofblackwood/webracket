@@ -1006,21 +1006,26 @@
 ;; module-path->dependency-name : any/c -> symbol?
 ;;   Convert a simple module path to the registry dependency name convention.
 (define (module-path->dependency-name module-path)
+  (define (path->dependency-name path)
+    (define text (path->string path))
+    (string->symbol
+     (if (string-suffix? text ".rkt")
+         (substring text 0 (- (string-length text) 4))
+         text)))
   (cond
     [(symbol? module-path) module-path]
     [(path? module-path)
-     (string->symbol (path->string module-path))]
+     (path->dependency-name module-path)]
     [(and (list? module-path)
           (eq? (car module-path) 'file)
           (= (length module-path) 2)
           (or (string? (cadr module-path))
               (path? (cadr module-path))))
      (define raw-path (cadr module-path))
-     (string->symbol
-      (path->string
-       (if (path? raw-path)
-           raw-path
-           (string->path raw-path))))]
+     (path->dependency-name
+      (if (path? raw-path)
+          raw-path
+          (string->path raw-path)))]
     [(and (list? module-path)
           (eq? (car module-path) 'submod)
           (pair? (cdr module-path))
@@ -1599,29 +1604,59 @@
                 #:when (= 0 (car candidate)))
        (cadr candidate))
      eq?))
+  (define (unresolved-bindings group)
+    (filter (lambda (binding) (not (memq (car binding) explicit-locals)))
+            group))
+  (define (binding-signature bindings)
+    (for/list ([binding (in-list bindings)])
+      (cadr binding)))
+  (define (covering-modules bindings)
+    (for/list ([module (in-list phase0-modules)]
+               #:when (for/and ([binding (in-list bindings)])
+                        (match-define (list _local external) binding)
+                        (dependency-export-cache-has-external?
+                         dependency-cache
+                         module
+                         external)))
+      module))
+  (define duplicate-signature-counts
+    (for/fold ([counts (hash)]) ([group (in-list groups)])
+      (define bindings (unresolved-bindings group))
+      (define modules (covering-modules bindings))
+      (if (and (pair? bindings) (pair? modules) (pair? (cdr modules)))
+          (hash-update counts (binding-signature bindings) add1 0)
+          counts)))
+  (define duplicate-signature-indexes (make-hash))
+  (define (duplicate-ordered-module bindings modules)
+    (define signature (binding-signature bindings))
+    (define count (hash-ref duplicate-signature-counts signature 0))
+    (and (> count 1)
+         (>= (length modules) count)
+         (let ([idx (hash-ref duplicate-signature-indexes signature 0)])
+           (hash-set! duplicate-signature-indexes signature (add1 idx))
+           (and (< idx (length modules))
+                (list-ref modules idx)))))
+  (define (bindings->aliases bindings module)
+    (for/list ([binding (in-list bindings)])
+      (match-define (list local external) binding)
+      (list local module external)))
   (append*
    (for/list ([group (in-list groups)])
-     (define unresolved-bindings
-       (filter (lambda (binding) (not (memq (car binding) explicit-locals)))
-               group))
+     (define group-bindings (unresolved-bindings group))
      (cond
-       [(null? unresolved-bindings) '()]
+       [(null? group-bindings) '()]
        [else
-        (define covering-modules
-          (for/list ([module (in-list phase0-modules)]
-                     #:when (for/and ([binding (in-list unresolved-bindings)])
-                              (match-define (list _local external) binding)
-                              (dependency-export-cache-has-external?
-                               dependency-cache
-                               module
-                               external)))
-            module))
-        (match covering-modules
+        (define candidate-covering-modules
+          (covering-modules group-bindings))
+        (match candidate-covering-modules
           [(list module)
-           (for/list ([binding (in-list unresolved-bindings)])
-             (match-define (list local external) binding)
-             (list local module external))]
-          [_ '()])]))))
+           (bindings->aliases group-bindings module)]
+          [_
+           (define ordered-module
+             (duplicate-ordered-module group-bindings candidate-covering-modules))
+           (if ordered-module
+               (bindings->aliases group-bindings ordered-module)
+               '())])]))))
 
 ;; webify-module-extractor-spike-import-map : report -> webify-module-import-map?
 ;;   Build an observational import-map report from phase-0, data, and decl linklets.

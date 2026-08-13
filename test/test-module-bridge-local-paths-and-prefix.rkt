@@ -154,14 +154,25 @@
           (display "                         \"failures\" (reverse failures)))\n" out)
           (display "(displayln 'module-bridge-local-paths-and-prefix-ok)\n" out))
         #:exists 'truncate/replace)
+      (define stdout (open-output-string))
+      (define stderr (open-output-string))
       (define status
         (parameterize ([current-directory repo-root]
+                       [current-output-port stdout]
+                       [current-error-port stderr]
                        [current-environment-variables (env-with-collections repo-root compiled-root)])
           (system*/exit-code racket-exe (path->string script-path))))
+      (define output
+        (string-append (get-output-string stdout)
+                       (get-output-string stderr)))
       (unless (zero? status)
         (error 'test-module-bridge-local-paths-and-prefix
-               (format "module bridge local path/prefix smoke failed (~a)"
-                       status))))
+               (format "module bridge local path/prefix smoke failed (~a): ~a"
+                       status
+                       output)))
+      (unless (regexp-match? #rx"module-bridge-local-paths-and-prefix-ok" output)
+        (error 'test-module-bridge-local-paths-and-prefix
+               (format "expected success marker: ~a" output))))
     (lambda ()
       (with-handlers ([exn:fail:filesystem? void])
         (delete-directory/files base)))))

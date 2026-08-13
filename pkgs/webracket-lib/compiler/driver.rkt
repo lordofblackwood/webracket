@@ -53,7 +53,8 @@
          (only-in racket/promise    delay)
          (only-in racket/system     system*)
          (only-in racket/string     string-join
-                                    string-prefix?)
+                                    string-prefix?
+                                    string-suffix?)
          (only-in racket/set        set->list
                                     set-member?
                                     seteq)
@@ -2501,7 +2502,7 @@
 ;;   Fingerprint extracted local-module graphs using source files and bridge code.
 (define (local-module-graph-fingerprint local-source-paths)
   `(local-module-graph-cache
-    1
+    2
     ,(version)
     ,(path-fingerprint 'local-module-graph-source 1 local-source-paths)
     ,(local-module-graph-extractor-fingerprint)))
@@ -2989,7 +2990,7 @@
 (define (local-module-report-fingerprint filename)
   (define resolved (simplify-path (path->complete-path filename)))
   `(local-module-report-cache
-    1
+    2
     ,(version)
     ,(current-webracket/base-provider-substitutions?)
     ,(path-fingerprint 'local-module-report-source 1 (list resolved))
@@ -3156,6 +3157,13 @@
            (cache-readable-datum elem)))]
     [(box? v)
      `(webracket-cache:box ,(cache-readable-datum (unbox v)))]
+    [(srcloc? v)
+     `(webracket-cache:srcloc
+       ,(cache-readable-datum (srcloc-source v))
+       ,(srcloc-line v)
+       ,(srcloc-column v)
+       ,(srcloc-position v)
+       ,(srcloc-span v))]
     [(prefab-struct-key v)
      (define data (struct->vector v))
      `(webracket-cache:prefab
@@ -3187,6 +3195,12 @@
         (list->vector (map cache-readable->datum elems))]
        [`(webracket-cache:box ,elem)
         (box (cache-readable->datum elem))]
+       [`(webracket-cache:srcloc ,source ,line ,column ,position ,span)
+        (srcloc (cache-readable->datum source)
+                line
+                column
+                position
+                span)]
        [`(webracket-cache:prefab ,key ,fields ...)
         (apply make-prefab-struct key (map cache-readable->datum fields))]
        [`(webracket-cache:hash ,kind ,entries)
@@ -5538,6 +5552,8 @@
   (match spec
     [(? string?)
      (list (relative-path->complete spec source-dir))]
+    [`(file ,(? string? path))
+     (list (relative-path->complete path source-dir))]
     [`(relative-in ,(? string? base) ,inner ...)
      (define base-path (relative-path->complete base source-dir))
      (define base-dir  (or (path-only base-path) source-dir))
@@ -5995,6 +6011,35 @@
            (append-map webify-module-report-required-provider-names reports))
    eq?))
 
+;; local-source-path->provider-name : path? path? -> symbol?
+;;   Name a local source module by its root-directory-relative path.
+(define (local-source-path->provider-name root-source-dir source-path)
+  (define (path-element->string part)
+    (cond
+      [(eq? part 'same) "."]
+      [(eq? part 'up) ".."]
+      [else (path->string part)]))
+  (define (strip-rkt-suffix text)
+    (if (string-suffix? text ".rkt")
+        (substring text 0 (- (string-length text) 4))
+        text))
+  (define relative-path
+    (find-relative-path root-source-dir
+                        (simplify-path (path->complete-path source-path))))
+  (define raw-parts
+    (filter (lambda (part) (not (eq? part 'same)))
+            (explode-path relative-path)))
+  (define parts
+    (for/list ([part (in-list raw-parts)])
+      (path-element->string part)))
+  (define normalized-parts
+    (cond
+      [(null? parts) parts]
+      [else
+       (append (reverse (cdr (reverse parts)))
+               (list (strip-rkt-suffix (car (reverse parts)))))]))
+  (string->symbol (string-join normalized-parts "/")))
+
 ;; module-composer-primitive-overrides : -> hash?
 ;;   Override primitive cells whose compiled-module role differs from scripts.
 (define (module-composer-primitive-overrides)
@@ -6258,6 +6303,8 @@
 ;; webracket/base-file->local-module-reports : path-string? -> values
 ;;   Extract local module reports plus the visited source files for the bridge path.
 (define (webracket/base-file->local-module-reports filename)
+  (define root-resolved (simplify-path (path->complete-path filename)))
+  (define root-source-dir (or (path-only root-resolved) (current-directory)))
   (define extraction-namespace (make-base-namespace))
   (define base-module-name-resolver (current-module-name-resolver))
   (define (provider-namespace/ref)
@@ -6393,10 +6440,13 @@
                   equal?))
                (write-local-module-report-cache! resolved report dependency-paths)
                (values report dependency-paths)))]))
-       (define module-name (webify-module-report-name report))
+       (define module-name
+         (local-source-path->provider-name root-source-dir resolved))
+       (define local-report
+         (webify-module-report/rename report module-name))
        (for ([dep-path (in-list dependency-paths)])
          (visit dep-path))
-       (set! reports-reverse (cons report reports-reverse))
+       (set! reports-reverse (cons local-report reports-reverse))
        (hash-remove! visiting resolved)
        (hash-set! permanent resolved module-name)
        module-name]))
@@ -6557,20 +6607,47 @@
                 (webify-module-report/rename report (renamed-name name))
                 report))))
 
+;; local-looking-provider-name? : symbol? -> boolean?
+;;   Recognize unsupported provider names that may be missed local paths.
+(define (local-looking-provider-name? name)
+  (and (symbol? name)
+       (let ([text (symbol->string name)])
+         (or (string-suffix? text ".rkt")
+             (string-prefix? text "./")
+             (string-prefix? text "../")
+             (regexp-match? #rx"/" text)))))
+
 ;; webracket/base-check-external-provider-allowlist! : reports -> void?
 ;;   Keep the temporary bridge from silently growing unsupported providers.
-(define (webracket/base-check-external-provider-allowlist! reports)
+(define (webracket/base-check-external-provider-allowlist! reports
+                                                          #:local-source-paths
+                                                          [local-source-paths '()])
   (define external-names (webracket/base-external-provider-names reports))
   (define unsupported
     (filter (lambda (name)
               (not (webify-provider-trial-module-allowed? name)))
             external-names))
+  (define local-looking-unsupported
+    (filter local-looking-provider-name? unsupported))
   (unless (null? unsupported)
-    (raise-arguments-error
-     'webracket/base-reports->module-graph
-     "#lang webracket/base external provider is not in the Goal 1 trial allowlist"
-     "unsupported providers" unsupported
-     "allowed providers" webify-provider-trial-module-allowlist)))
+    (cond
+      [(pair? local-looking-unsupported)
+       (raise-arguments-error
+        'webracket/base-reports->module-graph
+        "#lang webracket/base external provider is not in the Goal 1 trial allowlist"
+        "unsupported providers" unsupported
+        "local-looking unsupported providers" local-looking-unsupported
+        "local module hint"
+        "one or more unsupported providers look like relative file/module paths; this may indicate that a local source module was discovered but not matched to the local module graph name"
+        "local report names" (map webify-module-report-name reports)
+        "local source paths" local-source-paths
+        "allowed providers" webify-provider-trial-module-allowlist)]
+      [else
+       (raise-arguments-error
+        'webracket/base-reports->module-graph
+        "#lang webracket/base external provider is not in the Goal 1 trial allowlist"
+        "unsupported providers" unsupported
+        "allowed providers" webify-provider-trial-module-allowlist)])))
 
 ;; webracket-owned-ffi-provider-name? : symbol? -> boolean?
 ;;   Recognize WebRacket provider modules that do not need contract erasure.
@@ -6658,7 +6735,9 @@
        (with-module-bridge-timing
         'module-graph-check-provider-allowlist
         (lambda ()
-          (webracket/base-check-external-provider-allowlist! bridge-reports)))
+          (webracket/base-check-external-provider-allowlist!
+           bridge-reports
+           #:local-source-paths local-source-paths)))
        (define external-names
          (with-module-bridge-timing
           'module-graph-external-provider-names
