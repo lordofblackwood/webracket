@@ -62,8 +62,8 @@
                         #:import-keys           import-keys)
   (with-deterministic-gensym
     (define (unwrap x) x)
-    (define (im-int-id id) (unwrap (if (pair? id) (cadr id) id)))
-    (define (im-ext-id id) (unwrap (if (pair? id) (car id) id)))
+    (define (im-int-id id) (unwrap (if (pair? id) (car id) id)))
+    (define (im-ext-id id) (unwrap (if (pair? id) (cadr id) id)))
     (define (ex-int-id id) (unwrap (if (pair? id) (car id) id)))
     (define (ex-ext-id id) (unwrap (if (pair? id) (cadr id) id)))
 
@@ -145,10 +145,10 @@
                   ,@(for/list ([ex-id (in-list ex-ids)])
                       (export-id (hash-ref exports (ex-int-id ex-id)))))
            ,@new-body)
-        ;; Imports (external names), possibly extended via inlining:
+        ;; Imports (local names), possibly extended via inlining:
         (for/list ([grp (in-list all-grps)])
           (for/list ([im (in-list (import-group-imports grp))])
-            (import-ext-id im)))
+            (import-int-id im)))
         ;; Exports
         ;;   (external names, but paired with source name if it's different):
         (for/list ([ex-id (in-list ex-ids)])

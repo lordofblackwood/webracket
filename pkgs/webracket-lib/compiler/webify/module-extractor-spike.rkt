@@ -106,10 +106,13 @@
          racket/list
          racket/match
          racket/runtime-path
+         racket/set
          racket/string
          (rename-in racket/unsafe/undefined
                     [unsafe-undefined host-unsafe-undefined])
          syntax/modcode
+         (only-in "../private/parameters.rkt"
+                  current-module-bridge-local-report-names)
          "faslable-linklet.rkt"
          "module-input.rkt")
 
@@ -1393,36 +1396,49 @@
           (list local provider external))))]
     [else '()]))
 
-;; module-index-prefixed-name : symbol? -> (or/c (list/c exact-nonnegative-integer? symbol?) #f)
-;;   Decode generated import names such as `6/shared` into an MPI index and export name.
-(define (module-index-prefixed-name name)
-  (match (regexp-match #px"^([0-9]+)/(.+)$" (symbol->string name))
-    [(list _ idx-text export-text)
-     (define idx (string->number idx-text))
-     (and (exact-nonnegative-integer? idx)
-          (list idx (string->symbol export-text)))]
-    [_ #f]))
-
-;; import-groups->module-index-aliases : import-groups mpi-vector symbol? -> aliases
-;;   Resolve imports whose generated names retain an explicit module-path index.
-(define (import-groups->module-index-aliases groups mpi-vector self-name)
-  (define (binding->alias binding)
-    (match-define (list local external) binding)
-    (for/first ([parsed (in-list (filter values
-                                         (list (module-index-prefixed-name local)
-                                               (module-index-prefixed-name external))))])
-      (match-define (list idx provider-export) parsed)
-      (define dependency
-        (mpi-index->dependency-name mpi-vector idx self-name))
-      (and dependency
-           (list local dependency provider-export))))
-  (remove-duplicates
-   (filter
-    values
-    (for*/list ([group (in-list groups)]
-                [binding (in-list group)])
-      (binding->alias binding)))
-   equal?))
+;; import-groups->require-order-coverage-aliases : import-groups providers dependency-export-cache? imports symbol? -> aliases
+;;   Align source-order providers with import groups when export coverage validates the match.
+(define (import-groups->require-order-coverage-aliases groups
+                                                       provider-order
+                                                       dependency-cache
+                                                       explicit-locals
+                                                       self-name)
+  (define providers
+    (filter (lambda (name) (require-order-provider? self-name name))
+            provider-order))
+  (define (provider-covers-group? provider group)
+    (for/and ([binding (in-list group)])
+      (match-define (list _local external) binding)
+      (dependency-export-cache-has-external?
+       dependency-cache
+       provider
+       external)))
+  (define (group->aliases group provider)
+    (for/list ([binding (in-list group)]
+               #:unless (memq (car binding) explicit-locals))
+      (match-define (list local external) binding)
+      (list local provider external)))
+  (let loop ([groups groups]
+             [providers providers]
+             [aliases-reverse '()])
+    (cond
+      [(null? providers)
+       (reverse aliases-reverse)]
+      [(null? groups)
+       '()]
+      [else
+       (define group (car groups))
+       (define provider (car providers))
+       (cond
+         [(provider-covers-group? provider group)
+          (loop (cdr groups)
+                (cdr providers)
+                (append (reverse (group->aliases group provider))
+                        aliases-reverse))]
+         [(import-group-needs-alias-evidence? group)
+          '()]
+         [else
+          (loop (cdr groups) providers aliases-reverse)])])))
 
 ;; flatten-datum : any/c -> list?
 ;;   Flatten a datum/vector tree in source order for simple serialized metadata scans.
@@ -1590,6 +1606,12 @@
                         dependency
                         +inf.0))))))
 
+;; dependency-export-cache-dependencies : dependency-export-cache? -> (listof symbol?)
+;;   Return provider module names in dependency export row order.
+(define (dependency-export-cache-dependencies cache)
+  (for/list ([row (in-list (dependency-export-cache-rows cache))])
+    (car row)))
+
 ;; resolve-compiled-rename-aliases : aliases dependency-export-cache? -> aliases
 ;;   Fill provider modules for compiled rename aliases using cached provider export rows.
 (define (resolve-compiled-rename-aliases aliases dependency-cache)
@@ -1643,11 +1665,10 @@
                        module
                        external))
       module))
-  (define (used-modules external)
+  (define used-modules
     (remove-duplicates
-     (for/list ([alias (in-list known-aliases)]
-                #:do [(match-define (list _local dependency provider-export) alias)]
-                #:when (symbolic-name=? provider-export external))
+     (for/list ([alias (in-list known-aliases)])
+       (match-define (list _local dependency _provider-export) alias)
        dependency)
      eq?))
   (filter
@@ -1658,10 +1679,9 @@
      (cond
        [(memq local explicit-locals) #f]
        [else
-        (define used (used-modules external))
         (define remaining
           (filter (lambda (module)
-                    (not (memq module used)))
+                    (not (memq module used-modules)))
                   (candidate-modules external)))
         (match remaining
           [(list dependency)
@@ -1673,12 +1693,21 @@
 (define (import-groups->provider-coverage-aliases groups
                                                   required-module-candidates
                                                   dependency-cache
-                                                  explicit-locals)
-  (define phase0-modules
+                                                  explicit-locals
+                                                  #:candidate-cache [candidate-cache dependency-cache]
+                                                  #:self-name [self-name #f])
+  (define required-phase0-modules
     (remove-duplicates
      (for/list ([candidate (in-list required-module-candidates)]
                 #:when (= 0 (car candidate)))
        (cadr candidate))
+     eq?))
+  (define phase0-modules
+    (remove-duplicates
+     (append required-phase0-modules
+             (filter (lambda (dependency)
+                       (not (eq? dependency self-name)))
+                     (dependency-export-cache-dependencies candidate-cache)))
      eq?))
   (define (unresolved-bindings group)
     (filter (lambda (binding) (not (memq (car binding) explicit-locals)))
@@ -1805,11 +1834,6 @@
       data-module-path-indexes
       (webify-module-extractor-spike-name report))
      (webify-module-extractor-spike-name report)))
-  (define module-index-aliases
-    (import-groups->module-index-aliases
-     unresolved-groups
-     data-module-path-indexes
-     (webify-module-extractor-spike-name report)))
   (define require-rename-aliases
     (apply append
            (for/list ([group (in-list unresolved-groups)])
@@ -1818,51 +1842,26 @@
     (for/list ([group (in-list unresolved-groups)])
       (define require-aliases
         (import-group->require-rename-aliases group compiled-rename-specs))
-      (define dependency-backed-require-alias-locals
-        (for/list ([alias (in-list require-aliases)]
-                   #:when (match alias
-                            [(list _local (? symbol?) _export) #t]
-                            [_ #f]))
-          (car alias)))
-      (define require-order-group-aliases
-        (filter (lambda (alias)
-                  (and (not (memq (car alias)
-                                  dependency-backed-require-alias-locals))
-                       (for/or ([binding (in-list group)])
-                         (eq? (car alias) (car binding)))))
-                require-order-aliases))
       (cons group
-            (or (and (pair? require-order-group-aliases)
-                     require-order-group-aliases)
-                (and (null? require-aliases)
-                     (or (import-group->staged-read-aliases
-                          (webify-module-extractor-spike-name report)
-                          group)
-                         (import-group->keyword-runtime-aliases group)
-                         (import-group->aliases group required-module-candidates)))))))
+            (and (null? require-aliases)
+                 (or (import-group->staged-read-aliases
+                      (webify-module-extractor-spike-name report)
+                      group)
+                     (import-group->keyword-runtime-aliases group)
+                     (import-group->aliases group required-module-candidates))))))
   (define import-aliases
-    (append
-     module-index-aliases
-     (apply append
-            (for/list ([result (in-list alias-results)]
-                       #:when (cdr result))
-              (cdr result)))))
+    (apply append
+           (for/list ([result (in-list alias-results)]
+                      #:when (cdr result))
+             (cdr result))))
   (define missing-alias-import-groups
     (for/list ([result (in-list alias-results)]
                #:do [(define group (car result))]
                #:when (and (import-group-needs-alias-evidence? group)
                            (not (cdr result))
-                           (null? (filter (lambda (alias)
-                                            (for/or ([binding (in-list group)])
-                                              (eq? (car alias) (car binding))))
-                                          module-index-aliases))
                            (null? (import-group->require-rename-aliases
                                    group
-                                   compiled-rename-specs))
-                           (null? (filter (lambda (alias)
-                                            (for/or ([binding (in-list group)])
-                                              (eq? (car alias) (car binding))))
-                                          require-order-aliases))))
+                                   compiled-rename-specs))))
       group))
   (webify-module-import-map
    import-groups
@@ -1899,6 +1898,60 @@
       '("phase-0 contains non-protocol import groups"
         "decl/data metadata likely maps those groups to required modules"
         "this spike reports the raw metadata but does not decode it yet")])))
+
+;; webify-module-import-map-require-provider-order : import-map symbol? -> (listof symbol?)
+;;   Recompute the source-order provider list from the compiled require metadata.
+(define (webify-module-import-map-require-provider-order import-map self-name)
+  (compiled-requires-provider-order
+   (webify-module-import-map-decl-requires-expression import-map)
+   (webify-module-import-map-data-module-path-indexes import-map)
+   self-name))
+
+;; webify-module-import-map-local-provider-order : import-map symbol? -> (listof symbol?)
+;;   Return local provider names in module-path-index order when the driver exposes the local graph.
+(define (webify-module-import-map-local-provider-order import-map self-name)
+  (define local-report-names (current-module-bridge-local-report-names))
+  (define mpi-vector
+    (webify-module-import-map-data-module-path-indexes import-map))
+  (define (path->local-report-name path)
+    (define path-text (path->string (simplify-path path)))
+    (for/first ([name (in-list (set->list local-report-names))]
+                #:do [(define name-text (symbol->string name))]
+                #:when (or (string-suffix? path-text
+                                           (string-append "/" name-text ".rkt"))
+                           (string-suffix? path-text
+                                           (string-append "/" name-text))))
+      name))
+  (define (mpi-index->local-name idx)
+    (or (mpi-index->dependency-name mpi-vector idx self-name)
+        (match (vector-ref mpi-vector idx)
+          [(vector (? path-string? path))
+           (path->local-report-name path)]
+          [(? path-string? path)
+           (path->local-report-name path)]
+          [_ #f])))
+  (cond
+    [(not (and local-report-names (vector? mpi-vector))) '()]
+    [else
+     (remove-duplicates
+      (filter
+       values
+       (for/list ([idx (in-range (vector-length mpi-vector))])
+         (define name (mpi-index->local-name idx))
+         (and name
+              (not (eq? name self-name))
+              (set-member? local-report-names name)
+              name)))
+      eq?)]))
+
+;; webify-module-import-map-source-provider-order : import-map symbol? -> (listof symbol?)
+;;   Prefer precise local graph order, falling back to compiled require metadata.
+(define (webify-module-import-map-source-provider-order import-map self-name)
+  (define local-order
+    (webify-module-import-map-local-provider-order import-map self-name))
+  (if (pair? local-order)
+      local-order
+      (webify-module-import-map-require-provider-order import-map self-name)))
 
 ;; webify-module-extractor-spike-required-provider-names : report -> (listof symbol?)
 ;;   Return phase-0 provider module names decoded from the report's require metadata.
@@ -2891,6 +2944,7 @@
                                            import-aliases
                                            require-rename-aliases
                                            required-module-candidates
+                                           require-provider-order
                                            module-protocol-dependency
                                            reflection-hints
                                            module-name)
@@ -2961,16 +3015,30 @@
          (make-dependency-export-cache preferred-dependency-exports))
        (define resolved-require-rename-aliases
          (resolve-compiled-rename-aliases require-rename-aliases dependency-cache))
+       (define require-order-coverage-aliases
+         (import-groups->require-order-coverage-aliases
+          unresolved-groups
+          require-provider-order
+          preferred-dependency-cache
+          (append explicit-locals
+                  reflection-hint-locals
+                  (for/list ([alias (in-list (append import-aliases
+                                                      resolved-require-rename-aliases))])
+                    (car alias)))
+          module-name))
        (define alias-complement-aliases
          (import-groups->alias-complement-aliases
           unresolved-groups
           required-module-candidates
           dependency-cache
-          (append import-aliases resolved-require-rename-aliases)
+          (append import-aliases
+                  resolved-require-rename-aliases
+                  require-order-coverage-aliases)
           (append explicit-locals
                   reflection-hint-locals
                   (for/list ([alias (in-list (append import-aliases
-                                                      resolved-require-rename-aliases))])
+                                                      resolved-require-rename-aliases
+                                                      require-order-coverage-aliases))])
                     (car alias)))))
        (define grouped-provider-aliases
          (import-groups->provider-coverage-aliases
@@ -2982,11 +3050,15 @@
                   reflection-hint-locals
                   (for/list ([alias (in-list (append import-aliases
                                                       resolved-require-rename-aliases
+                                                      require-order-coverage-aliases
                                                       alias-complement-aliases))])
-                    (car alias)))))
+                    (car alias)))
+          #:candidate-cache preferred-dependency-cache
+          #:self-name module-name))
        (define explicit-or-alias-locals
          (append explicit-locals
                  reflection-hint-locals
+                 (map car require-order-coverage-aliases)
                  (map car alias-complement-aliases)
                  (map car grouped-provider-aliases)
                  (for/list ([alias (in-list (append import-aliases
@@ -3632,9 +3704,10 @@
         #:reflection-hints reflection-hints
         #:import-aliases
         (append import-aliases
+                resolved-require-rename-aliases
+                require-order-coverage-aliases
                 alias-complement-aliases
-                grouped-provider-aliases
-                resolved-require-rename-aliases))]))
+                grouped-provider-aliases))]))
   (define triples-by-import
     (for/hasheq ([triple (in-list (append module-protocol-triples module-triples))])
       (values (car triple) triple)))
@@ -4465,6 +4538,9 @@
      (webify-module-import-map-import-aliases import-map)
      (webify-module-import-map-require-rename-aliases import-map)
      (webify-module-import-map-required-module-candidates import-map)
+     (webify-module-import-map-source-provider-order
+      import-map
+      (webify-module-extractor-spike-name report))
      module-protocol-dependency
      reflection-hints
      (webify-module-extractor-spike-name report)))
@@ -4517,6 +4593,9 @@
      (webify-module-import-map-import-aliases import-map)
      (webify-module-import-map-require-rename-aliases import-map)
      (webify-module-import-map-required-module-candidates import-map)
+     (webify-module-import-map-source-provider-order
+      import-map
+      (webify-module-extractor-spike-name report))
      module-protocol-dependency
      reflection-hints
      (webify-module-extractor-spike-name report)))

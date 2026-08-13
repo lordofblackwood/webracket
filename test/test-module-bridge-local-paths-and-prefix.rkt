@@ -161,7 +161,7 @@
                        [current-output-port stdout]
                        [current-error-port stderr]
                        [current-environment-variables (env-with-collections repo-root compiled-root)])
-          (system*/exit-code racket-exe (path->string script-path))))
+          (system*/exit-code racket-exe "-y" (path->string script-path))))
       (define output
         (string-append (get-output-string stdout)
                        (get-output-string stderr)))

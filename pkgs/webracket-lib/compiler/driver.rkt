@@ -7200,11 +7200,15 @@
        (with-module-bridge-timing
         'final-extracted-form-assembly
         (lambda ()
-          (webify-module-linklet-inputs->registry
-           (cons webify-module-protocol-input
-                 (webify-module-reports->resolved-linklet-inputs
-                  bridge-reports
-                  #:module-protocol-dependency webify-module-protocol-dependency)))))]))
+          (parameterize ([current-module-bridge-local-report-names
+                          (list->seteq local-report-names)]
+                         [current-module-bridge-support-provider-names
+                          (list->seteq support-report-names)])
+            (webify-module-linklet-inputs->registry
+             (cons webify-module-protocol-input
+                   (webify-module-reports->resolved-linklet-inputs
+                    bridge-reports
+                    #:module-protocol-dependency webify-module-protocol-dependency))))))]))
   (define module-kinds
     (with-module-bridge-timing
      'module-graph-module-kinds
