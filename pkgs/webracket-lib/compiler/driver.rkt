@@ -6692,6 +6692,7 @@
     rquery
     webracket/full
     webracket/full/main
+    webracket/private/decimal-string
     webracket/private/ffi
     webracket/private/kw
     webracket/private/sort-public
@@ -6962,6 +6963,7 @@
          (list webify-module-protocol-name))
        (define lazy-base-support-report-names
          '(webracket/contract
+           webracket/private/decimal-string
            webracket/private/sort-public
            webracket/private/kw
            racket/private/pre-base

@@ -2231,6 +2231,16 @@
 (define provider-owned-missing-import-names
   '(format))
 
+;; provider-owned-repaired-import-binding? : any/c -> boolean?
+;;   Recognize same-name provider imports added by repair-extracted-linklet-imports.
+(define (provider-owned-repaired-import-binding? binding)
+  (match binding
+    [(list (? symbol? local) (? symbol? external))
+     (and (eq? local external)
+          (memq external provider-owned-missing-import-names)
+          #t)]
+    [_ #f]))
+
 ;; linklet-import-local-names : importss -> (listof symbol?)
 ;;   Return the normalized local names already imported by a linklet.
 (define (linklet-import-local-names who importss)
@@ -2722,6 +2732,15 @@
                 [binding (in-list group)])
            (match-define (list _local external) binding)
            (process-unresolved-binding! _local external))
+         (define repaired-linklet
+           (repair-extracted-linklet-imports
+            demander
+            (webify-normalize-linklet-imports
+             (webify-module-extractor-spike-phase0-linklet-datum report))))
+         (for ([binding (in-list (webify-linklet-import-bindings repaired-linklet))]
+               #:when (provider-owned-repaired-import-binding? binding))
+           (match-define (list local external) binding)
+           (process-unresolved-binding! local external))
          (loop (cdr queue) next-pending-reverse)]))))
 
 ;; webify-module-extractor-spikes->discovered-resolved-linklet-inputs : reports ... -> inputs
@@ -3361,6 +3380,8 @@
                                      racket-src/io/format/main-web.rkt))
                  (symbolic-name=? external 'print-boolean-long-form))
             (list local 'racket-src/io/format/printf-adapter)]
+           [(symbolic-name=? external 'real->decimal-string)
+            (list local 'webracket/private/decimal-string)]
            [(and (memq module-name '(racket/list
                                      racket/private/list
                                      webracket/list))
@@ -4850,6 +4871,51 @@
    (webify-module-extractor-spike-phase0-imports
     (webify-module-extractor-spike/slice-exports slice-format-report '(message)))
    '(((format format))))
+
+  (define format-provider-linklet
+    '(linklet
+      ()
+      (format)
+      (define-values (format)
+        (lambda args "formatted"))))
+
+  (define format-provider-report
+    (webify-module-extractor-spike
+     'racket-src/io/format/main-web
+     '(#f)
+     '(0)
+     (list
+      (webify-module-bundle-entry
+       0
+       'linklet
+       '()
+       '(format)
+       format-provider-linklet
+       #f))
+     '()
+     '(format)
+     format-provider-linklet
+     #t
+     '()))
+
+  (define fetched-provider-names '())
+
+  (define repaired-format-closure
+    (webify-module-extractor-spikes->required-provider-closure
+     (list slice-format-report)
+     #:fetch-provider
+     (lambda (name)
+       (set! fetched-provider-names (cons name fetched-provider-names))
+       (and (eq? name 'racket-src/io/format/main-web)
+            format-provider-report))
+     #:skip-unfetchable? #t))
+
+  (check-not-false
+   (member 'racket-src/io/format/main-web
+           (map webify-module-extractor-spike-name repaired-format-closure)))
+
+  (check-not-false
+   (member 'racket-src/io/format/main-web fetched-provider-names))
 
   (check-equal?
    (compiled-primitive-alias-hint

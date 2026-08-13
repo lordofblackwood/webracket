@@ -1060,6 +1060,10 @@
                               racket-src/io/format/main-web.rkt))
           (symbolic-name=? external 'print-boolean-long-form))
      '(racket-src/io/format/printf-adapter print-boolean-long-form)]
+    [(symbolic-name=? external 'real->decimal-string)
+     '(webracket/private/decimal-string real->decimal-string)]
+    [(symbolic-name=? external 'format)
+     '(racket-src/io/format/main-web format)]
     [(and (eq? module-name 'racket/private/kw)
           (memq external '(make-keyword-procedure
                            keyword-apply

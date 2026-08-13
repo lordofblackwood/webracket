@@ -786,6 +786,7 @@
     webracket/pretty
     webracket/promise
     webracket/private/for
+    webracket/private/decimal-string
     webracket/private/format
     webracket/private/kw
     webracket/private/pre-base-apply
@@ -996,6 +997,7 @@
     webracket/pretty
     webracket/promise
     webracket/private/for
+    webracket/private/decimal-string
     webracket/private/format
     webracket/private/kw
     webracket/sequence
