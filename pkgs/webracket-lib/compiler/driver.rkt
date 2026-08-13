@@ -5549,25 +5549,37 @@
 (define (local-require-spec-paths spec source-dir)
   (define (relative-path->complete path-string base-dir)
     (simplify-path (build-path base-dir path-string)))
+  (define (module-path->local-complete-path module-path base-dir)
+    (match module-path
+      [(? string? path)
+       (relative-path->complete path base-dir)]
+      [`(file ,(? string? path))
+       (relative-path->complete path base-dir)]
+      [_ #f]))
   (match spec
     [(? string?)
      (list (relative-path->complete spec source-dir))]
     [`(file ,(? string? path))
      (list (relative-path->complete path source-dir))]
-    [`(relative-in ,(? string? base) ,inner ...)
-     (define base-path (relative-path->complete base source-dir))
-     (define base-dir  (or (path-only base-path) source-dir))
-     (append* (map (lambda (inner-spec)
-                     (local-require-spec-paths inner-spec base-dir))
-                   inner))]
+    [`(relative-in ,base ,inner ...)
+     (define base-path
+       (module-path->local-complete-path base source-dir))
+     (if base-path
+         (let ([base-dir (or (path-only base-path) source-dir)])
+           (append* (map (lambda (inner-spec)
+                           (local-require-spec-paths inner-spec base-dir))
+                         inner)))
+         '())]
     [`(combine-in ,inner ...)
      (append* (map (lambda (inner-spec)
                      (local-require-spec-paths inner-spec source-dir))
                    inner))]
     [`(prefix-in ,_prefix ,inner)
      (local-require-spec-paths inner source-dir)]
-    [`(,(or 'only-in 'except-in 'rename-in 'only-meta-in)
+    [`(,(or 'only-in 'except-in 'rename-in)
        ,inner . ,_rest)
+     (local-require-spec-paths inner source-dir)]
+    [`(only-meta-in 0 ,inner)
      (local-require-spec-paths inner source-dir)]
     [`(for-meta 0 ,inner ...)
      (append* (map (lambda (inner-spec)
@@ -6063,8 +6075,11 @@
        (spec->symbols inner)]
       [`(,(or 'combine-in) ,inner ...)
        (append* (map spec->symbols inner))]
-      [`(,(or 'for-syntax 'for-template 'for-label 'for-meta 'only-meta-in
-              'for-space)
+      [`(only-meta-in 0 ,inner)
+       (spec->symbols inner)]
+      [`(for-meta ,_phase ,inner ...)
+       (append* (map spec->symbols inner))]
+      [`(,(or 'for-syntax 'for-template 'for-label 'for-space)
          ,inner . ,_rest)
        (spec->symbols inner)]
       [_ '()]))
