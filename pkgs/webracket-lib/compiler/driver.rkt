@@ -2361,6 +2361,136 @@
 (define (runtime-provider-cache-path . elems)
   (apply build-path (current-runtime-cache-dir) elems))
 
+;; source-file-direct-textual-include-cache : hash?
+;;   Memoize direct include scans by source path, size, and mtime.
+(define source-file-direct-textual-include-cache (make-hash))
+
+;; source-file-cache-key : path? -> (or/c list? #f)
+;;   Return a cache key for reading direct include forms from one source file.
+(define (source-file-cache-key source-path)
+  (and (file-exists? source-path)
+       (list (path->string (simplify-path source-path))
+             (file-size source-path)
+             (file-or-directory-modify-seconds source-path))))
+
+;; source-file-skip-leading-lang-line! : input-port? -> void?
+;;   Skip a leading #lang line before reading body forms as ordinary data.
+(define (source-file-skip-leading-lang-line! in)
+  (define pos (file-position in))
+  (define maybe-line (read-line in 'any))
+  (cond
+    [(and (string? maybe-line)
+          (regexp-match? #rx"^#lang($|[ \t])" maybe-line))
+     (void)]
+    [else
+     (file-position in pos)]))
+
+;; source-file-forms : path? -> (listof any/c)
+;;   Read ordinary data forms from a source file for lightweight include scans.
+(define (source-file-forms source-path)
+  (with-handlers ([exn:fail? (lambda (_exn) '())])
+    (call-with-input-file source-path
+      (lambda (in)
+        (source-file-skip-leading-lang-line! in)
+        (let loop ([forms '()])
+          (define form (read in))
+          (cond
+            [(eof-object? form) (reverse forms)]
+            [else              (loop (cons form forms))]))))))
+
+;; literal-textual-include-paths : any/c -> (listof path-string?)
+;;   Collect literal source paths from top-level textual include forms.
+(define (literal-textual-include-paths form)
+  (define (literal-path v)
+    (and (path-string? v) v))
+  (match form
+    [`(include ,path . ,_)
+     (cond
+       [(literal-path path) => list]
+       [else                  '()])]
+    [`(include/reader ,path . ,_)
+     (cond
+       [(literal-path path) => list]
+       [else                  '()])]
+    [`(include-at/relative-to ,_ ,path . ,_)
+     (cond
+       [(literal-path path) => list]
+       [else                  '()])]
+    [`(include-at/relative-to/reader ,_ ,path . ,_)
+     (cond
+       [(literal-path path) => list]
+       [else                  '()])]
+    [`(begin ,body ...)
+     (append-map literal-textual-include-paths body)]
+    [`(begin-for-syntax ,body ...)
+     (append-map literal-textual-include-paths body)]
+    [`(#%module-begin ,body ...)
+     (append-map literal-textual-include-paths body)]
+    [`(module ,_ ,_ ,body ...)
+     (append-map literal-textual-include-paths body)]
+    [`(module* ,_ ,_ ,body ...)
+     (append-map literal-textual-include-paths body)]
+    [`(module+ ,_ ,body ...)
+     (append-map literal-textual-include-paths body)]
+    [_ '()]))
+
+;; resolve-textual-include-path : path? path-string? -> (or/c path? #f)
+;;   Resolve a literal include path relative to the including source file.
+(define (resolve-textual-include-path source-path include-path)
+  (with-handlers ([exn:fail? (lambda (_exn) #f)])
+    (define base-dir (or (path-only source-path) (current-directory)))
+    (define resolved
+      (simplify-path
+       (path->complete-path
+        (if (path? include-path)
+            include-path
+            (string->path include-path))
+        base-dir)))
+    (and (file-exists? resolved) resolved)))
+
+;; source-file-direct-textual-include-paths : path? -> (listof path?)
+;;   Return direct literal textual includes from one source file.
+(define (source-file-direct-textual-include-paths source-path)
+  (define resolved-source (simplify-path (path->complete-path source-path)))
+  (define key (source-file-cache-key resolved-source))
+  (cond
+    [key
+     (hash-ref!
+      source-file-direct-textual-include-cache
+      key
+      (lambda ()
+        (remove-duplicates
+         (filter values
+                 (for/list ([include-path
+                             (in-list
+                              (append-map literal-textual-include-paths
+                                          (source-file-forms resolved-source)))])
+                   (resolve-textual-include-path resolved-source include-path)))
+         equal?)))]
+    [else '()]))
+
+;; source-paths-with-textual-includes : (listof path-string?) -> (listof path?)
+;;   Add transitive literal textual include dependencies to source paths.
+(define (source-paths-with-textual-includes source-paths)
+  (define visited (make-hash))
+  (define (visit source-path)
+    (define resolved (simplify-path (path->complete-path source-path)))
+    (cond
+      [(hash-ref visited resolved #f) '()]
+      [else
+       (hash-set! visited resolved #t)
+       (cons resolved
+             (append-map visit
+                         (source-file-direct-textual-include-paths resolved)))]))
+  (sort (append-map visit source-paths) string<? #:key path->string))
+
+;; source-path-fingerprint : symbol? exact-integer? (listof path-string?) -> any/c
+;;   Fingerprint source paths and transitive literal textual includes.
+(define (source-path-fingerprint tag version source-paths)
+  (path-fingerprint tag
+                    version
+                    (source-paths-with-textual-includes source-paths)))
+
 ;; provider-module-source-fingerprint : symbol? -> any/c
 ;;   Include provider source metadata in the disk cache key when available.
 (define (provider-module-source-fingerprint name)
@@ -2372,10 +2502,10 @@
     (cond
       [(and (path? resolved-name) (file-exists? resolved-name))
        `(module-source
-         path
+         path+textual-includes
+         1
          ,(path->string (simplify-path resolved-name))
-         ,(file-size resolved-name)
-         ,(file-or-directory-modify-seconds resolved-name))]
+         ,(source-path-fingerprint 'module-source-files 1 (list resolved-name)))]
       [else
        `(module-source
          resolved
@@ -2504,7 +2634,7 @@
   `(local-module-graph-cache
     2
     ,(version)
-    ,(path-fingerprint 'local-module-graph-source 1 local-source-paths)
+    ,(source-path-fingerprint 'local-module-graph-source 2 local-source-paths)
     ,(local-module-graph-extractor-fingerprint)))
 
 ;; local-module-graph->cache-datum : symbol? (listof report?) (listof path?) -> datum?
@@ -2600,9 +2730,9 @@
     ,(current-module-bridge-elide-public-cells?)
     ,(current-provider-owned-primitive-alias-fingerprint)
     ,(local-module-graph-extractor-fingerprint)
-    ,(path-fingerprint
+    ,(source-path-fingerprint
       'module-bridge-result-local-sources
-      1
+      2
       local-source-paths)
     ,(module-bridge-result-provider-fingerprints module-kinds)))
 
@@ -2993,7 +3123,7 @@
     2
     ,(version)
     ,(current-webracket/base-provider-substitutions?)
-    ,(path-fingerprint 'local-module-report-source 1 (list resolved))
+    ,(source-path-fingerprint 'local-module-report-source 2 (list resolved))
     ,(local-module-graph-extractor-fingerprint)))
 
 ;; local-module-report->cache-datum : webify-module-report? (listof path?) -> datum?
@@ -3251,9 +3381,9 @@
     ,module-protocol-dependency
     ,(version)
     ,(provider-report-extractor-fingerprint)
-    ,(path-fingerprint
+    ,(source-path-fingerprint
       'discovered-provider-graph-local-sources
-      1
+      2
       local-source-paths)
     ,(for/list ([name (in-list support-provider-names)])
        (provider-module-source-fingerprint name))))
