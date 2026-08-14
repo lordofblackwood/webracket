@@ -105,6 +105,7 @@
 ;;   Source         Build a primitive HTML source element view with generic keyword attrs.
 ;;   Track          Build a primitive HTML track element view with generic keyword attrs.
 ;;   Canvas         Build a primitive HTML canvas element view with children and generic keyword attrs.
+;;   Svg            Build a trusted embedded SVG root from complete <svg> markup.
 ;;   Iframe         Build a primitive HTML iframe element view with children and generic keyword attrs.
 ;;   Embed          Build a primitive HTML embed element view with generic keyword attrs.
 ;;   Object         Build a primitive HTML object element view with children and generic keyword attrs.
@@ -297,6 +298,7 @@
    Source
    Track
    Canvas
+   Svg
    Iframe
    Embed
    Object
@@ -417,6 +419,7 @@
     (define kind/raw-text  'raw-text)  ; Internal raw text child view for primitive mixed content.
     (define kind/html-element 'html-element) ; Primitive HTML element leaf view.
     (define kind/html-element-children 'html-element-children) ; Primitive HTML element container view.
+    (define kind/trusted-svg 'trusted-svg) ; Trusted embedded SVG markup view.
     (define kind/observable-element-children 'observable-element-children) ; Dynamic multi-child primitive element view.
 
     ;; view-props-ref/default : list? symbol? any/c -> any/c
@@ -2333,6 +2336,26 @@
     (define/element Canvas html-element-children 'canvas
       #:required-keywords ()
       #:positional-count any)
+
+    ;; Svg : string? [#:attrs any/c] [#:* any/c] -> view?
+    ;;   Construct a trusted embedded SVG root from complete <svg> markup.
+    (define/component Svg
+      #:positional-count 1
+      (define markup
+        (car positional))
+      (unless (string? markup)
+        (raise-argument-error 'Svg "string?" markup))
+      (define root-attrs
+        (component-root-attrs
+         'Svg
+         forwarded-args
+         #f
+         (list (cons 'data-we-widget "svg")
+               (cons 'class "we-svg"))))
+      (view kind/trusted-svg
+            (list (cons 'markup markup)
+                  (cons 'extra-attrs root-attrs))
+            '()))
 
     ;; Iframe : view? ... [#:attrs any/c] [#:* any/c] -> view?
     ;;   Construct a primitive HTML iframe element with children and generic keyword attrs.
@@ -6973,6 +6996,7 @@
             Source
             Track
             Canvas
+            Svg
             Iframe
             Embed
             Object

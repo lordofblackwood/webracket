@@ -1321,8 +1321,63 @@
               (obs-observe! raw-value value-listener)
               (register-cleanup! (lambda ()
                                    (obs-unobserve! raw-value value-listener)))]
-             [else
-              (set-text! raw-value)])
+           [else
+            (set-text! raw-value)])
+           node]
+          [(trusted-svg)
+           (define raw-markup (alist-ref (view-props v) 'markup 'render))
+           (define extra-attrs/raw (props-extra-attrs (view-props v)))
+           (define node (view-node 'trusted-svg '() '() raw-markup #f #f))
+           (define ref-obs (ref-observable-from-extra-attrs extra-attrs/raw))
+           (define (refresh-ref!)
+             (when ref-obs
+               (obs-set! ref-obs (node-ref-mounted-value node))))
+           (define (callback-from-action-attr attr-key)
+             (define p (assq attr-key extra-attrs/raw))
+             (if p
+                 (let ([v0 (maybe-observable-value (cdr p))])
+                   (if (procedure? v0) v0 #f))
+                 #f))
+           (define (valid-observable-attr-update? attr-key updated-value)
+             (if (and (procedure? updated-value)
+                      (not (procedure-allowed-attr-key? attr-key)))
+                 (begin
+                   (emit-web-easy-warning!
+                    (string-append "web-easy: ignored procedure-valued observable attribute update "
+                                   (symbol->string attr-key)))
+                   #f)
+                 #t))
+           (define (refresh-root-attrs!)
+             (set-view-node-attrs! node (attr-remove-key (view-node-attrs node) 'class)))
+           (define (refresh-root-event-handlers!)
+             (set-view-node-event-handlers! node
+                                           (event-handlers-from-extra-attrs extra-attrs/raw)))
+           (define (refresh-root-callbacks!)
+             (set-view-node-on-click! node (callback-from-action-attr 'on-click-action))
+             (set-view-node-on-change! node (callback-from-action-attr 'on-change-action))
+             (refresh-root-event-handlers!))
+           (refresh-root-attrs!)
+           (refresh-root-callbacks!)
+           (refresh-ref!)
+           (when ref-obs
+             (register-cleanup! (lambda ()
+                                  (obs-set! ref-obs #f))))
+           (for-each
+            (lambda (entry)
+              (when (and (pair? entry)
+                         (symbol? (car entry))
+                         (obs? (cdr entry))
+                         (not (ref-attr-key? (car entry))))
+                (define attr-obs (cdr entry))
+                (define (attr-listener updated)
+                  (if (valid-observable-attr-update? (car entry) updated)
+                      (let ()
+                        (refresh-root-attrs!)
+                        (refresh-root-callbacks!))
+                      (void)))
+                (obs-observe! attr-obs attr-listener)
+                (register-cleanup! (lambda () (obs-unobserve! attr-obs attr-listener)))))
+            extra-attrs/raw)
            node]
           [(html-element)
            (define raw-tag   (alist-ref (view-props v) 'tag   'render))

@@ -80,6 +80,7 @@
   Source
   Track
   Canvas
+  Svg
   Iframe
   Embed
   Object
@@ -268,6 +269,7 @@
 (define Source any/c)
 (define Track any/c)
 (define Canvas any/c)
+(define Svg any/c)
 (define Iframe any/c)
 (define Embed any/c)
 (define Object any/c)

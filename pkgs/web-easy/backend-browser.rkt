@@ -142,6 +142,7 @@
     (define attr/type    "type")    ; Attribute name for input element type.
     (define attr/value   "value")   ; Attribute name for value-bearing controls.
     (define attr/checked "checked") ; Property/attribute name for checked controls.
+    (define svg-namespace-uri "http://www.w3.org/2000/svg") ; SVG DOM namespace URI.
     (define dialog-focusable-selector
       "button,[href],input,select,textarea,[tabindex]:not([tabindex='-1'])") ; CSS selector for focusable dialog controls.
     (define scrollspy-section-selector
@@ -717,6 +718,26 @@
       (if t
           (js-replace-children! native (js-create-text-node (value->attr-string t)))
           (js-replace-children! native (js-create-text-node ""))))
+
+    ;; create-trusted-svg-node : string? -> any/c
+    ;;   Parse trusted SVG markup and return the root SVG DOM node.
+    (define (create-trusted-svg-node markup)
+      (define template (js-create-element "template"))
+      (js-set! template "innerHTML" markup)
+      (define content (js-ref/extern template "content"))
+      (define root (js-ref/extern content "firstElementChild"))
+      (when (or (not root)
+                (extern-nullish? root))
+        (error 'Svg "expected markup with one <svg> root element"))
+      (define local-name
+        (string-downcase
+         (js-value->string (js-ref/extern root "localName"))))
+      (define namespace-uri
+        (js-value->string (js-ref/extern root "namespaceURI")))
+      (unless (and (string=? local-name "svg")
+                   (string=? namespace-uri svg-namespace-uri))
+        (error 'Svg "expected markup root to be an SVG <svg> element"))
+      root)
 
     ;; tag->element-name-rewrites : list?
     ;;   Special backend tag rewrites to HTML element names.
@@ -1739,17 +1760,24 @@
     ;;   Construct a browser-backed node and install event bridges.
     (define (view-node tag attrs children text on-click on-change [event-handlers '()])
       (define native
-        (if (eq? tag 'text)
-            (js-create-text-node (if text
-                                     (value->attr-string text)
-                                     ""))
-            (js-create-element (tag->element-name tag))))
+        (cond
+          [(eq? tag 'text)
+           (js-create-text-node (if text
+                                    (value->attr-string text)
+                                    ""))]
+          [(eq? tag 'trusted-svg)
+           (create-trusted-svg-node (if text
+                                        (value->attr-string text)
+                                        ""))]
+          [else
+           (js-create-element (tag->element-name tag))]))
       (define n
         (view-node-record tag attrs children text on-click on-change event-handlers native))
       (unless (eq? tag 'text)
         (install-default-node-shape! n)
         (apply-attributes! n '() attrs)
-        (when text
+        (when (and text
+                   (not (eq? tag 'trusted-svg)))
           (apply-text! native text))
         (refresh-view-node-listeners! n))
       n)
@@ -1850,18 +1878,31 @@
     ;;   Update tracked text and sync native DOM text child.
     (define (set-view-node-text! n text)
       (set-view-node-record-text! n text)
-      (if (eq? (view-node-record-tag n) 'text)
-          (let ()
-            (define old-native (view-node-record-native n))
-            (define replacement
-              (js-create-text-node (if text
-                                       (value->attr-string text)
-                                       "")))
-            (define old-parent (js-ref/extern old-native "parentNode"))
-            (when (and old-parent (not (extern-nullish? old-parent)))
-              (js-send old-parent "replaceChild" (vector replacement old-native)))
-            (set-view-node-record-native! n replacement))
-          (apply-text! (view-node-record-native n) text))
+      (cond
+        [(eq? (view-node-record-tag n) 'text)
+         (define old-native (view-node-record-native n))
+         (define replacement
+           (js-create-text-node (if text
+                                    (value->attr-string text)
+                                    "")))
+         (define old-parent (js-ref/extern old-native "parentNode"))
+         (when (and old-parent (not (extern-nullish? old-parent)))
+           (js-send old-parent "replaceChild" (vector replacement old-native)))
+         (set-view-node-record-native! n replacement)]
+        [(eq? (view-node-record-tag n) 'trusted-svg)
+         (define old-native (view-node-record-native n))
+         (define replacement
+           (create-trusted-svg-node (if text
+                                        (value->attr-string text)
+                                        "")))
+         (define old-parent (js-ref/extern old-native "parentNode"))
+         (when (and old-parent (not (extern-nullish? old-parent)))
+           (js-send old-parent "replaceChild" (vector replacement old-native)))
+         (set-view-node-record-native! n replacement)
+         (apply-attributes! n '() (view-node-record-attrs n))
+         (refresh-view-node-listeners! n)]
+        [else
+         (apply-text! (view-node-record-native n) text)])
       (void))
 
     ;; set-view-node-on-click! : view-node? any/c -> void?

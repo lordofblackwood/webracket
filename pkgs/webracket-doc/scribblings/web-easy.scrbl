@@ -2143,6 +2143,24 @@ For example:
 Element-specific keyword attributes: @tt{@(attrs->keyword-string (attrs-for-tags '("canvas")))}.
 }
 
+@defproc[(Svg [markup string?]
+              [#:attrs attrs any/c null])
+         view?]{
+Build a trusted embedded SVG root from complete @tt{<svg>} markup.
+
+The @racket[markup] argument must parse to an SVG root element. The browser
+backend mounts the parsed SVG node directly, so nested SVG content keeps the
+SVG namespace. The markup is trusted; @racket[Svg] does not sanitize user input.
+
+The constructor accepts root decoration keywords such as @racket[#:id],
+@racket[#:class], @racket[#:attrs], and generic DOM event keywords.
+
+@racketmod[webracket
+(Svg "<svg viewBox=\"0 0 10 10\"><circle cx=\"5\" cy=\"5\" r=\"4\"/></svg>"
+     #:class "chart-icon"
+     #:aria-label "Chart icon")]
+}
+
 @defproc[(Embed [#:attrs attrs html-attrs/c null])
          view?]{
 Build a primitive @tt{<embed>} element.
