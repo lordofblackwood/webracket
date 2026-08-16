@@ -9,6 +9,7 @@ __pycache__/
 /.local-tools/
 /html/
 /untracked/
+/tmp/
 /docs-notes/html/
 /docs/reference/
 /docs/pict/
