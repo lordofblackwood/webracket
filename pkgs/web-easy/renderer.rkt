@@ -1467,6 +1467,7 @@
              (set-view-node-on-click! node (callback-from-action-attr 'on-click-action))
              (set-view-node-on-change! node (callback-from-action-attr 'on-change-action))
              (refresh-root-event-handlers!))
+           (refresh-root-attrs!)
            (refresh-root-callbacks!)
            (refresh-ref!)
            (when ref-obs
@@ -1542,6 +1543,7 @@
            (define (refresh-root-event-handlers!)
              (set-view-node-event-handlers! node
                                            (event-handlers-from-extra-attrs extra-attrs/raw)))
+           (refresh-root-attrs!)
            (refresh-root-callbacks!)
            (refresh-ref!)
            (when ref-obs

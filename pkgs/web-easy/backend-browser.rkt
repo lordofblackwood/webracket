@@ -647,8 +647,10 @@
       (define old-popover-hidden? (popover-hidden-attr? old-attrs))
       (define new-popover-hidden? (popover-hidden-attr? attrs))
 
-      (when (or (eq? tag 'select)
-                (eq? tag 'choice))
+      (when (and (or (eq? tag 'select)
+                     (eq? tag 'choice))
+                 (or (assq 'choices attrs)
+                     (assq 'option-pairs attrs)))
         (define choices      (alist-ref/default attrs 'choices '()))
         (define option-pairs (alist-ref/default attrs 'option-pairs '()))
         (sync-select-options! native choices option-pairs))
@@ -665,9 +667,17 @@
                      (unless (eq? tag 'dialog)
                        (apply-boolean-attribute! native name value))]
                     [(selected)
-                     (when (or (eq? tag 'select)
-                               (eq? tag 'choice))
-                       (js-set! native "value" (value->attr-string value)))]
+                     (cond
+                       [(or (eq? tag 'select)
+                            (eq? tag 'choice))
+                        (js-set! native "value" (value->attr-string value))]
+                       [(eq? tag 'option)
+                        (js-set! native "selected" (if value #t #f))
+                        (if value
+                            (js-set-attribute! native "selected" (value->attr-string value))
+                            (js-remove-attribute! native "selected"))]
+                       [else
+                        (void)])]
                     [(value)
                      (js-set! native "value" (value->attr-string value))]
                     [(checked)
