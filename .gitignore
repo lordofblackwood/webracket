@@ -8,6 +8,7 @@ compiled/
 __pycache__/
 /.local-tools/
 /html/
+/untracked/
 /docs-notes/html/
 /docs/reference/
 /docs/pict/
