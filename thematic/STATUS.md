@@ -67,6 +67,8 @@ Current status:
 - The compare harness can write a ranked parity dashboard when `THEMATIC_COMPARE_REPORT` is set.
 - Includes a regeneration script:
   - [`thematic/regenerate.sh`](/Users/soegaard/Dropbox/GitHub/webracket/thematic/regenerate.sh)
+  - set `THEMATIC_REGENERATE_THEMES` to rebuild only selected committed fixtures
+  - compare smoke runs pass `THEMATIC_COMPARE_THEMES` through to the regeneration filter
 - Includes current real-theme fixtures and generated outputs for:
   - Brite
   - Quartz

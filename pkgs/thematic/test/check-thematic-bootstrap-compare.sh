@@ -27,8 +27,13 @@ if [ -n "${THEMATIC_COMPARE_URL:-}" ]; then
 fi
 
 if [ "${THEMATIC_COMPARE_SKIP_REGENERATE:-0}" != "1" ]; then
-  echo "Regenerating thematic compare fixtures..."
-  "$ROOT_DIR/thematic/regenerate.sh"
+  if [ -n "${THEMATIC_COMPARE_THEMES:-}" ]; then
+    echo "Regenerating thematic compare fixtures for: $THEMATIC_COMPARE_THEMES"
+    THEMATIC_REGENERATE_THEMES="$THEMATIC_COMPARE_THEMES" "$ROOT_DIR/thematic/regenerate.sh"
+  else
+    echo "Regenerating thematic compare fixtures..."
+    "$ROOT_DIR/thematic/regenerate.sh"
+  fi
 fi
 
 "$RACKET" -e '(use-compiled-file-paths null)' -t "$SCRIPT_DIR/bootstrap-compare-page.rkt" -- "$SCRIPT_DIR/$PAGE_NAME"

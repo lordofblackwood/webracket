@@ -408,15 +408,30 @@ To regenerate reference fixtures:
 ./thematic/regenerate.sh
 }|
 
+To regenerate only a selected committed fixture or fixture list:
+
+@verbatim|{
+THEMATIC_REGENERATE_THEMES=lux,lux-boost ./thematic/regenerate.sh
+}|
+
 To run the computed-style parity check:
 
 @verbatim|{
 make smoke-thematic-bootstrap-compare
 }|
 
+When @tt{THEMATIC_COMPARE_THEMES} is set, the smoke wrapper uses the
+same theme list for fixture regeneration:
+
+@verbatim|{
+THEMATIC_COMPARE_THEMES=lux \
+  make smoke-thematic-bootstrap-compare
+}|
+
 To also write a ranked JSON parity dashboard:
 
 @verbatim|{
+THEMATIC_COMPARE_THEMES=lux \
 THEMATIC_COMPARE_REPORT=thematic/generated/parity-dashboard.json \
   make smoke-thematic-bootstrap-compare
 }|
@@ -469,8 +484,8 @@ For a new Bootswatch theme fixture:
   @item{download the theme's compiled @tt{bootstrap.css} into @filepath{thematic/original/<theme>/bootstrap.css}}
   @item{add the theme name to @filepath{thematic/regenerate.sh}}
   @item{add the theme to the comparison page and checker tables in @filepath{pkgs/thematic/test}}
-  @item{run @tt{./thematic/regenerate.sh}}
-  @item{run @tt{make smoke-thematic-bootstrap-compare}}
+  @item{run @tt{THEMATIC_REGENERATE_THEMES=<theme> ./thematic/regenerate.sh}}
+  @item{run @tt{THEMATIC_COMPARE_THEMES=<theme> make smoke-thematic-bootstrap-compare}}
 ]
 
 The important policy is that fixes should stay at the smallest correct
