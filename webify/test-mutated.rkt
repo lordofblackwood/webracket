@@ -1,6 +1,7 @@
 #lang racket/base
 
-(require "../pkgs/webracket-lib/compiler/webify/mutated.rkt")
+(require "../pkgs/webracket-lib/compiler/webify/gensym.rkt"
+         "../pkgs/webracket-lib/compiler/webify/mutated.rkt")
 
 ;; hash->sorted-list : hash? -> list?
 ;;   Normalize mutation tables for deterministic comparison.
@@ -18,17 +19,18 @@
 
 ;; analyze-mutated : any/c -> hash?
 ;;   Run the Webify mutation pass with small test defaults.
-(define (analyze-mutated forms)
-  (mutated-in-body forms
-                   (hasheq 'f #t 'g #t)
-                   (make-hasheq)
-                   (hasheq)
-                   (hasheq)
-                   (hasheq)
-                   (make-hasheq)
-                   #f
-                   #f
-                   #t))
+(define (analyze-mutated forms [exports (hasheq 'f #t 'g #t)])
+  (with-deterministic-gensym
+    (mutated-in-body forms
+                     exports
+                     (make-hasheq)
+                     (hasheq)
+                     (hasheq)
+                     (hasheq)
+                     (make-hasheq)
+                     #f
+                     #f
+                     #t)))
 
 (check-equal?
  (hash->sorted-list
@@ -46,3 +48,27 @@
        (values (lambda () g))))))
  '((g . too-early))
  'mismatched-values-conservative)
+
+(check-equal?
+ (hash->sorted-list
+  (analyze-mutated
+   '((define-values (x)
+       (begin0
+         (lambda () x)
+         (x))))
+   (hasheq)))
+ '((x . too-early))
+ 'begin0-rest-before-result-unexported)
+
+(check-equal?
+ (hash->sorted-list
+  (analyze-mutated
+   '((define-values (f)
+       (lambda () x))
+     (define-values (x)
+       (begin0
+         f
+         (f))))
+   (hasheq 'x #t)))
+ '((x . too-early))
+ 'begin0-rest-before-result-exported)

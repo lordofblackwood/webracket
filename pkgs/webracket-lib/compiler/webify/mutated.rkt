@@ -245,8 +245,11 @@
       [`(begin-unsafe ,exps ...)
        (find-mutated!* exps ids)]
       [`(begin0 ,exp ,exps ...)
-       (find-mutated! exp ids)
-       (find-mutated!* exps #f)]
+       ;; The first expression's results are assigned only after the
+       ;; remaining expressions run, so detect use-before-definition in
+       ;; the remaining expressions before visiting the first expression.
+       (find-mutated!* exps #f)
+       (find-mutated! exp ids)]
       [`(set! ,id ,rhs)
        (let ([id (unwrap id)])
          (define old-state (hash-ref mutated id #f))
