@@ -45,7 +45,8 @@
                                     find-files
                                     make-directory*
                                     make-temporary-file)
-         (only-in racket/port       open-output-nowhere with-output-to-string)
+         (only-in racket/port       open-output-nowhere
+                                    with-output-to-string)
          (only-in racket/pretty     pretty-write)
          (only-in racket/format     ~a)
          (only-in racket/fasl       fasl->s-exp s-exp->fasl)
@@ -96,6 +97,8 @@
          (only-in "runtime-wasm/split-runtime.rkt"
                   strip-split-runtime-program-entry-init)
          (only-in "runtime-wasm/split-runtime-cache.rkt"
+                  cacheable-datum
+                  cached-datum->value
                   split-runtime-core-fingerprint
                   split-runtime-core-cache-key-fingerprint
                   [split-runtime-core-cache-wasm-path
@@ -109,6 +112,13 @@
                   make-split-runtime-core-only-cache-key)
          (only-in "runtime-wasm/runtime-source.rkt"
                   runtime-source-fingerprint)
+         (only-in "private/structs.rkt"
+                  variable?
+                  variable-id)
+         (only-in "private/wasm-data.rkt"
+                  wasm-data
+                  wasm-data-ref
+                  wasm-data?)
          (only-in racket/list       append* append-map remove-duplicates second take)
          (only-in racket/match      match)
          (only-in racket/set list->seteq)
@@ -1668,7 +1678,7 @@
 
 ;; module-bridge-provider-compiled-fragment-cache-version : exact-positive-integer?
 ;;   Bump when compiled provider-fragment WAT cache semantics change.
-(define module-bridge-provider-compiled-fragment-cache-version 6)
+(define module-bridge-provider-compiled-fragment-cache-version 8)
 
 ;; module-bridge-provider-compiled-fragment-cache-key :
 ;;   any/c #:browser? boolean? #:enable-cc-analysis? boolean?
@@ -1725,12 +1735,12 @@
             (module-bridge-provider-compiled-fragment-cache-digest
              cache-key)))))
 
-;; module-bridge-provider-compiled-fragment-fasl-cache-path : any/c -> path?
-;;   Cache binary FASL for one compiled provider-fragment artifact.
-(define (module-bridge-provider-compiled-fragment-fasl-cache-path cache-key)
+;; module-bridge-provider-compiled-fragment-datum-cache-path : any/c -> path?
+;;   Cache one compiled provider-fragment datum in Racket-readable form.
+(define (module-bridge-provider-compiled-fragment-datum-cache-path cache-key)
   (provider-cache-path
    "module-bridge-provider-compiled-fragments"
-   (format "~a.fasl"
+   (format "~a.rktd"
            (provider-cache-string-segment
             (module-bridge-provider-compiled-fragment-cache-digest
              cache-key)))))
@@ -1741,14 +1751,20 @@
          wat-path)
   (string->path (string-append (path->string wat-path) ".fingerprint")))
 
-;; write-compiled-provider-fragment-fasl-cache! : path-string? any/c -> void?
-;;   Write the binary provider-fragment module cache used by warm driver runs.
-(define (write-compiled-provider-fragment-fasl-cache! fasl-path wat)
-  (make-directory* (or (path-only fasl-path) (current-directory)))
+;; module-bridge-provider-compiled-fragment-datum-cache-fingerprint-path : path? -> path?
+;;   Return the sidecar fingerprint path for a compiled provider datum artifact.
+(define (module-bridge-provider-compiled-fragment-datum-cache-fingerprint-path
+         datum-path)
+  (string->path (string-append (path->string datum-path) ".fingerprint")))
+
+;; write-compiled-provider-fragment-datum-cache! : path-string? any/c -> void?
+;;   Write the textual provider-fragment module cache used by warm driver runs.
+(define (write-compiled-provider-fragment-datum-cache! datum-path wat)
+  (make-directory* (or (path-only datum-path) (current-directory)))
   (define tmp-path
-    (make-temporary-file "compiled-provider-fragment-~a.fasl"
+    (make-temporary-file "compiled-provider-fragment-~a.rktd"
                          #f
-                         (or (path-only fasl-path)
+                         (or (path-only datum-path)
                              (current-directory))))
   (with-handlers ([exn:fail?
                    (lambda (e)
@@ -1758,21 +1774,83 @@
                      (raise e))])
     (call-with-output-file tmp-path
       (lambda (out)
-        (write-bytes (s-exp->fasl wat) out))
+        (write wat out)
+        (newline out))
       #:exists 'replace)
-    (when (file-exists? fasl-path)
-      (delete-file fasl-path))
-    (rename-file-or-directory tmp-path fasl-path)))
+    (when (file-exists? datum-path)
+      (delete-file datum-path))
+    (rename-file-or-directory tmp-path datum-path)))
+
+;; compiled-provider-fragment-cache-datum : any/c -> any/c
+;;   Normalize compiled provider WAT to a Racket-readable cache datum.
+(define (compiled-provider-fragment-cache-datum wat)
+  (cond
+    [(syntax? wat)
+     (compiled-provider-fragment-cache-datum (syntax-e wat))]
+    [(datum? wat)
+     (compiled-provider-fragment-cache-datum (datum-value wat))]
+    [(variable? wat)
+     (compiled-provider-fragment-cache-datum (syntax-e (variable-id wat)))]
+    [(wasm-data? wat)
+     (cacheable-datum wat)]
+    [(symbol? wat)
+     (string->symbol (symbol->string wat))]
+    [(string? wat)
+     (string->immutable-string wat)]
+    [(bytes? wat)
+     (bytes->immutable-bytes wat)]
+    [(pair? wat)
+     (cons (compiled-provider-fragment-cache-datum (car wat))
+           (compiled-provider-fragment-cache-datum (cdr wat)))]
+    [(vector? wat)
+     (vector->immutable-vector
+      (list->vector
+       (for/list ([elem (in-vector wat)])
+         (compiled-provider-fragment-cache-datum elem))))]
+    [(box? wat)
+     (box (compiled-provider-fragment-cache-datum (unbox wat)))]
+    [(prefab-struct-key wat)
+     (define data (struct->vector wat))
+     (apply make-prefab-struct
+            (prefab-struct-key wat)
+            (for/list ([i (in-range 1 (vector-length data))])
+              (compiled-provider-fragment-cache-datum (vector-ref data i))))]
+    [(hash? wat)
+     (for/fold ([h (cond
+                     [(hash-eq? wat)  (hasheq)]
+                     [(hash-eqv? wat) (hasheqv)]
+                     [else            (hash)])])
+               ([(key value) (in-hash wat)])
+       (hash-set h
+                 (compiled-provider-fragment-cache-datum key)
+                 (compiled-provider-fragment-cache-datum value)))]
+    [(or (boolean? wat)
+         (number? wat)
+         (char? wat)
+         (keyword? wat)
+         (path? wat)
+         (null? wat)
+         (void? wat)
+         (eof-object? wat))
+     (cacheable-datum wat)]
+    [else
+     (raise-arguments-error
+      'compiled-provider-fragment-cache-datum
+      "unsupported compiled provider WAT cache value"
+      "value" wat)]))
 
 ;; module-bridge-provider-compiled-fragment-wat-cache-current? : any/c -> boolean?
 ;;   Check whether the compiled provider-fragment WAT cache is current.
 (define (module-bridge-provider-compiled-fragment-wat-cache-current? cache-key)
   (define wat-path
     (module-bridge-provider-compiled-fragment-wat-cache-path cache-key))
+  (define datum-path
+    (module-bridge-provider-compiled-fragment-datum-cache-path cache-key))
   (and (file-exists? wat-path)
+       (file-exists? datum-path)
        (cached-fingerprint-valid?
-        (module-bridge-provider-compiled-fragment-wat-cache-fingerprint-path
-         wat-path)
+        (module-bridge-provider-compiled-fragment-datum-cache-fingerprint-path
+         datum-path)
         cache-key)))
 
 ;; write-module-bridge-provider-compiled-fragment-wat-cache! :
@@ -1782,51 +1860,43 @@
          cache-key compiled-provider-wat)
   (define wat-path
     (module-bridge-provider-compiled-fragment-wat-cache-path cache-key))
-  (define fasl-path
-    (module-bridge-provider-compiled-fragment-fasl-cache-path cache-key))
-  (write-wat-to-file wat-path compiled-provider-wat #:pretty? #f)
-  (with-handlers ([exn:fail?
-                   (lambda (_e)
-                     (write-compiled-provider-fragment-fasl-cache!
-                      fasl-path
-                      (read-wat-module-from-file
-                       wat-path
-                       'write-module-bridge-provider-compiled-fragment-wat-cache!)))])
-    (write-compiled-provider-fragment-fasl-cache! fasl-path compiled-provider-wat))
+  (define datum-path
+    (module-bridge-provider-compiled-fragment-datum-cache-path cache-key))
+  (define cache-datum
+    (compiled-provider-fragment-cache-datum compiled-provider-wat))
+  (write-wat-to-file wat-path (cached-datum->value cache-datum) #:pretty? #f)
+  (write-compiled-provider-fragment-datum-cache! datum-path cache-datum)
   (write-cache-fingerprint!
-   (module-bridge-provider-compiled-fragment-wat-cache-fingerprint-path
-    wat-path)
+   (module-bridge-provider-compiled-fragment-datum-cache-fingerprint-path
+    datum-path)
    cache-key)
   wat-path)
 
 ;; read-module-bridge-provider-compiled-fragment-cache :
 ;;   any/c symbol? -> list?
-;;   Read compiled provider-fragment WAT, preferring the binary sidecar cache.
+;;   Read compiled provider-fragment WAT, preferring the readable sidecar cache.
 (define (read-module-bridge-provider-compiled-fragment-cache cache-key who)
-  (define fasl-path
-    (module-bridge-provider-compiled-fragment-fasl-cache-path cache-key))
+  (define datum-path
+    (module-bridge-provider-compiled-fragment-datum-cache-path cache-key))
   (define wat-path
     (module-bridge-provider-compiled-fragment-wat-cache-path cache-key))
-  (define datum
+  (define cache-datum
     (cond
-      [(file-exists? fasl-path)
+      [(file-exists? datum-path)
        (with-handlers ([exn:fail?
                         (lambda (_e)
-                          (define wat
-                            (read-wat-module-from-file wat-path who))
-                          (with-handlers ([exn:fail? void])
-                            (when (file-exists? fasl-path)
-                              (delete-file fasl-path))
-                            (write-compiled-provider-fragment-fasl-cache!
-                             fasl-path
-                             wat))
-                          wat)])
-         (fasl->s-exp (file->bytes fasl-path)))]
+                          (when (file-exists? datum-path)
+                            (delete-file datum-path))
+                          (read-wat-module-from-file wat-path who))])
+         (call-with-input-file datum-path read))]
       [else
        (define wat (read-wat-module-from-file wat-path who))
        (with-handlers ([exn:fail? void])
-         (write-compiled-provider-fragment-fasl-cache! fasl-path wat))
+         (write-compiled-provider-fragment-datum-cache!
+          datum-path
+          (compiled-provider-fragment-cache-datum wat)))
        wat]))
+  (define datum (cached-datum->value cache-datum))
   (match datum
     [`(module ,_ ...) datum]
     [_ (raise-arguments-error who
@@ -2962,9 +3032,11 @@
        #:letrec-strategy 'scc
        #:provider-owned-primitive-aliases '(regexp? read)))
     (define compile-count 0)
+    (define compiled-provider-stub-wat
+      `(module (data $payload ,(wasm-data (bytes 202 99 97 99 104 101)))))
     (define (compile-provider-stub)
       (set! compile-count (+ compile-count 1))
-      '(module))
+      compiled-provider-stub-wat)
     (define-values (compiled-cache-status compiled-cache-path)
       (ensure-module-bridge-provider-compiled-fragment-wat-cache!
        compiled-cache-key
@@ -2976,13 +3048,16 @@
       compiled-cache-key))
     (check-true
      (file-exists?
-      (module-bridge-provider-compiled-fragment-fasl-cache-path
+      (module-bridge-provider-compiled-fragment-datum-cache-path
        compiled-cache-key)))
-    (check-equal?
-     (read-module-bridge-provider-compiled-fragment-cache
-      compiled-cache-key
-      'driver-test)
-     '(module))
+    (match (read-module-bridge-provider-compiled-fragment-cache
+            compiled-cache-key
+            'driver-test)
+      [`(module (data $payload ,(? wasm-data? payload)))
+       (check-equal? (wasm-data-ref payload)
+                     (bytes 202 99 97 99 104 101))]
+      [other
+       (fail-check (format "unexpected compiled provider cache value: ~s" other))])
     (check-equal? compile-count 1)
     (define-values (compiled-cache-status* compiled-cache-path*)
       (ensure-module-bridge-provider-compiled-fragment-wat-cache!
@@ -5100,14 +5175,17 @@
                compiled-cache-key
                (lambda ()
                  (compiled-fragment->program-wat
-                   (compile-top-level
-                    (datum->syntax #f provider-datum)
-                    #:exported-top-level-globals interface-symbols
-                    #:extra-used-primitives provider-fragment-extra-used-primitives
-                    #:split-runtime-ffi-in-core?
-                    provider-runtime-ffi-in-core?
-                    #:split-runtime-ffi-module?
-                    provider-fragment-split-runtime-ffi-module?)))))
+                   (parameterize ([current-console-bridge? #f]
+                                  [current-console-bridge-root-export-bindings #f]
+                                  [current-console-bridge-root-source-path #f])
+                     (compile-top-level
+                      (datum->syntax #f provider-datum)
+                      #:exported-top-level-globals interface-symbols
+                      #:extra-used-primitives provider-fragment-extra-used-primitives
+                      #:split-runtime-ffi-in-core?
+                      provider-runtime-ffi-in-core?
+                      #:split-runtime-ffi-module?
+                      provider-fragment-split-runtime-ffi-module?))))))
             (record-provider-fragment-timing! "provider-fragment-cache"
                                               provider-cache-start)
             (hash-set! (current-webify-bridge-stats)
