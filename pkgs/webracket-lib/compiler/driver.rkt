@@ -4535,6 +4535,7 @@
          #:split-runtime-provider-runtime? [split-runtime-provider-runtime? #f]
          #:split-runtime-ffi-module? [split-runtime-ffi-module? #f]
          #:split-runtime-ffi-module-explicit? [split-runtime-ffi-module-explicit? #f]
+         #:strip-wasm-names? [strip-wasm-names? #f]
          ;; Program Debug
          #:print-top-level-results? print-top-level-results?
          #:internal-bind-treelist-debug-shape? internal-bind-treelist-debug-shape?
@@ -5371,6 +5372,14 @@
   (unless wat->wasm-success?
     (error 'drive-compilation
            (~a "wat->wasm failed to produce bytecode for " filename)))
+  (when strip-wasm-names?
+    (strip-wasm-name-section! 'drive-compilation out-wasm)
+    (when (and split-runtime?
+               (not split-runtime-cache-reference?)
+               (not split-runtime-core-url))
+      (strip-wasm-name-section! 'drive-compilation runtime-wasm))
+    (when split-ffi-module
+      (strip-wasm-name-section! 'drive-compilation ffi-wasm)))
   (ensure-generated-file-exists! 'drive-compilation out-wasm "Wasm bytecode file")
   (when (and split-runtime?
              (not split-runtime-cache-reference?)
@@ -7849,6 +7858,47 @@
            (string-append
             "found `wasm-tools` in PATH but could not run `wasm-tools parse --help`.\n"
             "Check the installation and executable permissions."))))
+
+;; strip-wasm-name-section! : symbol? path-string? -> void?
+;;   Remove the custom `name` section from a generated Wasm file.
+(define (strip-wasm-name-section! who wasm-path)
+  (define (path-arg path)
+    (path->string (path->complete-path path (current-directory))))
+  (define wasm-tools-path (find-executable-path "wasm-tools"))
+  (unless wasm-tools-path
+    (error who
+           (string-append
+            "required executable `wasm-tools` was not found in PATH.\n"
+            "Install `wasm-tools` to strip Wasm custom name sections.")))
+  (define tmp-path
+    (make-temporary-file
+     "webracket-strip-wasm-names-~a.wasm"
+     #f
+     (or (path-only wasm-path) (current-directory))))
+  (define success? #t)
+  (define strip-output
+    (with-output-to-string
+      (lambda ()
+        (set! success?
+              (system* wasm-tools-path
+                       "strip"
+                       "-d"
+                       "^name$"
+                       (path-arg wasm-path)
+                       "-o"
+                       (path-arg tmp-path))))))
+  (cond
+    [success?
+     (rename-file-or-directory tmp-path wasm-path #t)]
+    [else
+     (with-handlers ([exn:fail:filesystem? void])
+       (delete-file tmp-path))
+     (error who
+            (string-append
+             "wasm-tools failed to strip the Wasm name section from "
+             (path->string wasm-path)
+             "\n"
+             strip-output))]))
 
 ;;;
 ;;; READ MODULE

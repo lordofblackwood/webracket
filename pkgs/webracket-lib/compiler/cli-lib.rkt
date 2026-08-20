@@ -43,6 +43,7 @@
    alpha-rename-profile?                  ; print alpha-rename pass diagnostics
    simplify-profile?                      ; print simplify-LFE diagnostics
    pretty-wat?                            ; pretty-print emitted WAT
+   strip-wasm-names?                      ; strip Wasm custom name sections after assembly
    exec-path-from-shell?                   ; import PATH/MANPATH from login shell before assembler preflight
    enable-cc-analysis?                    ; enable the new closure-conversion analysis
    enable-simplify?                       ; enable the early simplify pass
@@ -98,6 +99,7 @@
     (alpha-rename-profile? . ,(webracket-compile-config-alpha-rename-profile? cfg))
     (simplify-profile? . ,(webracket-compile-config-simplify-profile? cfg))
     (pretty-wat? . ,(webracket-compile-config-pretty-wat? cfg))
+    (strip-wasm-names? . ,(webracket-compile-config-strip-wasm-names? cfg))
     (exec-path-from-shell? . ,(webracket-compile-config-exec-path-from-shell? cfg))
     (enable-cc-analysis? . ,(webracket-compile-config-enable-cc-analysis? cfg))
     (enable-simplify? . ,(webracket-compile-config-enable-simplify? cfg))
@@ -160,6 +162,7 @@
    (ref 'alpha-rename-profile?)
    (ref 'simplify-profile?)
    (ref 'pretty-wat?)
+   (ref/default 'strip-wasm-names? #f)
    (ref/default 'exec-path-from-shell? #t)
    (ref 'enable-cc-analysis?)
    (ref 'enable-simplify?)
@@ -355,6 +358,7 @@
   (define alpha-rename-profile? #f)
   (define simplify-profile? #f)
   (define pretty-wat? #f)
+  (define strip-wasm-names? #f)
   (define exec-path-from-shell? #t)
   (define list-primitives? #f)
   (define list-provider-slices? #f)
@@ -587,6 +591,12 @@
                        (set! pretty-wat? #t)]
      [("--no-pretty-wat") "Write .wat without pretty formatting (default)"
                           (set! pretty-wat? #f)]
+     [("--strip-wasm-names")
+      "Strip custom name sections from emitted .wasm files"
+      (set! strip-wasm-names? #t)]
+     [("--no-strip-wasm-names")
+      "Keep custom name sections in emitted .wasm files (default)"
+      (set! strip-wasm-names? #f)]
      #:help-labels
      ""
      #:once-each
@@ -826,6 +836,7 @@
        alpha-rename-profile?
        simplify-profile?
        pretty-wat?
+       strip-wasm-names?
        exec-path-from-shell?
        enable-cc-analysis?
        enable-simplify?
@@ -887,6 +898,8 @@
                        #:alpha-rename-profile? (webracket-compile-config-alpha-rename-profile? cfg)
                        #:simplify-profile? (webracket-compile-config-simplify-profile? cfg)
                        #:pretty-wat? (webracket-compile-config-pretty-wat? cfg)
+                       #:strip-wasm-names?
+                       (webracket-compile-config-strip-wasm-names? cfg)
                        #:exec-path-from-shell?
                        (webracket-compile-config-exec-path-from-shell? cfg)
                        #:verbose? (webracket-compile-config-verbose-mode cfg)
@@ -1090,6 +1103,15 @@
     (check-true (webracket-compile-config-split-runtime-provider-runtime? cfg))
     (check-false (webracket-compile-config-split-runtime-ffi-module-explicit? cfg))
     (check-true (compile-config-effective-split-runtime-ffi-module? cfg)))
+
+  (test-case "strip-wasm-names flag parses and round trips"
+    (define cfg
+      (parse-compile-config
+       '("--strip-wasm-names" "source.rkt")))
+    (check-true (webracket-compile-config-strip-wasm-names? cfg))
+
+    (define round-tripped (datum->compile-config (compile-config->datum cfg)))
+    (check-true (webracket-compile-config-strip-wasm-names? round-tripped)))
 
   (test-case "short help examples use selected command form"
     (define output (short-help-output "raco webracket"))
