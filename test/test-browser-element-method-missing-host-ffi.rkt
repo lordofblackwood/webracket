@@ -12,6 +12,10 @@
   (unless got
     (error 'check-true label)))
 
+(define (check-false got label)
+  (when got
+    (error 'check-false label)))
+
 (define (catch-message thunk)
   (with-handlers ([exn:fail? exn-message])
     (thunk)
@@ -70,6 +74,34 @@
          return { x: 0, y: 0, width: 10, height: 20 };
        }
      })")))
+(define real-element
+  (element-wrap
+   (js-eval
+    "(() => {
+       const element = document.createElement('div');
+       element.className = 'alpha beta';
+       element.setAttribute('data-present', 'ok');
+       element.setAttributeNS('urn:webracket-test', 'wr:present', 'ok-ns');
+       return element;
+     })()")))
+
+(check-true (string=? (element-get-attribute real-element 'data-present) "ok")
+            "present attribute returns string")
+(check-false (element-get-attribute real-element 'data-missing)
+             "missing attribute returns #f")
+(check-true (string=? (element-get-attribute-ns real-element
+                                                "urn:webracket-test"
+                                                "present")
+                      "ok-ns")
+            "present namespaced attribute returns string")
+(check-false (element-get-attribute-ns real-element
+                                       "urn:webracket-test"
+                                       "missing")
+             "missing namespaced attribute returns #f")
+(check-true (string=? (dom-token-list-item (element-class-list real-element) 0) "alpha")
+            "present DOM token item returns string")
+(check-false (dom-token-list-item (element-class-list real-element) 99)
+             "missing DOM token item returns #f")
 
 (define add-event-listener-message
   (catch-message

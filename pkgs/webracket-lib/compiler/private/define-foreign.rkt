@@ -72,6 +72,7 @@
 ;; Type language (initial)
 ;;   string        — Racket string, marshaled as FASL → linear memory.
 ;;   string/symbol - accepts string or symbol as argument - a string is sent via fasl
+;;   string/nullish — result-only; JS null/undefined map to #f, strings map to Racket strings.
 ;;   value         — arbitrary Racket value, marshaled as FASL → linear memory.
 ;;   extern/raw    — $External wrapper around externref.
 ;;   extern        — externref; JS null maps to #f, others to $External.
@@ -215,19 +216,20 @@
                          form type)]))
 
 (define (validate-base-result-type who form type)
-  (syntax-case* type (boolean string value extern extern/raw extern/null extern/undefined extern/nullish i32 u32 f64) literal=?
-    [boolean #t]
-    [string  #t]
-    [value   #t]
-    [extern  #t]
-    [extern/raw #t]
-    [extern/null #t]
+  (syntax-case* type (boolean string string/nullish value extern extern/raw extern/null extern/undefined extern/nullish i32 u32 f64) literal=?
+    [boolean        #t]
+    [string         #t]
+    [string/nullish #t]
+    [value          #t]
+    [extern         #t]
+    [extern/raw     #t]
+    [extern/null    #t]
     [extern/undefined #t]
     [extern/nullish #t]
-    [i32     #t]
-    [u32     #t]
-    [f64     #t]
-    [void    #t]  ; synonym for ()
+    [i32            #t]
+    [u32            #t]
+    [f64            #t]
+    [void           #t]  ; synonym for ()
     [_
      (raise-syntax-error who "expected a result type, got: "
                          form type)]))
@@ -406,6 +408,7 @@
   (case type
     [(boolean) 'i32]
     [(string)  'externref]   ; raw JS string, converted in the wrapper
+    [(string/nullish) 'externref]
     [(value)   'i32]         ; index into linear memory
     [(extern)  'externref]
     [(extern/raw) 'externref]
@@ -454,7 +457,7 @@
            '$Prim>=0
            (string->symbol (~a "$Prim" (length argument-types)))))
 
-     (define (fasl-needed? t) (member t '(string string/symbol value)))
+     (define (fasl-needed? t) (member t '(string string/symbol string/nullish value)))
      (define fasl-needed-for-arguments? (ormap fasl-needed? argument-types))
      (define fasl-needed-for-results?   (ormap fasl-needed? result-types))
 
@@ -735,6 +738,15 @@
                   (call $linear-memory->string
                         (call $js-external-string->string
                               (ref.as_non_null (local.get $results)))))]
+               [(list 'string/nullish)
+                `(return
+                  (if (result (ref eq))
+                      (call $js-external-nullish? (local.get $results))
+                      (then (global.get $false))
+                      (else
+                       (call $linear-memory->string
+                             (call $js-external-string->string
+                                   (ref.as_non_null (local.get $results)))))))]
                [(list 'value) ; a value is returned as an index into linear memory
                 `(return
                   (call $linear-memory->value (local.get $results)))]

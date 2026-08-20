@@ -421,14 +421,14 @@
   #:name   "get-attribute"
   #:doc    "Returns the value of an attribute."
   #:mdn    "Element/getAttribute"
-  (-> (extern string) (string)))
+  (-> (extern string) (string/nullish)))
 
 (define-foreign js-get-attribute-ns
   #:module "element"
   #:name   "get-attribute-ns"
   #:doc    "Returns the value of a namespaced attribute."
   #:mdn    "Element/getAttributeNS"
-  (-> (extern string string) (string)))
+  (-> (extern string string) (string/nullish)))
 
 (define-foreign js-get-attribute-names
   #:module "element"
@@ -442,7 +442,7 @@
   #:name   "dom-token-list-item"
   #:doc    "Returns the token at a given index."
   #:mdn    "DOMTokenList/item"
-  (-> (extern i32) (string)))
+  (-> (extern i32) (string/nullish)))
 
 (define-foreign js-get-attribute-node
   #:module "element"
