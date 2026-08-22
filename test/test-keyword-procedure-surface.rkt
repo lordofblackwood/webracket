@@ -183,6 +183,41 @@
    "main.rkt"
    #rx"(?m:^\\(keyword \\(#:attrs\\) \\(\\(\\(id \\. \"x\"\\)\\)\\) \\(\"hi\"\\)\\)\n#<void>$)"))
 
+(test-case "imported optional keyword procedures accept sparse high keywords in nested calls"
+  (check-webracket-output/files
+   (list
+    (cons "helper.rkt"
+          (string-append
+           "#lang webracket/base\n"
+           "(provide f)\n"
+           "(define (f required\n"
+           "           #:k1 [k1 2001]\n"
+           "           #:k2 [k2 2002]\n"
+           "           #:k3 [k3 2003]\n"
+           "           #:k4 [k4 2004]\n"
+           "           #:k5 [k5 2005]\n"
+           "           #:k6 [k6 2006]\n"
+           "           #:k7 [k7 2007]\n"
+           "           #:k8 [k8 2008]\n"
+           "           #:k9 [k9 2009]\n"
+           "           #:k10 [k10 2010]\n"
+           "           #:k11 [k11 2011]\n"
+           "           #:k12 [k12 2012])\n"
+           "  (+ required k1 k2 k3 k4 k5 k6 k7 k8 k9 k10 k11 k12))\n"))
+    (cons "main.rkt"
+          (string-append
+           "#lang webracket/base\n"
+           "(require \"helper.rkt\")\n"
+           "(define expected\n"
+           "  (+ 0 2001 2002 2003 2004 2005 2006 2007 2008 2009 2010 3011 2012))\n"
+           "(define (check= who got expected)\n"
+           "  (unless (= got expected)\n"
+           "    (error who)))\n"
+           "(check= 'keyword-k11-repro (f 0 #:k11 3011) expected)\n"
+           "(js-log \"keyword-k11-repro-ok\")\n")))
+   "main.rkt"
+   #rx"(?m:^keyword-k11-repro-ok\n#<void>$)"))
+
 (test-case "webracket/private/sort exports a callable positional sort"
   (check-webracket-output
    (string-append

@@ -26,11 +26,13 @@
   ;;   Guard constant checks so value-backed imports stay plain values.
   (define (lower-module-variable-constance-check cell)
     (define lowered-cell (lower cell))
-    `(if (if (module-variable? ,lowered-cell)
-             (module-variable-constance ,lowered-cell)
-             #f)
-         #t
-         #f))
+    (define cell-id (gensym 'module-variable-constance-cell))
+    `(let ([,cell-id ,lowered-cell])
+       (if (if (module-variable? ,cell-id)
+               (module-variable-constance ,cell-id)
+               (if (eq? ,cell-id 'mutable) #f #t))
+           #t
+           #f)))
 
   (define (lower v)
     (reannotate
