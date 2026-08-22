@@ -21,10 +21,10 @@
 (define-runtime-path webracket-root "../../../..")
 
 (define webify-io-print-root-name
-  'racket-src/io/print/main-web.rkt)
+  'racket-src/io/print/main-web)
 
 (define webify-io-print-adapter-name
-  'racket-src/io/format/printf-adapter.rkt)
+  'racket-src/io/format/printf-adapter)
 
 (define webify-io-print-module-protocol-name
   'module-protocol)

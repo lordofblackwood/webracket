@@ -3817,7 +3817,8 @@
   (unless (webify-module-extractor-spike? report)
     (raise-argument-error who "webify-module-extractor-spike?" report))
   (list (webify-module-extractor-spike-name report)
-        (webify-module-extractor-spike-phase0-exports report)))
+        (webify-normalize-linklet-exports
+         (webify-module-extractor-spike-phase0-exports report))))
 
 ;; webify-module-extractor-spikes-dependency-exports : (listof report) -> dependency-exports
 ;;   Derive a resolver export table from extracted provider reports.
@@ -4897,6 +4898,28 @@
      format-provider-linklet
      #t
      '()))
+
+  (define paired-format-provider-report
+    (webify-module-extractor-spike
+     'racket-src/io/format/main-web
+     '(#f)
+     '(0)
+     '()
+     '()
+     '((1/format format))
+     '(linklet () ((1/format format))
+        (define-values (1/format)
+          (lambda args "formatted")))
+     #t
+     '()))
+
+  (check-equal?
+   (webify-module-extractor-spike-dependency-exports paired-format-provider-report)
+   '(racket-src/io/format/main-web (format)))
+
+  (check-equal?
+   (dependency-exports/include-self paired-format-provider-report '())
+   '((racket-src/io/format/main-web (format))))
 
   (define fetched-provider-names '())
 

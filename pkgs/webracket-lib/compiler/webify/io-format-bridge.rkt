@@ -30,13 +30,13 @@
 (define-runtime-path webracket-root "../../../..")
 
 (define webify-io-format-root-name
-  'racket-src/io/format/main-web.rkt)
+  'racket-src/io/format/main-web)
 
 (define webify-io-format-printf-name
-  'racket-src/io/format/printf-web.rkt)
+  'racket-src/io/format/printf-web)
 
 (define webify-io-format-adapter-name
-  'racket-src/io/format/printf-adapter.rkt)
+  'racket-src/io/format/printf-adapter)
 
 (define webify-io-format-map-shim-name
   'map-shim)
