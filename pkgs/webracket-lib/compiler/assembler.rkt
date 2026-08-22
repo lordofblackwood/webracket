@@ -224,9 +224,7 @@ if (!hostWebAssembly ||
     typeof hostWebAssembly.compile !== 'function' ||
     typeof hostWebAssembly.instantiate !== 'function' ||
     typeof hostWebAssemblyTag !== 'function' ||
-    typeof hostWebAssemblyException !== 'function' ||
-    !hostWebAssemblyModule ||
-    typeof hostWebAssemblyModule.imports !== 'function') {
+    typeof hostWebAssemblyException !== 'function') {
   throw new Error('WebRacket requires WebAssembly compile/instantiate and exception handling (Tag + Exception).');
 }
 if (!hostSymbol || !hostSymbolFor || !hostSymbolKeyFor || !hostSymbolToPrimitive) {

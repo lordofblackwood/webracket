@@ -5,10 +5,7 @@ const hostEval = typeof eval === 'function'
   : (() => { throw new hostError('eval not available in this environment'); });
 
 if (typeof hostWebAssemblyTag !== 'function' ||
-    typeof hostWebAssemblyException !== 'function' ||
-    typeof hostWebAssemblyModule === 'undefined' ||
-    !hostWebAssemblyModule ||
-    typeof hostWebAssemblyModule.imports !== 'function') {
+    typeof hostWebAssemblyException !== 'function') {
   throw new hostError('WebRacket requires WebAssembly exception handling (Tag + Exception).');
 }
 
@@ -185,7 +182,20 @@ function install_ffi_exception_bridge(imports) {
 
 function assert_ffi_exception_bridge_visible_imports(module, imports, label) {
   const required = new Map();
-  for (const spec of hostWebAssemblyModule.imports(module)) {
+  if (!hostWebAssemblyModule ||
+      typeof hostWebAssemblyModule.imports !== 'function') {
+    return;
+  }
+  let importSpecs;
+  try {
+    importSpecs = hostWebAssemblyModule.imports(module);
+  } catch (_err) {
+    // Some browsers can compile and instantiate newer EH/GC modules, but fail
+    // to produce import descriptors for them. This is only a diagnostic
+    // visibility assertion, so do not make startup depend on introspection.
+    return;
+  }
+  for (const spec of importSpecs) {
     if (spec.kind !== 'function' || !is_ffi_exception_bridge_module(spec.module)) {
       continue;
     }
