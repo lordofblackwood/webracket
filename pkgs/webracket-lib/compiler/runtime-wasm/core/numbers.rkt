@@ -2897,6 +2897,15 @@
                  [(real)   (raise-expected-real who value)]
                  [else (error 'gencmp "unknown expected numeric contract: ~a" expected)]))
 
+             (define (cmp-result-test who)
+               (case who
+                 [(=)  `(i32.eqz (local.get $cmp/i32))]
+                 [(<)  `(i32.lt_s (local.get $cmp/i32) (i32.const 0))]
+                 [(>)  `(i32.gt_s (local.get $cmp/i32) (i32.const 0))]
+                 [(<=) `(i32.le_s (local.get $cmp/i32) (i32.const 0))]
+                 [(>=) `(i32.ge_s (local.get $cmp/i32) (i32.const 0))]
+                 [else (error 'gencmp "unknown comparator: ~a" who)]))
+
              (define (gencmp cmp who expected fxcmp flcmp)
                `(func ,cmp
                       (param $x (ref eq))
@@ -2905,19 +2914,40 @@
 
                       (local $x/is-fx i32)
                       (local $y/is-fx i32)
+                      (local $x/is-big i32)
+                      (local $y/is-big i32)
                       (local $x/is-fl i32)
                       (local $y/is-fl i32)
+                      (local $cmp/i32 i32)
                       (local $x-fl    (ref null $Flonum))
                       (local $y-fl    (ref null $Flonum))
                       ;; --- Check if x is a fixnum ---
                       (local.set $x/is-fx (call $fx?/i32 (local.get $x)))
+                      ;; --- Check if x is a bignum ---
+                      (local.set $x/is-big (ref.test (ref $Bignum) (local.get $x)))
+                      ;; --- Check if y is a fixnum ---
+                      (local.set $y/is-fx (call $fx?/i32 (local.get $y)))
+                      ;; --- Check if y is a bignum ---
+                      (local.set $y/is-big (ref.test (ref $Bignum) (local.get $y)))
+                      ;; --- If both are exact integers, compare without flonum conversion. ---
+                      (if (i32.and
+                           (i32.or (local.get $x/is-fx) (local.get $x/is-big))
+                           (i32.or (local.get $y/is-fx) (local.get $y/is-big)))
+                          (then
+                           (local.set $cmp/i32
+                                      (call $integer-compare/i32
+                                            (local.get $x)
+                                            (local.get $y)))
+                           (return
+                            (if (result (ref eq))
+                                ,(cmp-result-test who)
+                                (then (global.get $true))
+                                (else (global.get $false))))))
                       ;; --- Check if x is a flonum ---
                       (local.set $x/is-fl (ref.test (ref $Flonum) (local.get $x)))
                       ;; --- Raise if x is not a number ---
                       (if (i32.eqz (i32.or (local.get $x/is-fx) (local.get $x/is-fl)))
                           (then ,@(raise-expected expected who `(local.get $x))))
-                      ;; --- Check if y is a fixnum ---
-                      (local.set $y/is-fx (call $fx?/i32 (local.get $y)))
                       ;; --- Check if y is a flonum ---
                       (local.set $y/is-fl (ref.test (ref $Flonum) (local.get $y)))
                       ;; --- Raise if y is not a number ---

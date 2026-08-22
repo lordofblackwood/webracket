@@ -228,7 +228,47 @@
             '(abs -536870912)
             #:comparison 'ignore-fixnum-width
             #:gate? #t
-            #:note "abs promotes the most-negative WebRacket fixnum.")))
+            #:note "abs promotes the most-negative WebRacket fixnum.")
+   (nt-case 'bignum-numeric-equal-same-value
+            'integer-ordering
+            '(= 9007199254740993 9007199254740993)
+            #:gate? #t
+            #:note "Generic = compares bignum exact integers by value.")
+   (nt-case 'bignum-numeric-equal-neighbor
+            'integer-ordering
+            '(= 9007199254740993 9007199254740992)
+            #:gate? #t
+            #:note "Generic = distinguishes neighboring bignums.")
+   (nt-case 'fixnum-less-than-bignum
+            'integer-ordering
+            '(< 536870911 536870912)
+            #:gate? #t
+            #:note "Generic < handles fixnum to bignum boundaries.")
+   (nt-case 'bignum-less-than-bignum
+            'integer-ordering
+            '(< 9007199254740992 9007199254740993)
+            #:gate? #t
+            #:note "Generic < compares positive bignums by magnitude.")
+   (nt-case 'negative-fixnum-greater-than-bignum
+            'integer-ordering
+            '(> -536870912 -536870913)
+            #:gate? #t
+            #:note "Generic > handles negative fixnum to bignum boundaries.")
+   (nt-case 'bignum-less-equal-same-value
+            'integer-ordering
+            '(<= 4294967296 4294967296)
+            #:gate? #t
+            #:note "Generic <= accepts equal bignum values.")
+   (nt-case 'negative-bignum-greater-equal-neighbor
+            'integer-ordering
+            '(>= -9007199254740993 -9007199254740992)
+            #:gate? #t
+            #:note "Generic >= compares negative bignum magnitudes correctly.")
+   (nt-case 'variadic-exact-integer-ordering
+            'integer-ordering
+            '(< -9007199254740993 -536870913 0 536870912 9007199254740993)
+            #:gate? #t
+            #:note "Variadic < threads exact fixnum and bignum comparisons.")))
 
 ;; number-tower-groups : -> (listof symbol?)
 ;;   Return the distinct oracle groups in stable display order.

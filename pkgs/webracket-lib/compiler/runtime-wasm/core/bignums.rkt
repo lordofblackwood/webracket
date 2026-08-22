@@ -411,6 +411,35 @@
                             (local.get $b-limbs)
                             (local.get $a-limbs))))))
 
+     ;; $bignum-compare/i32 : bignum? bignum? -> integer?
+     ;;   Compare two signed canonical bignums, returning -1, 0, or 1.
+     (func $bignum-compare/i32
+           (param $a (ref $Bignum))
+           (param $b (ref $Bignum))
+           (result i32)
+
+           (local $a-sign i32)
+           (local $b-sign i32)
+           (local $cmp i32)
+
+           (local.set $a-sign (struct.get $Bignum $sign (local.get $a)))
+           (local.set $b-sign (struct.get $Bignum $sign (local.get $b)))
+           (if (i32.ne (local.get $a-sign) (local.get $b-sign))
+               (then
+                (return
+                 (select (i32.const 1)
+                         (i32.const -1)
+                         (i32.gt_s (local.get $a-sign)
+                                   (local.get $b-sign))))))
+           (local.set $cmp
+                      (call $bignum-magnitude-compare/i32
+                            (struct.get $Bignum $limbs (local.get $a))
+                            (struct.get $Bignum $limbs (local.get $b))))
+           (if (result i32)
+               (i32.gt_s (local.get $a-sign) (i32.const 0))
+               (then (local.get $cmp))
+               (else (i32.sub (i32.const 0) (local.get $cmp)))))
+
      ;; $bignum-mul : bignum? bignum? -> exact-integer?
      ;;   Multiply two signed canonical bignums with schoolbook limbs.
      (func $bignum-mul
@@ -657,6 +686,78 @@
                        (ref.cast (ref $Bignum) (local.get $x))
                        (call $nonzero-fixnum->bignum (local.get $y))))))
            (call $bignum-mul
+                 (ref.cast (ref $Bignum) (local.get $x))
+                 (ref.cast (ref $Bignum) (local.get $y))))
+
+     ;; $integer-compare/i32 : exact-integer? exact-integer? -> integer?
+     ;;   Compare exact integers, returning -1, 0, or 1.
+     (func $integer-compare/i32
+           (param $x (ref eq))
+           (param $y (ref eq))
+           (result i32)
+
+           (local $xv i32)
+           (local $yv i32)
+           (local $yb (ref $Bignum))
+
+           (if (ref.test (ref i31) (local.get $x))
+               (then
+                (local.set $xv
+                           (i32.shr_s
+                            (i31.get_s (ref.cast (ref i31) (local.get $x)))
+                            (i32.const 1)))
+                (if (ref.test (ref i31) (local.get $y))
+                    (then
+                     (local.set $yv
+                                (i32.shr_s
+                                 (i31.get_s
+                                  (ref.cast (ref i31) (local.get $y)))
+                                 (i32.const 1)))
+                     (return
+                      (if (result i32)
+                          (i32.lt_s (local.get $xv) (local.get $yv))
+                          (then (i32.const -1))
+                          (else
+                           (if (result i32)
+                               (i32.gt_s (local.get $xv) (local.get $yv))
+                               (then (i32.const 1))
+                               (else (i32.const 0))))))))
+                (local.set $yb (ref.cast (ref $Bignum) (local.get $y)))
+                (if (i32.eqz (local.get $xv))
+                    (then
+                     (return
+                      (if (result i32)
+                          (i32.gt_s (struct.get $Bignum $sign (local.get $yb))
+                                    (i32.const 0))
+                          (then (i32.const -1))
+                          (else (i32.const 1))))))
+                (return
+                 (call $bignum-compare/i32
+                       (call $nonzero-fixnum->bignum (local.get $x))
+                       (local.get $yb)))))
+
+           (if (ref.test (ref i31) (local.get $y))
+               (then
+                (local.set $yv
+                           (i32.shr_s
+                            (i31.get_s (ref.cast (ref i31) (local.get $y)))
+                            (i32.const 1)))
+                (if (i32.eqz (local.get $yv))
+                    (then
+                     (return
+                      (if (result i32)
+                          (i32.gt_s
+                           (struct.get $Bignum $sign
+                                       (ref.cast (ref $Bignum) (local.get $x)))
+                           (i32.const 0))
+                          (then (i32.const 1))
+                          (else (i32.const -1))))))
+                (return
+                 (call $bignum-compare/i32
+                       (ref.cast (ref $Bignum) (local.get $x))
+                       (call $nonzero-fixnum->bignum (local.get $y))))))
+
+           (call $bignum-compare/i32
                  (ref.cast (ref $Bignum) (local.get $x))
                  (ref.cast (ref $Bignum) (local.get $y))))
 
