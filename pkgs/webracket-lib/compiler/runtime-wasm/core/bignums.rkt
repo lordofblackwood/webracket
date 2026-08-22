@@ -12,6 +12,745 @@
   (function-forms->runtime-helpers
    'bignum-core-runtime-helpers
    '(
+     ;; $integer-from-i64 : i64 -> exact-integer?
+     ;;   Build a canonical exact integer from a signed 64-bit value.
+     (func $integer-from-i64
+           (param $v i64)
+           (result (ref eq))
+
+           (local $sign i32)
+           (local $abs  i64)
+           (local $low  i32)
+           (local $high i32)
+
+           (if (i32.and
+                (i64.ge_s (local.get $v) (i64.const -536870912))
+                (i64.le_s (local.get $v) (i64.const  536870911)))
+               (then
+                (return
+                 (ref.i31
+                  (i32.shl (i32.wrap_i64 (local.get $v)) (i32.const 1))))))
+
+           (if (i64.lt_s (local.get $v) (i64.const 0))
+               (then
+                (local.set $sign (i32.const -1))
+                (local.set $abs (i64.sub (i64.const 0) (local.get $v))))
+               (else
+                (local.set $sign (i32.const 1))
+                (local.set $abs (local.get $v))))
+           (local.set $low (i32.wrap_i64 (local.get $abs)))
+           (local.set $high (i32.wrap_i64
+                             (i64.shr_u (local.get $abs) (i64.const 32))))
+           (if (i32.eqz (local.get $high))
+               (then
+                (return
+                 (call $bignum-normalize
+                       (local.get $sign)
+                       (array.new_fixed $I32Array 1 (local.get $low))))))
+           (call $bignum-normalize
+                 (local.get $sign)
+                 (array.new_fixed $I32Array 2
+                                  (local.get $low)
+                                  (local.get $high))))
+
+     ;; $bignum-normalize : integer? i32-array? -> exact-integer?
+     ;;   Trim zero limbs and collapse results that fit WebRacket fixnums.
+     (func $bignum-normalize
+           (param $sign  i32)
+           (param $limbs (ref $I32Array))
+           (result (ref eq))
+
+           (local $len        i32)
+           (local $active-len i32)
+           (local $limb       i32)
+           (local $trimmed    (ref $I32Array))
+
+           (local.set $len (array.len (local.get $limbs)))
+           (local.set $active-len (local.get $len))
+           (block $trim-done
+                  (loop $trim-loop
+                        (br_if $trim-done (i32.eqz (local.get $active-len)))
+                        (if (i32.eqz
+                             (array.get $I32Array
+                                        (local.get $limbs)
+                                        (i32.sub (local.get $active-len)
+                                                 (i32.const 1))))
+                            (then
+                             (local.set $active-len
+                                        (i32.sub (local.get $active-len)
+                                                 (i32.const 1)))
+                             (br $trim-loop))
+                            (else (br $trim-done)))))
+           (if (i32.eqz (local.get $active-len))
+               (then (return (ref.i31 (i32.const 0)))))
+
+           (if (i32.eq (local.get $active-len) (i32.const 1))
+               (then
+                (local.set $limb
+                           (array.get $I32Array (local.get $limbs) (i32.const 0)))
+                (if (i32.gt_s (local.get $sign) (i32.const 0))
+                    (then
+                     (if (i32.le_u (local.get $limb) (i32.const 536870911))
+                         (then
+                          (return
+                           (ref.i31
+                            (i32.shl (local.get $limb) (i32.const 1)))))))
+                    (else
+                     (if (i32.le_u (local.get $limb) (i32.const 536870912))
+                         (then
+                          (return
+                           (ref.i31
+                            (i32.shl
+                             (i32.sub (i32.const 0) (local.get $limb))
+                             (i32.const 1))))))))))
+
+           (if (i32.eq (local.get $active-len) (local.get $len))
+               (then
+                (return
+                 (struct.new $Bignum
+                             (i32.const 0)
+                             (select (i32.const 1)
+                                     (i32.const -1)
+                                     (i32.gt_s (local.get $sign) (i32.const 0)))
+                             (local.get $limbs)))))
+           (local.set $trimmed
+                      (array.new_default $I32Array (local.get $active-len)))
+           (array.copy $I32Array $I32Array
+                       (local.get $trimmed) (i32.const 0)
+                       (local.get $limbs)   (i32.const 0)
+                       (local.get $active-len))
+           (struct.new $Bignum
+                       (i32.const 0)
+                       (select (i32.const 1)
+                               (i32.const -1)
+                               (i32.gt_s (local.get $sign) (i32.const 0)))
+                       (local.get $trimmed)))
+
+     ;; $nonzero-fixnum->bignum : fixnum? -> bignum?
+     ;;   Box a nonzero WebRacket fixnum as a one-limb bignum.
+     (func $nonzero-fixnum->bignum
+           (param $x (ref eq))
+           (result (ref $Bignum))
+
+           (local $v         i32)
+           (local $sign      i32)
+           (local $magnitude i32)
+
+           (local.set $v
+                      (i32.shr_s
+                       (i31.get_s (ref.cast (ref i31) (local.get $x)))
+                       (i32.const 1)))
+           (if (i32.lt_s (local.get $v) (i32.const 0))
+               (then
+                (local.set $sign (i32.const -1))
+                (local.set $magnitude
+                           (i32.sub (i32.const 0) (local.get $v))))
+               (else
+                (local.set $sign (i32.const 1))
+                (local.set $magnitude (local.get $v))))
+           (struct.new $Bignum
+                       (i32.const 0)
+                       (local.get $sign)
+                       (array.new_fixed $I32Array 1
+                                        (local.get $magnitude))))
+
+     ;; $bignum-negate : bignum? -> bignum?
+     ;;   Return the canonical additive inverse of a nonzero bignum.
+     (func $bignum-negate
+           (param $b (ref $Bignum))
+           (result (ref eq))
+
+           (struct.new $Bignum
+                       (i32.const 0)
+                       (i32.sub (i32.const 0)
+                                (struct.get $Bignum $sign (local.get $b)))
+                       (struct.get $Bignum $limbs (local.get $b))))
+
+     ;; $bignum-magnitude-compare/i32 : i32-array? i32-array? -> integer?
+     ;;   Compare unsigned little-endian limb arrays, returning -1, 0, or 1.
+     (func $bignum-magnitude-compare/i32
+           (param $a (ref $I32Array))
+           (param $b (ref $I32Array))
+           (result i32)
+
+           (local $a-len i32)
+           (local $b-len i32)
+           (local $i     i32)
+           (local $av    i32)
+           (local $bv    i32)
+
+           (local.set $a-len (array.len (local.get $a)))
+           (local.set $b-len (array.len (local.get $b)))
+           (if (i32.lt_u (local.get $a-len) (local.get $b-len))
+               (then (return (i32.const -1))))
+           (if (i32.gt_u (local.get $a-len) (local.get $b-len))
+               (then (return (i32.const 1))))
+           (local.set $i (local.get $a-len))
+           (block $done
+                  (loop $loop
+                        (br_if $done (i32.eqz (local.get $i)))
+                        (local.set $i (i32.sub (local.get $i) (i32.const 1)))
+                        (local.set $av
+                                   (array.get $I32Array
+                                              (local.get $a)
+                                              (local.get $i)))
+                        (local.set $bv
+                                   (array.get $I32Array
+                                              (local.get $b)
+                                              (local.get $i)))
+                        (if (i32.ne (local.get $av) (local.get $bv))
+                            (then
+                             (return
+                              (select (i32.const 1)
+                                      (i32.const -1)
+                                      (i32.gt_u (local.get $av)
+                                                (local.get $bv))))))
+                        (br $loop)))
+           (i32.const 0))
+
+     ;; $bignum-add-magnitudes : i32-array? i32-array? -> i32-array?
+     ;;   Add unsigned magnitudes, leaving possible leading zero cleanup to normalize.
+     (func $bignum-add-magnitudes
+           (param $a (ref $I32Array))
+           (param $b (ref $I32Array))
+           (result (ref $I32Array))
+
+           (local $a-len i32)
+           (local $b-len i32)
+           (local $max-len i32)
+           (local $out (ref $I32Array))
+           (local $i i32)
+           (local $acc i64)
+           (local $carry i64)
+
+           (local.set $a-len (array.len (local.get $a)))
+           (local.set $b-len (array.len (local.get $b)))
+           (local.set $max-len
+                      (select (local.get $a-len)
+                              (local.get $b-len)
+                              (i32.gt_u (local.get $a-len)
+                                        (local.get $b-len))))
+           (local.set $out
+                      (array.new_default
+                       $I32Array
+                       (i32.add (local.get $max-len) (i32.const 1))))
+           (block $done
+                  (loop $loop
+                        (br_if $done
+                               (i32.ge_u (local.get $i) (local.get $max-len)))
+                        (local.set $acc (local.get $carry))
+                        (if (i32.lt_u (local.get $i) (local.get $a-len))
+                            (then
+                             (local.set $acc
+                                        (i64.add
+                                         (local.get $acc)
+                                         (i64.extend_i32_u
+                                          (array.get $I32Array
+                                                     (local.get $a)
+                                                     (local.get $i)))))))
+                        (if (i32.lt_u (local.get $i) (local.get $b-len))
+                            (then
+                             (local.set $acc
+                                        (i64.add
+                                         (local.get $acc)
+                                         (i64.extend_i32_u
+                                          (array.get $I32Array
+                                                     (local.get $b)
+                                                     (local.get $i)))))))
+                        (array.set $I32Array
+                                   (local.get $out)
+                                   (local.get $i)
+                                   (i32.wrap_i64 (local.get $acc)))
+                        (local.set $carry
+                                   (i64.shr_u (local.get $acc) (i64.const 32)))
+                        (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                        (br $loop)))
+           (array.set $I32Array
+                      (local.get $out)
+                      (local.get $max-len)
+                      (i32.wrap_i64 (local.get $carry)))
+           (local.get $out))
+
+     ;; $bignum-sub-magnitudes : i32-array? i32-array? -> i32-array?
+     ;;   Subtract unsigned magnitudes where the first is at least the second.
+     (func $bignum-sub-magnitudes
+           (param $a (ref $I32Array))
+           (param $b (ref $I32Array))
+           (result (ref $I32Array))
+
+           (local $a-len i32)
+           (local $b-len i32)
+           (local $out (ref $I32Array))
+           (local $i i32)
+           (local $acc i64)
+           (local $borrow i64)
+
+           (local.set $a-len (array.len (local.get $a)))
+           (local.set $b-len (array.len (local.get $b)))
+           (local.set $out (array.new_default $I32Array (local.get $a-len)))
+           (block $done
+                  (loop $loop
+                        (br_if $done
+                               (i32.ge_u (local.get $i) (local.get $a-len)))
+                        (local.set $acc
+                                   (i64.sub
+                                    (i64.extend_i32_u
+                                     (array.get $I32Array
+                                                (local.get $a)
+                                                (local.get $i)))
+                                    (local.get $borrow)))
+                        (if (i32.lt_u (local.get $i) (local.get $b-len))
+                            (then
+                             (local.set $acc
+                                        (i64.sub
+                                         (local.get $acc)
+                                         (i64.extend_i32_u
+                                          (array.get $I32Array
+                                                     (local.get $b)
+                                                     (local.get $i)))))))
+                        (if (i64.lt_s (local.get $acc) (i64.const 0))
+                            (then
+                             (local.set $acc
+                                        (i64.add (local.get $acc)
+                                                 (i64.const 4294967296)))
+                             (local.set $borrow (i64.const 1)))
+                            (else
+                             (local.set $borrow (i64.const 0))))
+                        (array.set $I32Array
+                                   (local.get $out)
+                                   (local.get $i)
+                                   (i32.wrap_i64 (local.get $acc)))
+                        (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                        (br $loop)))
+           (local.get $out))
+
+     ;; $bignum-add : bignum? bignum? -> exact-integer?
+     ;;   Add two signed canonical bignums.
+     (func $bignum-add
+           (param $a (ref $Bignum))
+           (param $b (ref $Bignum))
+           (result (ref eq))
+
+           (local $a-limbs (ref $I32Array))
+           (local $b-limbs (ref $I32Array))
+           (local $cmp i32)
+
+           (local.set $a-limbs (struct.get $Bignum $limbs (local.get $a)))
+           (local.set $b-limbs (struct.get $Bignum $limbs (local.get $b)))
+           (if (i32.eq (struct.get $Bignum $sign (local.get $a))
+                       (struct.get $Bignum $sign (local.get $b)))
+               (then
+                (return
+                 (call $bignum-normalize
+                       (struct.get $Bignum $sign (local.get $a))
+                       (call $bignum-add-magnitudes
+                             (local.get $a-limbs)
+                             (local.get $b-limbs))))))
+           (local.set $cmp
+                      (call $bignum-magnitude-compare/i32
+                            (local.get $a-limbs)
+                            (local.get $b-limbs)))
+           (if (i32.eqz (local.get $cmp))
+               (then (return (ref.i31 (i32.const 0)))))
+           (if (result (ref eq))
+               (i32.gt_s (local.get $cmp) (i32.const 0))
+               (then
+                (call $bignum-normalize
+                      (struct.get $Bignum $sign (local.get $a))
+                      (call $bignum-sub-magnitudes
+                            (local.get $a-limbs)
+                            (local.get $b-limbs))))
+               (else
+                (call $bignum-normalize
+                      (struct.get $Bignum $sign (local.get $b))
+                      (call $bignum-sub-magnitudes
+                            (local.get $b-limbs)
+                            (local.get $a-limbs))))))
+
+     ;; $bignum-sub : bignum? bignum? -> exact-integer?
+     ;;   Subtract two signed canonical bignums.
+     (func $bignum-sub
+           (param $a (ref $Bignum))
+           (param $b (ref $Bignum))
+           (result (ref eq))
+
+           (local $a-limbs (ref $I32Array))
+           (local $b-limbs (ref $I32Array))
+           (local $cmp i32)
+
+           (local.set $a-limbs (struct.get $Bignum $limbs (local.get $a)))
+           (local.set $b-limbs (struct.get $Bignum $limbs (local.get $b)))
+           (if (i32.ne (struct.get $Bignum $sign (local.get $a))
+                       (struct.get $Bignum $sign (local.get $b)))
+               (then
+                (return
+                 (call $bignum-normalize
+                       (struct.get $Bignum $sign (local.get $a))
+                       (call $bignum-add-magnitudes
+                             (local.get $a-limbs)
+                             (local.get $b-limbs))))))
+           (local.set $cmp
+                      (call $bignum-magnitude-compare/i32
+                            (local.get $a-limbs)
+                            (local.get $b-limbs)))
+           (if (i32.eqz (local.get $cmp))
+               (then (return (ref.i31 (i32.const 0)))))
+           (if (result (ref eq))
+               (i32.gt_s (local.get $cmp) (i32.const 0))
+               (then
+                (call $bignum-normalize
+                      (struct.get $Bignum $sign (local.get $a))
+                      (call $bignum-sub-magnitudes
+                            (local.get $a-limbs)
+                            (local.get $b-limbs))))
+               (else
+                (call $bignum-normalize
+                      (i32.sub (i32.const 0)
+                               (struct.get $Bignum $sign (local.get $a)))
+                      (call $bignum-sub-magnitudes
+                            (local.get $b-limbs)
+                            (local.get $a-limbs))))))
+
+     ;; $bignum-mul : bignum? bignum? -> exact-integer?
+     ;;   Multiply two signed canonical bignums with schoolbook limbs.
+     (func $bignum-mul
+           (param $a (ref $Bignum))
+           (param $b (ref $Bignum))
+           (result (ref eq))
+
+           (local $a-limbs (ref $I32Array))
+           (local $b-limbs (ref $I32Array))
+           (local $a-len i32)
+           (local $b-len i32)
+           (local $out-len i32)
+           (local $out (ref $I32Array))
+           (local $sign i32)
+           (local $i i32)
+           (local $j i32)
+           (local $pos i32)
+           (local $acc i64)
+           (local $carry i64)
+
+           (local.set $a-limbs (struct.get $Bignum $limbs (local.get $a)))
+           (local.set $b-limbs (struct.get $Bignum $limbs (local.get $b)))
+           (local.set $a-len (array.len (local.get $a-limbs)))
+           (local.set $b-len (array.len (local.get $b-limbs)))
+           (local.set $out-len (i32.add (local.get $a-len) (local.get $b-len)))
+           (local.set $out (array.new_default $I32Array (local.get $out-len)))
+           (local.set $sign
+                      (select (i32.const 1)
+                              (i32.const -1)
+                              (i32.eq (struct.get $Bignum $sign (local.get $a))
+                                      (struct.get $Bignum $sign (local.get $b)))))
+           (block $outer-done
+                  (loop $outer
+                        (br_if $outer-done
+                               (i32.ge_u (local.get $i) (local.get $a-len)))
+                        (local.set $carry (i64.const 0))
+                        (local.set $j (i32.const 0))
+                        (block $inner-done
+                               (loop $inner
+                                     (br_if $inner-done
+                                            (i32.ge_u (local.get $j) (local.get $b-len)))
+                                     (local.set $pos
+                                                (i32.add (local.get $i)
+                                                         (local.get $j)))
+                                     (local.set $acc
+                                                (i64.add
+                                                 (i64.add
+                                                  (i64.extend_i32_u
+                                                   (array.get $I32Array
+                                                              (local.get $out)
+                                                              (local.get $pos)))
+                                                  (i64.mul
+                                                   (i64.extend_i32_u
+                                                    (array.get $I32Array
+                                                               (local.get $a-limbs)
+                                                               (local.get $i)))
+                                                   (i64.extend_i32_u
+                                                    (array.get $I32Array
+                                                               (local.get $b-limbs)
+                                                               (local.get $j)))))
+                                                 (local.get $carry)))
+                                     (array.set $I32Array
+                                                (local.get $out)
+                                                (local.get $pos)
+                                                (i32.wrap_i64 (local.get $acc)))
+                                     (local.set $carry
+                                                (i64.shr_u (local.get $acc)
+                                                           (i64.const 32)))
+                                     (local.set $j
+                                                (i32.add (local.get $j)
+                                                         (i32.const 1)))
+                                     (br $inner)))
+                        (local.set $pos
+                                   (i32.add (local.get $i) (local.get $b-len)))
+                        (block $carry-done
+                               (loop $carry-loop
+                                     (br_if $carry-done (i64.eqz (local.get $carry)))
+                                     (local.set $acc
+                                                (i64.add
+                                                 (i64.extend_i32_u
+                                                  (array.get $I32Array
+                                                             (local.get $out)
+                                                             (local.get $pos)))
+                                                 (local.get $carry)))
+                                     (array.set $I32Array
+                                                (local.get $out)
+                                                (local.get $pos)
+                                                (i32.wrap_i64 (local.get $acc)))
+                                     (local.set $carry
+                                                (i64.shr_u (local.get $acc)
+                                                           (i64.const 32)))
+                                     (local.set $pos
+                                                (i32.add (local.get $pos)
+                                                         (i32.const 1)))
+                                     (br $carry-loop)))
+                        (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                        (br $outer)))
+           (call $bignum-normalize (local.get $sign) (local.get $out)))
+
+     ;; $integer-add/2 : exact-integer? exact-integer? -> exact-integer?
+     ;;   Add exact integers, promoting fixnum overflow to bignums.
+     (func $integer-add/2
+           (param $x (ref eq))
+           (param $y (ref eq))
+           (result (ref eq))
+
+           (local $xv i64)
+           (local $yv i64)
+
+           (if (ref.test (ref i31) (local.get $x))
+               (then
+                (if (ref.test (ref i31) (local.get $y))
+                    (then
+                     (local.set $xv
+                                (i64.extend_i32_s
+                                 (i32.shr_s
+                                  (i31.get_s
+                                   (ref.cast (ref i31) (local.get $x)))
+                                  (i32.const 1))))
+                     (local.set $yv
+                                (i64.extend_i32_s
+                                 (i32.shr_s
+                                  (i31.get_s
+                                   (ref.cast (ref i31) (local.get $y)))
+                                  (i32.const 1))))
+                     (return
+                      (call $integer-from-i64
+                            (i64.add (local.get $xv) (local.get $yv))))))
+                (if (i32.eqz
+                     (i31.get_s (ref.cast (ref i31) (local.get $x))))
+                    (then (return (local.get $y))))
+                (return
+                 (call $bignum-add
+                       (call $nonzero-fixnum->bignum (local.get $x))
+                       (ref.cast (ref $Bignum) (local.get $y))))))
+           (if (ref.test (ref i31) (local.get $y))
+               (then
+                (if (i32.eqz
+                     (i31.get_s (ref.cast (ref i31) (local.get $y))))
+                    (then (return (local.get $x))))
+                (return
+                 (call $bignum-add
+                       (ref.cast (ref $Bignum) (local.get $x))
+                       (call $nonzero-fixnum->bignum (local.get $y))))))
+           (call $bignum-add
+                 (ref.cast (ref $Bignum) (local.get $x))
+                 (ref.cast (ref $Bignum) (local.get $y))))
+
+     ;; $integer-sub/2 : exact-integer? exact-integer? -> exact-integer?
+     ;;   Subtract exact integers, promoting fixnum overflow to bignums.
+     (func $integer-sub/2
+           (param $x (ref eq))
+           (param $y (ref eq))
+           (result (ref eq))
+
+           (local $xv i64)
+           (local $yv i64)
+
+           (if (ref.test (ref i31) (local.get $x))
+               (then
+                (if (ref.test (ref i31) (local.get $y))
+                    (then
+                     (local.set $xv
+                                (i64.extend_i32_s
+                                 (i32.shr_s
+                                  (i31.get_s
+                                   (ref.cast (ref i31) (local.get $x)))
+                                  (i32.const 1))))
+                     (local.set $yv
+                                (i64.extend_i32_s
+                                 (i32.shr_s
+                                  (i31.get_s
+                                   (ref.cast (ref i31) (local.get $y)))
+                                  (i32.const 1))))
+                     (return
+                      (call $integer-from-i64
+                            (i64.sub (local.get $xv) (local.get $yv))))))
+                (if (i32.eqz
+                     (i31.get_s (ref.cast (ref i31) (local.get $x))))
+                    (then
+                     (return
+                      (call $bignum-negate
+                            (ref.cast (ref $Bignum) (local.get $y))))))
+                (return
+                 (call $bignum-sub
+                       (call $nonzero-fixnum->bignum (local.get $x))
+                       (ref.cast (ref $Bignum) (local.get $y))))))
+           (if (ref.test (ref i31) (local.get $y))
+               (then
+                (if (i32.eqz
+                     (i31.get_s (ref.cast (ref i31) (local.get $y))))
+                    (then (return (local.get $x))))
+                (return
+                 (call $bignum-sub
+                       (ref.cast (ref $Bignum) (local.get $x))
+                       (call $nonzero-fixnum->bignum (local.get $y))))))
+           (call $bignum-sub
+                 (ref.cast (ref $Bignum) (local.get $x))
+                 (ref.cast (ref $Bignum) (local.get $y))))
+
+     ;; $integer-mul/2 : exact-integer? exact-integer? -> exact-integer?
+     ;;   Multiply exact integers, promoting fixnum overflow to bignums.
+     (func $integer-mul/2
+           (param $x (ref eq))
+           (param $y (ref eq))
+           (result (ref eq))
+
+           (local $xv i64)
+           (local $yv i64)
+
+           (if (ref.test (ref i31) (local.get $x))
+               (then
+                (if (i32.eqz
+                     (i31.get_s (ref.cast (ref i31) (local.get $x))))
+                    (then (return (ref.i31 (i32.const 0)))))
+                (if (ref.test (ref i31) (local.get $y))
+                    (then
+                     (local.set $xv
+                                (i64.extend_i32_s
+                                 (i32.shr_s
+                                  (i31.get_s
+                                   (ref.cast (ref i31) (local.get $x)))
+                                  (i32.const 1))))
+                     (local.set $yv
+                                (i64.extend_i32_s
+                                 (i32.shr_s
+                                  (i31.get_s
+                                   (ref.cast (ref i31) (local.get $y)))
+                                  (i32.const 1))))
+                     (return
+                      (call $integer-from-i64
+                            (i64.mul (local.get $xv) (local.get $yv))))))
+                (return
+                       (call $bignum-mul
+                             (call $nonzero-fixnum->bignum (local.get $x))
+                             (ref.cast (ref $Bignum) (local.get $y))))))
+           (if (ref.test (ref i31) (local.get $y))
+               (then
+                (if (i32.eqz
+                     (i31.get_s (ref.cast (ref i31) (local.get $y))))
+                    (then (return (ref.i31 (i32.const 0)))))
+                (return
+                 (call $bignum-mul
+                       (ref.cast (ref $Bignum) (local.get $x))
+                       (call $nonzero-fixnum->bignum (local.get $y))))))
+           (call $bignum-mul
+                 (ref.cast (ref $Bignum) (local.get $x))
+                 (ref.cast (ref $Bignum) (local.get $y))))
+
+     ;; $integer-negate : exact-integer? -> exact-integer?
+     ;;   Return the additive inverse, promoting the most-negative fixnum.
+     (func $integer-negate
+           (param $x (ref eq))
+           (result (ref eq))
+
+           (if (ref.test (ref i31) (local.get $x))
+               (then
+                (return
+                 (call $integer-from-i64
+                       (i64.sub
+                        (i64.const 0)
+                        (i64.extend_i32_s
+                         (i32.shr_s
+                          (i31.get_s (ref.cast (ref i31) (local.get $x)))
+                          (i32.const 1))))))))
+           (call $bignum-negate (ref.cast (ref $Bignum) (local.get $x))))
+
+     ;; $integer-abs : exact-integer? -> exact-integer?
+     ;;   Return the exact absolute value, preserving bignums.
+     (func $integer-abs
+           (param $x (ref eq))
+           (result (ref eq))
+
+           (local $v i32)
+
+           (if (ref.test (ref i31) (local.get $x))
+               (then
+                (local.set $v
+                           (i32.shr_s
+                            (i31.get_s (ref.cast (ref i31) (local.get $x)))
+                            (i32.const 1)))
+                (if (i32.lt_s (local.get $v) (i32.const 0))
+                    (then (return (call $integer-negate (local.get $x))))
+                    (else (return (local.get $x))))))
+           (if (i32.lt_s
+                (struct.get $Bignum $sign
+                            (ref.cast (ref $Bignum) (local.get $x)))
+                (i32.const 0))
+               (then
+                (return
+                 (call $bignum-negate
+                       (ref.cast (ref $Bignum) (local.get $x))))))
+           (local.get $x))
+
+     ;; $bignum->f64 : bignum? -> f64
+     ;;   Convert an exact bignum to the nearest host f64 value.
+     (func $bignum->f64
+           (param $b (ref $Bignum))
+           (result f64)
+
+           (local $limbs (ref $I32Array))
+           (local $i i32)
+           (local $out f64)
+
+           (local.set $limbs (struct.get $Bignum $limbs (local.get $b)))
+           (local.set $i (array.len (local.get $limbs)))
+           (block $done
+                  (loop $loop
+                        (br_if $done (i32.eqz (local.get $i)))
+                        (local.set $i (i32.sub (local.get $i) (i32.const 1)))
+                        (local.set $out
+                                   (f64.add
+                                    (f64.mul (local.get $out)
+                                             (f64.const 4294967296.0))
+                                    (f64.convert_i32_u
+                                     (array.get $I32Array
+                                                (local.get $limbs)
+                                                (local.get $i)))))
+                        (br $loop)))
+           (if (result f64)
+               (i32.lt_s (struct.get $Bignum $sign (local.get $b))
+                         (i32.const 0))
+               (then (f64.neg (local.get $out)))
+               (else (local.get $out))))
+
+     ;; $integer->f64 : exact-integer? -> f64
+     ;;   Convert a WebRacket exact integer to f64 for mixed inexact arithmetic.
+     (func $integer->f64
+           (param $x (ref eq))
+           (result f64)
+
+           (if (ref.test (ref i31) (local.get $x))
+               (then
+                (return
+                 (f64.convert_i32_s
+                  (i32.shr_s
+                   (i31.get_s (ref.cast (ref i31) (local.get $x)))
+                   (i32.const 1))))))
+           (call $bignum->f64 (ref.cast (ref $Bignum) (local.get $x))))
+
      ;; $bignum-eqv? : bignum? bignum? -> boolean?
      ;;   Compare canonical bignums by sign and unsigned little-endian limbs.
      (func $bignum-eqv?

@@ -166,15 +166,69 @@
    (nt-case 'generic-add-overflow
             'integer-arithmetic
             '(+ 536870911 1)
-            #:note "Generic + must eventually promote instead of overflowing.")
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "Generic + promotes beyond WebRacket's fixnum range.")
    (nt-case 'generic-sub-overflow
             'integer-arithmetic
             '(- -536870912 1)
-            #:note "Generic - must eventually promote instead of overflowing.")
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "Generic - promotes below WebRacket's fixnum range.")
    (nt-case 'generic-mul-overflow
             'integer-arithmetic
             '(* 536870911 2)
-            #:note "Generic * must eventually promote instead of overflowing.")))
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "Generic * promotes beyond WebRacket's fixnum range.")
+   (nt-case 'bignum-add-limb-carry
+            'integer-arithmetic
+            '(+ 4294967295 1)
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "Bignum addition carries across a 32-bit limb.")
+   (nt-case 'bignum-add-two-large
+            'integer-arithmetic
+            '(+ 9007199254740993 7)
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "Bignum addition preserves integers beyond f64 precision.")
+   (nt-case 'bignum-sub-to-fixnum
+            'integer-arithmetic
+            '(- 536870912 1)
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "Bignum subtraction collapses canonical fixnum results.")
+   (nt-case 'bignum-sub-cancel
+            'integer-arithmetic
+            '(- 9007199254740993 9007199254740993)
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "Bignum subtraction canonicalizes zero as a fixnum.")
+   (nt-case 'bignum-mul-two-limbs
+            'integer-arithmetic
+            '(* 4294967296 4294967296)
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "Bignum multiplication handles two-limb products.")
+   (nt-case 'add1-overflow
+            'integer-arithmetic
+            '(add1 536870911)
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "add1 promotes beyond WebRacket's fixnum range.")
+   (nt-case 'sub1-overflow
+            'integer-arithmetic
+            '(sub1 -536870912)
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "sub1 promotes below WebRacket's fixnum range.")
+   (nt-case 'abs-most-negative-fixnum
+            'integer-arithmetic
+            '(abs -536870912)
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "abs promotes the most-negative WebRacket fixnum.")))
 
 ;; number-tower-groups : -> (listof symbol?)
 ;;   Return the distinct oracle groups in stable display order.

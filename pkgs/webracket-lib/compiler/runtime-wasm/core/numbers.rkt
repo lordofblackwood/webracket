@@ -1743,18 +1743,20 @@
                (param $v (ref eq))
                (result   (ref eq))
 
-               (local $v/fx i32)
-               (local $sum  i32)
                (local $v/fl (ref $Flonum))
                (local $f64v f64)
 
                ;; Case 1: Fixnum
-               (if (ref.test (ref i31) (local.get $v))
-                   (then (local.set $v/fx (i31.get_u (ref.cast (ref i31) (local.get $v))))
-                         (if (i32.eqz (i32.and (local.get $v/fx) (i32.const 1)))
-                             (then (local.set $sum (i32.add (local.get $v/fx) (i32.const 2))) ;; add1 on unshifted
-                                   (return (ref.i31 (local.get $sum)))))))
-               ;; Case 2: Flonum
+               (if (call $fx?/i32 (local.get $v))
+                   (then (return (call $integer-add/2
+                                       (local.get $v)
+                                       (global.get $one)))))
+               ;; Case 2: Bignum
+               (if (ref.test (ref $Bignum) (local.get $v))
+                   (then (return (call $integer-add/2
+                                       (local.get $v)
+                                       (global.get $one)))))
+               ;; Case 3: Flonum
                (if (ref.test (ref $Flonum) (local.get $v))
                    (then (local.set $v/fl (ref.cast (ref $Flonum) (local.get $v)))
                          (local.set $f64v (struct.get $Flonum $v (local.get $v/fl)))
@@ -1771,17 +1773,19 @@
                (param $v (ref eq))
                (result   (ref eq))
 
-               (local $v/fx i32)
-               (local $diff i32)
                (local $v/fl (ref $Flonum))
                (local $f64v f64)
                ;; Case 1: Fixnum
-               (if (ref.test (ref i31) (local.get $v))
-                   (then (local.set $v/fx (i31.get_u (ref.cast (ref i31) (local.get $v))))
-                         (if (i32.eqz (i32.and (local.get $v/fx) (i32.const 1)))
-                             (then (local.set $diff (i32.sub (local.get $v/fx) (i32.const 2))) ;; sub1 = -1 << 1
-                                   (return (ref.i31 (local.get $diff)))))))
-               ;; Case 2: Flonum
+               (if (call $fx?/i32 (local.get $v))
+                   (then (return (call $integer-sub/2
+                                       (local.get $v)
+                                       (global.get $one)))))
+               ;; Case 2: Bignum
+               (if (ref.test (ref $Bignum) (local.get $v))
+                   (then (return (call $integer-sub/2
+                                       (local.get $v)
+                                       (global.get $one)))))
+               ;; Case 3: Flonum
                (if (ref.test (ref $Flonum) (local.get $v))
                    (then (local.set $v/fl (ref.cast (ref $Flonum) (local.get $v)))
                          (local.set $f64v (struct.get $Flonum $v (local.get $v/fl)))
@@ -1802,11 +1806,16 @@
                (local $bits i32)
 
                ;; Case 1: Fixnum
-               (if (ref.test (ref i31) (local.get $x))
-                   (then (local.set $bits (i31.get_u (ref.cast (ref i31) (local.get $x))))
-                         (if (i32.eqz (i32.and (local.get $bits) (i32.const 1)))
-                             (then (return (call $fx* (local.get $x) (local.get $x)))))))
-               ;; Case 2: Flonum
+               (if (call $fx?/i32 (local.get $x))
+                   (then (return (call $integer-mul/2
+                                       (local.get $x)
+                                       (local.get $x)))))
+               ;; Case 2: Bignum
+               (if (ref.test (ref $Bignum) (local.get $x))
+                   (then (return (call $integer-mul/2
+                                       (local.get $x)
+                                       (local.get $x)))))
+               ;; Case 3: Flonum
                (if (ref.test (ref $Flonum) (local.get $x))
                    (then (return (call $fl* (local.get $x) (local.get $x)))))
                ;; Not a number
@@ -1876,14 +1885,11 @@
               (define fixstmts
                 (case kind
                   [(fx-id)  `((return (local.get $x)))]
-                  [(fx-abs) `((local.set $bits (i32.shr_s (local.get $bits) (i32.const 1)))
-                              (if (i32.lt_s (local.get $bits) (i32.const 0))
-                                  (then (local.set $bits (i32.sub (i32.const 0) (local.get $bits)))))
-                              (if (i32.lt_u (local.get $bits) (i32.const 1073741824))
-                                  (then (return (ref.i31 (i32.shl (local.get $bits) (i32.const 1)))))
-                                  (else (return (struct.new $Flonum
-                                                            (i32.const 0)
-                                                            (f64.convert_i32_s (local.get $bits)))))))]))
+                  [(fx-abs) `((return (call $integer-abs (local.get $x))))]))
+              (define bignumstmts
+                (case kind
+                  [(fx-abs) `((return (call $integer-abs (local.get $x))))]
+                  [else     `((return (local.get $x)))]))
               `(func ,(string->symbol (format "$~a" name))
                      (type $Prim1)
                      (param $x (ref eq))
@@ -1903,6 +1909,10 @@
                                           (global.get ,(string->symbol (format "$symbol:~a" name)))
                                           (local.get $x))
                                     (unreachable)))))
+
+                     ;; Bignum case
+                     (if (ref.test (ref $Bignum) (local.get $x))
+                         (then ,@bignumstmts))
 
                      ;; Flonum case
                      (if (ref.test (ref $Flonum) (local.get $x))
@@ -2483,7 +2493,7 @@
    'generic-arithmetic-runtime-only-helpers
    `(
          ,@(let ()
-             (define (binop $op $who $fxop $flop)
+             (define (binop $op $who $flop $intop)
                `(func ,$op (type $Prim2)
                       (param $x (ref eq))
                       (param $y (ref eq))
@@ -2495,7 +2505,7 @@
                           (then (if (result (ref eq))
                                     (call $fx?/i32 (local.get $y))
                                     ; x and y fixnums
-                                    (then (call ,$fxop
+                                    (then (call ,$intop
                                                 (local.get $x) (local.get $y)))
                                     ; x fixnum, y non-fixnum
                                     (else (if (result (ref eq))
@@ -2503,11 +2513,17 @@
                                               ; x fixnum, y flonum
                                               (then (call ,$flop
                                                           (call $fx->fl/precise (local.get $x)) (local.get $y)))
-                                              ; x fixnum, y not a number
-                                              (else (call $raise-expected-number/who
-                                                          (global.get ,$who)
-                                                          (local.get $y))
-                                                    (unreachable))))))
+                                              ; x fixnum, y maybe bignum
+                                              (else (if (result (ref eq))
+                                                        (ref.test (ref $Bignum) (local.get $y))
+                                                        ; x fixnum, y bignum
+                                                        (then (call ,$intop
+                                                                    (local.get $x) (local.get $y)))
+                                                        ; x fixnum, y not a number
+                                                        (else (call $raise-expected-number/who
+                                                                    (global.get ,$who)
+                                                                    (local.get $y))
+                                                              (unreachable))))))))
                           ; x not fixnum
                           (else (if (result (ref eq))
                                     (call $fl?/i32 (local.get $x))
@@ -2523,19 +2539,59 @@
                                                         ; x flonum, y fixnum
                                                         (then (call ,$flop
                                                                     (local.get $x) (call $fx->fl/precise (local.get $y))))
-                                                        ; x flonum, y not a number
-                                                        (else (call $raise-expected-number/who
-                                                                    (global.get ,$who)
-                                                                    (local.get $y))
-                                                              (unreachable))))))
-                                    ; x is not a number
-                                    (else (call $raise-expected-number/who
-                                                (global.get ,$who)
-                                                (local.get $x))
-                                          (unreachable)))))))
-            (list (binop '$+/2 '$symbol:+ '$fx+ '$fl+)
-                  (binop '$-/2 '$symbol:- '$fx- '$fl-)
-                  (binop '$*/2 '$symbol:* '$fx* '$fl*)))
+                                                        ; x flonum, y maybe bignum
+                                                        (else (if (result (ref eq))
+                                                                  (ref.test (ref $Bignum) (local.get $y))
+                                                                  ; x flonum, y bignum
+                                                                  (then (call ,$flop
+                                                                              (local.get $x)
+                                                                              (struct.new $Flonum
+                                                                                          (i32.const 0)
+                                                                                          (call $integer->f64
+                                                                                                (local.get $y)))))
+                                                                  ; x flonum, y not a number
+                                                                  (else (call $raise-expected-number/who
+                                                                              (global.get ,$who)
+                                                                              (local.get $y))
+                                                                        (unreachable))))))))
+                                    ; x maybe bignum
+                                    (else (if (result (ref eq))
+                                              (ref.test (ref $Bignum) (local.get $x))
+                                              ; x bignum
+                                              (then (if (result (ref eq))
+                                                        (call $fx?/i32 (local.get $y))
+                                                        ; x bignum, y fixnum
+                                                        (then (call ,$intop
+                                                                    (local.get $x) (local.get $y)))
+                                                        ; x bignum, y not fixnum
+                                                        (else (if (result (ref eq))
+                                                                  (ref.test (ref $Bignum) (local.get $y))
+                                                                  ; x bignum, y bignum
+                                                                  (then (call ,$intop
+                                                                              (local.get $x) (local.get $y)))
+                                                                  ; x bignum, y maybe flonum
+                                                                  (else (if (result (ref eq))
+                                                                            (call $fl?/i32 (local.get $y))
+                                                                            ; x bignum, y flonum
+                                                                            (then (call ,$flop
+                                                                                        (struct.new $Flonum
+                                                                                                    (i32.const 0)
+                                                                                                    (call $integer->f64
+                                                                                                          (local.get $x)))
+                                                                                        (local.get $y)))
+                                                                            ; x bignum, y not a number
+                                                                            (else (call $raise-expected-number/who
+                                                                                        (global.get ,$who)
+                                                                                        (local.get $y))
+                                                                                  (unreachable))))))))
+                                              ; x is not a number
+                                              (else (call $raise-expected-number/who
+                                                          (global.get ,$who)
+                                                          (local.get $x))
+                                                    (unreachable)))))))))
+            (list (binop '$+/2 '$symbol:+ '$fl+ '$integer-add/2)
+                  (binop '$-/2 '$symbol:- '$fl- '$integer-sub/2)
+                  (binop '$*/2 '$symbol:* '$fl* '$integer-mul/2)))
 
         (func $+ (type $Prim>=0)
                (param $xs0 (ref eq)) (result (ref eq))
