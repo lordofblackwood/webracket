@@ -20,7 +20,7 @@
   (number-tower-case id group expr comparison gate? note))
 
 ;; number-tower-cases : (listof number-tower-case?)
-;;   Initial Milestone 0 cases, with current known gaps recorded as non-gates.
+;;   Number tower oracle cases, with current known gaps recorded as non-gates.
 (define number-tower-cases
   (list
    (nt-case 'oracle-fixnum-add
@@ -36,35 +36,81 @@
    (nt-case 'fixnum-upper-bound
             'integer-representation
             536870911
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
             #:note "Largest current WebRacket signed 30-bit fixnum.")
    (nt-case 'fixnum-lower-bound
             'integer-representation
             -536870912
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
             #:note "Smallest current WebRacket signed 30-bit fixnum.")
    (nt-case 'above-fixnum-upper-bound
             'integer-representation
             536870912
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
             #:note "First positive exact integer that needs bignum support.")
    (nt-case 'below-fixnum-lower-bound
             'integer-representation
             -536870913
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
             #:note "First negative exact integer that needs bignum support.")
    (nt-case 'two-to-32
             'integer-representation
             4294967296
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
             #:note "Exact integer around the 32-bit limb boundary.")
    (nt-case 'two-to-53
             'integer-representation
             9007199254740992
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
             #:note "Exact integer at the f64 integer precision boundary.")
    (nt-case 'two-to-53-plus-one
             'integer-representation
             9007199254740993
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
             #:note "Exact integer just past the f64 integer precision boundary.")
    (nt-case 'two-to-64
             'integer-representation
             18446744073709551616
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
             #:note "Exact integer around a two-limb unsigned boundary.")
+   (nt-case 'two-to-32-binary-string
+            'integer-representation
+            '(number->string 4294967296 2)
+            #:gate? #t
+            #:note "Bignum number->string must support radix 2.")
+   (nt-case 'two-to-32-hex-string
+            'integer-representation
+            '(number->string 4294967296 16)
+            #:gate? #t
+            #:note "Bignum number->string must support radix 16.")
+   (nt-case 'negative-bignum-octal-string
+            'integer-representation
+            '(number->string -536870913 8)
+            #:gate? #t
+            #:note "Bignum number->string must support radix 8 and signs.")
+   (nt-case 'bignum-eqv-same-value
+            'integer-representation
+            '(eqv? 9007199254740993 9007199254740993)
+            #:gate? #t
+            #:note "Bignum eqv? compares canonical limb values.")
+   (nt-case 'bignum-eqv-different-value
+            'integer-representation
+            '(eqv? 9007199254740993 9007199254740992)
+            #:gate? #t
+            #:note "Bignum eqv? distinguishes neighboring limb values.")
+   (nt-case 'bignum-equal-same-value
+            'integer-representation
+            '(equal? 9007199254740993 9007199254740993)
+            #:gate? #t
+            #:note "Bignum equal? falls through to value-based eqv?.")
    (nt-case 'two-fourths
             'rational-representation
             2/4

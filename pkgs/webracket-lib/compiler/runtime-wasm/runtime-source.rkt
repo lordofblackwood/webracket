@@ -33,6 +33,7 @@
 (define-runtime-path runtime-source-path "runtime-source.rkt")
 (define-runtime-path shared-types-path "shared-types.rkt")
 (define-runtime-path core-booleans-path "core/booleans.rkt")
+(define-runtime-path core-bignums-path "core/bignums.rkt")
 (define-runtime-path core-boxes-path "core/boxes.rkt")
 (define-runtime-path core-bytes-path "core/bytes.rkt")
 (define-runtime-path core-characters-path "core/characters.rkt")
@@ -144,6 +145,7 @@
           runtime-source-path
           shared-types-path
           core-booleans-path
+          core-bignums-path
           core-boxes-path
           core-bytes-path
           core-characters-path

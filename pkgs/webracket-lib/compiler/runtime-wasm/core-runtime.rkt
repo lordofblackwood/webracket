@@ -33,6 +33,7 @@
                   js-host-import-function-names)
          "core/arrays.rkt"
          "core/booleans.rkt"
+         "core/bignums.rkt"
          "core/boxes.rkt"
          "core/bytes.rkt"
          "core/characters.rkt"
@@ -102,6 +103,7 @@
   (append
    array-core-runtime-helpers
    boolean-core-runtime-helpers
+   bignum-core-runtime-helpers
    box-core-runtime-helpers
    bytes-core-runtime-helpers
    character-core-runtime-helpers

@@ -563,15 +563,26 @@
           (type $Number (sub $Heap    ; abstract super type for boxed numbers
                              (struct
                                (field $hash (mut i32)))))
-	          (type $Flonum (sub $Number  ; double precision
-	                             (struct
-	                               (field $hash (mut i32))  ; sigh
-	                               (field $v f64))))
-	          (type $Complex (sub $Number
-	                              (struct
-	                                (field $hash (mut i32))
-	                                (field $real (ref eq))
-	                                (field $imag (ref eq)))))
+          (type $Real (sub $Number
+                           (struct
+                             (field $hash (mut i32)))))
+          ;; Exact integers outside the i31 fixnum range. Limbs are unsigned
+          ;; base-2^32 words in little-endian order, and zero is represented
+          ;; only as the fixnum 0.
+          (type $Bignum (sub $Real
+                             (struct
+                               (field $hash  (mut i32))
+                               (field $sign  i32)
+                               (field $limbs (ref $I32Array)))))
+          (type $Flonum (sub $Real  ; double precision
+                             (struct
+                               (field $hash (mut i32))
+                               (field $v f64))))
+          (type $Complex (sub $Number
+                              (struct
+                                (field $hash (mut i32))
+                                (field $real (ref eq))
+                                (field $imag (ref eq)))))
 
 	          (type $Vector    (sub $Heap
                                 (struct

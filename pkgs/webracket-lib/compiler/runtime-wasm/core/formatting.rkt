@@ -1360,6 +1360,11 @@
                (if (ref.test (ref $Keyword) (local.get $v))
                    (then (return (call $format/display:keyword
                                        (ref.cast (ref $Keyword) (local.get $v))))))
+               ;; --- Case: bignum ---
+               (if (ref.test (ref $Bignum) (local.get $v))
+                   (then (return (call $bignum->string
+                                       (ref.cast (ref $Bignum) (local.get $v))
+                                       (i32.const 10)))))
                ;; --- Case: flonum ---
                (if (ref.test (ref $Flonum) (local.get $v))
                    (then (return (call $format/display:flonum

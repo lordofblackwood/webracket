@@ -125,7 +125,7 @@
      repo-root
      cs-path
      (list "-e" "(write (list (version) (system-type 'vm)))")
-     #:timeout-seconds 10))
+     #:timeout-seconds 30))
   (unless (zero? status)
     (error 'query-number-tower-cs-info
            "could not query Racket executable ~a; status ~a\n~a~a"
@@ -198,7 +198,7 @@
                (cond
                  [(boolean? v) (list 'boolean v)]
                  [(symbol? v) (list 'symbol v)]
-                 [(string? v) (list 'string v)]
+                 [(string? v) (list 'string (string-codepoints v))]
                  [(void? v) (list 'void)]
                  [else (list 'unsupported-value)]))]
             [normalize-number
@@ -336,11 +336,40 @@
                                   'webracket
                                   (list status (string-append stdout stderr)))))
 
+;; record-ignore-fixnum-width : any/c -> any/c
+;;   Mask the implementation-specific fixnum? slot in normalized number records.
+(define (record-ignore-fixnum-width record)
+  (match record
+    [(list 'value v)
+     (list 'value (record-ignore-fixnum-width v))]
+    [(list 'number text number? complex? real? rational? integer?
+           exact-integer? exact? inexact? _fixnum? real-category parts)
+     (list 'number
+           text
+           number?
+           complex?
+           real?
+           rational?
+           integer?
+           exact-integer?
+           exact?
+           inexact?
+           'implementation-specific
+           real-category
+           (map record-ignore-fixnum-width parts))]
+    [(? list? xs)
+     (map record-ignore-fixnum-width xs)]
+    [_
+     record]))
+
 ;; records-match? : symbol? any/c any/c -> boolean?
 ;;   Compare two normalized records according to the case comparison mode.
 (define (records-match? comparison cs-record wr-record)
   (case comparison
     [(exact) (equal? cs-record wr-record)]
+    [(ignore-fixnum-width)
+     (equal? (record-ignore-fixnum-width cs-record)
+             (record-ignore-fixnum-width wr-record))]
     [else
      (error 'records-match?
             "unsupported comparison mode: ~s"

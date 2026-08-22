@@ -2308,6 +2308,10 @@
             (local $hr   i32)
             (local $hi   i32)
 
+            (if (ref.test (ref $Bignum) (local.get $v))
+                (then (return (call $bignum-hash/i32
+                                    (ref.cast (ref $Bignum) (local.get $v))))))
+
             (if (result i32)
                 (ref.test (ref i31) (local.get $v))
                 (then
@@ -2408,6 +2412,8 @@
 
             (if (ref.test (ref i31) (local.get $v))
                 (then (return (call $eqv-hash/i32 (local.get $v)))))
+            (if (ref.test (ref $Bignum) (local.get $v))
+                (then (return (call $eqv-hash/i32 (local.get $v)))))
             (if (ref.test (ref $Flonum) (local.get $v))
                 (then (return (call $eqv-hash/i32 (local.get $v)))))
             (if (ref.test (ref $Complex) (local.get $v))
@@ -2455,6 +2461,8 @@
 
             ;; immediates and numbers fall back to eqv-hash
             (if (ref.test (ref i31) (local.get $v))
+                (then (return (call $eqv-hash/i32 (local.get $v)))))
+            (if (ref.test (ref $Bignum) (local.get $v))
                 (then (return (call $eqv-hash/i32 (local.get $v)))))
             (if (ref.test (ref $Flonum) (local.get $v))
                 (then (return (call $eqv-hash/i32 (local.get $v)))))

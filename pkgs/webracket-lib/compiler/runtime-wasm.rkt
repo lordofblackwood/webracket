@@ -98,6 +98,8 @@
                   array-runtime-helper-forms)
          (only-in "runtime-wasm/core/booleans.rkt"
                   boolean-runtime-helper-forms)
+         (only-in "runtime-wasm/core/bignums.rkt"
+                  bignum-core-runtime-helper-forms)
          (only-in "runtime-wasm/core/boxes.rkt"
                   box-runtime-helper-forms
                   box-mutability-runtime-helper-forms)
@@ -1096,6 +1098,9 @@
          ;;;
          ;;;  4.1 Equality
          ;;;
+
+         ;;   Bignum helpers are implemented in runtime-wasm/core/bignums.rkt.
+         ,@(bignum-core-runtime-helper-forms core-runtime-helper-index)
 
          ;;   Implemented in runtime-wasm/core/equality.rkt.
          ,@(equality-core-runtime-helper-forms core-runtime-helper-index)

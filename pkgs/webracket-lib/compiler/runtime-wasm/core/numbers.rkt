@@ -293,12 +293,9 @@
                              (then (global.get $true))
                              (else (global.get $false))))
 	                   (else (if (result (ref eq))
-	                             (ref.test (ref $Flonum) (local.get $v))
+	                             (ref.test (ref $Number) (local.get $v))
 	                             (then (global.get $true))
-	                             (else (if (result (ref eq))
-	                                     (ref.test (ref $Complex) (local.get $v))
-	                                     (then (global.get $true))
-	                                     (else (global.get $false))))))))
+	                             (else (global.get $false))))))
 
          ;; complex? : any/c -> boolean?
          ;;   Racket defines complex? as number?. WebRacket currently has
@@ -321,7 +318,7 @@
                             (then (global.get $true))
                             (else (global.get $false))))
                   (else (if (result (ref eq))
-                            (ref.test (ref $Flonum) (local.get $v))
+                            (ref.test (ref $Real) (local.get $v))
                             (then (global.get $true))
                             (else (global.get $false))))))
 
@@ -339,6 +336,8 @@
                                           (i32.const ,fixnum-mask)))
                         (then (return (global.get $true)))
                         (else (return (global.get $false))))))
+               (if (ref.test (ref $Bignum) (local.get $v))
+                   (then (return (global.get $true))))
                (if (ref.test (ref $Flonum) (local.get $v))
                    (then
                     (local.set $f64v
@@ -366,7 +365,10 @@
                              (i32.eqz (i32.and (local.get $bits) (i32.const 1)))
                              (then (global.get $true))
                              (else (global.get $false))))
-                   (else (global.get $false))))
+                   (else (if (result (ref eq))
+                             (ref.test (ref $Bignum) (local.get $z))
+                             (then (global.get $true))
+                             (else (global.get $false))))))
 
          (func $inexact? (type $Prim1)
                ;; A number is inexact if it's a flonum
@@ -430,7 +432,10 @@
                              (i32.eqz (i32.and (local.get $bits) (i32.const 1)))
                              (then (global.get $true))
                              (else (global.get $false))))
-                   (else (global.get $false))))
+                   (else (if (result (ref eq))
+                             (ref.test (ref $Bignum) (local.get $v))
+                             (then (global.get $true))
+                             (else (global.get $false))))))
 
          (func $exact-nonnegative-integer? (type $Prim1)
                (param $v (ref eq))
@@ -450,7 +455,16 @@
                              (else (return (global.get $false))))))
                     (return (global.get $false))))
 
-               ;; Not a fixnum
+               ;; Bignums are canonical and zero is never represented as a bignum.
+               (if (ref.test (ref $Bignum) (local.get $v))
+                   (then
+                    (if (i32.gt_s (struct.get $Bignum $sign
+                                              (ref.cast (ref $Bignum) (local.get $v)))
+                                  (i32.const 0))
+                        (then (return (global.get $true)))
+                        (else (return (global.get $false))))))
+
+               ;; Not an exact integer
                (return (global.get $false)))
 
          (func $exact-positive-integer? (type $Prim1)
@@ -472,7 +486,16 @@
                              (else (return (global.get $false))))))
                     ;; LSB ≠ 0 → not an exact integer
                     (return (global.get $false))))
-               ;; Not a fixnum → not an exact integer
+               ;; Bignums are canonical and zero is never represented as a bignum.
+               (if (ref.test (ref $Bignum) (local.get $v))
+                   (then
+                    (if (i32.gt_s (struct.get $Bignum $sign
+                                              (ref.cast (ref $Bignum) (local.get $v)))
+                                  (i32.const 0))
+                        (then (return (global.get $true)))
+                        (else (return (global.get $false))))))
+
+               ;; Not a positive exact integer
                (return (global.get $false)))
 
 
@@ -617,6 +640,9 @@
                     (if (f64.eq (struct.get $Flonum $v (local.get $x/fl)) (f64.const 0.0))
                         (then (return (global.get $true)))
                         (else (return (global.get $false))))))
+               ;; Canonical bignums never represent zero.
+               (if (ref.test (ref $Bignum) (local.get $x))
+                   (then (return (global.get $false))))
                ;; Not a number
                (call $raise-expected-number/who
                      (global.get $symbol:zero?)
@@ -977,6 +1003,7 @@
 
                (local $x/fx i32)
                (local $x/fl (ref $Flonum))
+               (local $x/bn (ref $Bignum))
 
                ;; If x is a fixnum, check if it's > 0
                (if (ref.test (ref i31) (local.get $x))
@@ -1000,6 +1027,15 @@
                         (then (return (global.get $true)))
                         (else (return (global.get $false))))))
 
+               ;; If x is a bignum, its sign field determines positivity.
+               (if (ref.test (ref $Bignum) (local.get $x))
+                   (then
+                    (local.set $x/bn (ref.cast (ref $Bignum) (local.get $x)))
+                    (if (i32.gt_s (struct.get $Bignum $sign (local.get $x/bn))
+                                  (i32.const 0))
+                        (then (return (global.get $true)))
+                        (else (return (global.get $false))))))
+
                ;; Not a number
                (call $raise-expected-real
                      (global.get $symbol:positive?)
@@ -1012,6 +1048,7 @@
 
                (local $x/fx i32)
                (local $x/fl (ref $Flonum))
+               (local $x/bn (ref $Bignum))
 
                ;; If x is a fixnum, check if it's < 0
                (if (ref.test (ref i31) (local.get $x))
@@ -1034,6 +1071,15 @@
                         (then (return (global.get $true)))
                         (else (return (global.get $false))))))
 
+               ;; If x is a bignum, its sign field determines negativity.
+               (if (ref.test (ref $Bignum) (local.get $x))
+                   (then
+                    (local.set $x/bn (ref.cast (ref $Bignum) (local.get $x)))
+                    (if (i32.lt_s (struct.get $Bignum $sign (local.get $x/bn))
+                                  (i32.const 0))
+                        (then (return (global.get $true)))
+                        (else (return (global.get $false))))))
+
                ;; Not a number
                (call $raise-expected-real
                      (global.get $symbol:negative?)
@@ -1045,6 +1091,7 @@
                (result (ref eq))
 
                (local $bits i32)
+               (local $bn (ref $Bignum))
                (local $fl (ref $Flonum))
                (local $f64 f64)
                (local $i32 i32)
@@ -1062,6 +1109,19 @@
                         (else (call $raise-expected-integer
                                     (global.get $symbol:even?)
                                     (local.get $n)) (unreachable)))))
+
+               ;; Bignum case: use the least significant limb.
+               (if (ref.test (ref $Bignum) (local.get $n))
+                   (then
+                    (local.set $bn (ref.cast (ref $Bignum) (local.get $n)))
+                    (if (i32.eqz
+                         (i32.and
+                          (array.get $I32Array
+                                     (struct.get $Bignum $limbs (local.get $bn))
+                                     (i32.const 0))
+                          (i32.const 1)))
+                        (then (return (global.get $true)))
+                        (else (return (global.get $false))))))
 
                ;; Flonum case
                (if (ref.test (ref $Flonum) (local.get $n))
@@ -1141,6 +1201,9 @@
                     (if (f64.eq (f64.floor (local.get $f64v)) (local.get $f64v))
                         (then (return (global.get $true)))
                         (else (return (global.get $false))))))
+               ;; Case 3: bignum
+               (if (ref.test (ref $Bignum) (local.get $v))
+                   (then (return (global.get $true))))
                ;; Not a number
                (return (global.get $false)))
 
@@ -1153,6 +1216,9 @@
 
                ;; Fixnum -> #f
                (if (ref.test (ref i31) (local.get $x))
+                   (then (return (global.get $false))))
+               ;; Bignum -> #f
+               (if (ref.test (ref $Bignum) (local.get $x))
                    (then (return (global.get $false))))
 
                ;; Flonum -> check NaN
@@ -1179,6 +1245,9 @@
 
                ;; Fixnum -> #f
                (if (ref.test (ref i31) (local.get $x))
+                   (then (return (global.get $false))))
+               ;; Bignum -> #f
+               (if (ref.test (ref $Bignum) (local.get $x))
                    (then (return (global.get $false))))
 
                ;; Flonum -> check ±inf
@@ -3435,10 +3504,31 @@
            (local $max   i32)
            (local $i31   (ref i31))
            (local $bits  i32)
+           (local $b     (ref $Bignum))
            (local $c     (ref $Complex))
            ;; Treat missing radix as #f to reuse the existing default-radix path.
            (if (ref.eq (local.get $radix-raw) (global.get $missing))
                (then (local.set $radix-raw (global.get $false))))
+           ;; Exact bignums support the same radix set as fixnums.
+           (if (ref.test (ref $Bignum) (local.get $z))
+               (then
+                (local.set $b (ref.cast (ref $Bignum) (local.get $z)))
+                (if (ref.eq (local.get $radix-raw) (global.get $false))
+                    (then (local.set $radix (i32.const 10)))
+                    (else
+                     (if (i32.eqz (ref.test (ref i31) (local.get $radix-raw)))
+                         (then (call $raise-number->string-bad-radix (local.get $radix-raw))
+                               (unreachable)))
+                     (local.set $i31 (ref.cast (ref i31) (local.get $radix-raw)))
+                     (local.set $bits (i31.get_u (local.get $i31)))
+                     (if (i32.and (local.get $bits) (i32.const 1))
+                         (then (call $raise-number->string-bad-radix (local.get $radix-raw))
+                               (unreachable)))
+                     (local.set $radix (i32.shr_u (local.get $bits) (i32.const 1)))))
+                (if (i32.eqz (call $number->string:check-radix (local.get $radix)))
+                    (then (call $raise-number->string-bad-radix (local.get $radix-raw))
+                          (unreachable)))
+                (return (call $bignum->string (local.get $b) (local.get $radix)))))
            ;; Step 1: Check if $z is a fixnum or flonum
            (if (ref.test (ref i31) (local.get $z))
                (then

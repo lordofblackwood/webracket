@@ -821,8 +821,48 @@
 
 (define (wr-number? v)
   (and (number? v)
-       (or (wr-fixnum? v)
+       (or (exact-integer? v)
            #;(inexact? v))))
+
+(define bignum-base (expt 2 32))
+(define i32-signed-max (- (expt 2 31) 1))
+
+;; integer->u32-limbs : exact-positive-integer? -> (listof exact-nonnegative-integer?)
+;;   Encode n as little-endian unsigned 32-bit limbs.
+(define (integer->u32-limbs n)
+  (let loop ([n n] [limbs '()])
+    (if (zero? n)
+        (reverse limbs)
+        (let-values ([(q r) (quotient/remainder n bignum-base)])
+          (loop q (cons r limbs))))))
+
+;; u32-limb->i32-const-value : exact-nonnegative-integer? -> exact-integer?
+;;   Print unsigned limb bits using the signed i32 literal range.
+(define (u32-limb->i32-const-value limb)
+  (if (> limb i32-signed-max)
+      (- limb bignum-base)
+      limb))
+
+;; bignum-literal->expr : exact-integer? -> AExpr
+;;   Construct a canonical $Bignum literal, collapsing signed fixnums.
+(define (bignum-literal->expr v)
+  (cond
+    [(wr-signed-fixnum? v)
+     (Imm v)]
+    [(not (exact-integer? v))
+     (raise-arguments-error 'webify
+                            "expected an exact integer literal"
+                            "literal" v)]
+    [else
+     (define sign (if (negative? v) -1 1))
+     (define limbs (integer->u32-limbs (abs v)))
+     `(struct.new $Bignum
+                  (i32.const 0)
+                  (i32.const ,sign)
+                  (array.new_fixed $I32Array
+                                   ,(length limbs)
+                                   ,@(for/list ([limb (in-list limbs)])
+                                       `(i32.const ,(u32-limb->i32-const-value limb)))))]))
 
 (define (constant? v)
   (or (wr-number? v)
@@ -4986,11 +5026,14 @@
     ;; normalize-folded-constant-value : any/c -> any/c
     ;;   Normalize folded constants the same way later quotation conversion does.
     (define (normalize-folded-constant-value v)
-      (if (and (number? v)
-               (not (or (wr-fixnum? v)
-                        (flonum? v))))
-          (* 1.0 v)
-          v))
+      (cond
+        [(and (number? v) (exact-integer? v))
+         v]
+        [(and (number? v)
+              (not (or (wr-fixnum? v)
+                       (flonum? v))))
+         (* 1.0 v)]
+        [else v]))
     ;; begin-expressions : LFE Expr -> (listof LFE Expr)
     ;;   Return the flattened expression sequence for a begin-like expression.
     (define (begin-expressions e)
@@ -8325,6 +8368,8 @@
            (if (number? v)
                (cond
                  [(not (real? v))
+                  `(quote ,s ,(datum s v))]
+                 [(exact-integer? v)
                   `(quote ,s ,(datum s v))]
                  [(not (or (wr-signed-fixnum? v) (flonum? v)))
                   `(quote ,s ,(datum s (* 1.0 v)))] ; convert to a flonum
@@ -19257,6 +19302,8 @@
       (cond
         [(wr-signed-fixnum? v)
          (Imm v)]
+        [(exact-integer? v)
+         (bignum-literal->expr v)]
         [(flonum? v)
          (define l (case v
                      [(+nan.0) 'nan] [(-nan.0) '-nan]
@@ -19496,9 +19543,12 @@
                            (cond
 	                             ; We keep these for now, to get a more readable output.
 	                             ; In all likelyhood (Imm '()), (Imm (void)), etc. are better.
-	                             [(and (number? v)
+                             [(and (number? v)
 	                                   (not (real? v)))
 	                              (complex-number-literal->expr v)]
+                             [(and (exact-integer? v)
+                                   (not (wr-signed-fixnum? v)))
+                              (bignum-literal->expr v)]
                              [(and (number? v)
                                    (not (or (wr-signed-fixnum? v)
                                             (flonum? v))))
