@@ -151,6 +151,24 @@
             '(number->string -1/10 16)
             #:gate? #t
             #:note "Rational number->string preserves signs and radix.")
+   (nt-case 'string->number-decimal-bignum
+            'string-number
+            '(string->number "4294967296")
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "string->number parses decimal exact integers beyond the WebRacket fixnum range.")
+   (nt-case 'string->number-negative-bignum
+            'string-number
+            '(string->number "-536870913")
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "string->number preserves signs for parsed bignums.")
+   (nt-case 'string->number-hex-bignum
+            'string-number
+            '(string->number "100000000" 16)
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "string->number parses exact bignums in explicit radices.")
    (nt-case 'rational-add
             'rational-arithmetic
             '(+ 1/3 1/6)

@@ -6056,98 +6056,80 @@
            (param $i     i32)
            (param $radix i32)
            ;; returns:
-           ;;   1. fixnum or #f
+           ;;   1. exact nonnegative integer or #f
            ;;   2. number of parsed characters or 0
            (result       (ref eq) i32)
 
-           (local $arr       (ref $I32Array))
-           (local $len       i32)
-           (local $cp        i32)
-           (local $digit     i32)
-           (local $acc       i32)
-           (local $start     i32)
-           (local $limit-div i32)
-           (local $limit-rem i32)
+           (local $arr   (ref $I32Array))
+           (local $len   i32)
+           (local $cp    i32)
+           (local $digit i32)
+           (local $acc   (ref eq))
+           (local $start i32)
 
            (local.set $arr   (struct.get $String $codepoints (local.get $s)))
            (local.set $len   (call $i32array-length (local.get $arr)))
            (local.set $start (local.get $i))
-           (local.set $acc   (i32.const 0))
+           (local.set $acc   (ref.i31 (i32.const 0)))
 
-           ;; largest non-negative 30-bit fixnum payload
-           ;;   = 2^29 - 1 = 536870911
-           (local.set $limit-div
-                      (i32.div_u (i32.const 536870911) (local.get $radix)))
-           (local.set $limit-rem
-                      (i32.rem_u (i32.const 536870911) (local.get $radix)))
+           (block $done
+                  (loop $loop
+                        (br_if $done
+                               (i32.ge_u (local.get $i) (local.get $len)))
 
-           (block $overflow (result (ref eq) i32)
-                  (block $done
-                         (loop $loop
-                               (br_if $done
-                                      (i32.ge_u (local.get $i) (local.get $len)))
+                        (local.set $cp
+                                   (call $i32array-ref (local.get $arr) (local.get $i)))
 
-                               (local.set $cp
-                                          (call $i32array-ref (local.get $arr) (local.get $i)))
+                        ;; Try '0'..'9'
+                        (local.set $digit
+                                   (i32.sub (local.get $cp) (i32.const 48)))
+                        (if (i32.lt_u (local.get $digit) (i32.const 10))
+                            (then (nop))
+                            (else
+                             ;; Try 'a'..'z'
+                             (local.set $digit
+                                        (i32.sub (local.get $cp) (i32.const 97)))
+                             (if (i32.lt_u (local.get $digit) (i32.const 26))
+                                 (then
+                                  (local.set $digit
+                                             (i32.add (local.get $digit) (i32.const 10))))
+                                 (else
+                                  ;; Try 'A'..'Z'
+                                  (local.set $digit
+                                             (i32.sub (local.get $cp) (i32.const 65)))
+                                  (if (i32.lt_u (local.get $digit) (i32.const 26))
+                                      (then
+                                       (local.set $digit
+                                                  (i32.add (local.get $digit) (i32.const 10))))
+                                      (else
+                                       (br $done)))))))
 
-                               ;; Try '0'..'9'
-                               (local.set $digit
-                                          (i32.sub (local.get $cp) (i32.const 48)))
-                               (if (i32.lt_u (local.get $digit) (i32.const 10))
-                                   (then (nop))
-                                   (else
-                                    ;; Try 'a'..'z'
-                                    (local.set $digit
-                                               (i32.sub (local.get $cp) (i32.const 97)))
-                                    (if (i32.lt_u (local.get $digit) (i32.const 26))
-                                        (then
-                                         (local.set $digit
-                                                    (i32.add (local.get $digit) (i32.const 10))))
-                                        (else
-                                         ;; Try 'A'..'Z'
-                                         (local.set $digit
-                                                    (i32.sub (local.get $cp) (i32.const 65)))
-                                         (if (i32.lt_u (local.get $digit) (i32.const 26))
-                                             (then
-                                              (local.set $digit
-                                                         (i32.add (local.get $digit) (i32.const 10))))
-                                             (else
-                                              (br $done)))))))
+                        (if (i32.ge_u (local.get $digit) (local.get $radix))
+                            (then (br $done))
+                            (else (nop)))
 
-                               (if (i32.ge_u (local.get $digit) (local.get $radix))
-                                   (then (br $done))
-                                   (else (nop)))
+                        (local.set $acc
+                                   (call $integer-add/2
+                                         (call $integer-mul/2
+                                               (local.get $acc)
+                                               (ref.i31
+                                                (i32.shl (local.get $radix)
+                                                         (i32.const 1))))
+                                         (ref.i31
+                                          (i32.shl (local.get $digit)
+                                                   (i32.const 1)))))
+                        (local.set $i
+                                   (i32.add (local.get $i) (i32.const 1)))
+                        (br $loop)))
 
-                               ;; Overflow check for:
-                               ;;   acc * radix + digit <= 536870911
-                               (if (i32.or
-                                    (i32.gt_u (local.get $acc) (local.get $limit-div))
-                                    (i32.and
-                                     (i32.eq (local.get $acc) (local.get $limit-div))
-                                     (i32.gt_u (local.get $digit) (local.get $limit-rem))))
-                                   (then
-                                    (global.get $false)
-                                    (i32.const 0)
-                                    (br $overflow))
-                                   (else (nop)))
-
-                               (local.set $acc
-                                          (i32.add
-                                           (i32.mul (local.get $acc) (local.get $radix))
-                                           (local.get $digit)))
-                               (local.set $i
-                                          (i32.add (local.get $i) (i32.const 1)))
-                               (br $loop)))
-
-                  ;; Normal return
-                  (if (result (ref eq) i32)
-                      (i32.eq (local.get $i) (local.get $start))
-                      (then
-                       (global.get $false)
-                       (i32.const 0))
-                      (else
-                       (ref.i31 (i32.shl (local.get $acc) (i32.const 1)))
-                       (i32.sub (local.get $i) (local.get $start))))))
+           (if (result (ref eq) i32)
+               (i32.eq (local.get $i) (local.get $start))
+               (then
+                (global.get $false)
+                (i32.const 0))
+               (else
+                (local.get $acc)
+                (i32.sub (local.get $i) (local.get $start)))))
 
      (func $string->number (type $Prim15)
            (param $s-raw        (ref eq))
@@ -6264,20 +6246,16 @@
 
            (local.set $i (i32.add (local.get $i) (local.get $n)))
 
-           ;; No fractional part → return fixnum
+           ;; No fractional part -> return exact integer.
            (if (i32.eq (local.get $i) (local.get $len))
                (then
-                (local.set $acc
-                           (i32.shr_u
-                            (i31.get_u (ref.cast (ref i31) (local.get $int)))
-                            (i32.const 1)))
                 (if (local.get $neg)
                     (then
-                     (local.set $acc
-                                (i32.sub (i32.const 0) (local.get $acc))))
-                    (else (nop)))
-                (return
-                 (ref.i31 (i32.shl (local.get $acc) (i32.const 1)))))
+                     (return
+                      (call $integer-sub/2
+                            (ref.i31 (i32.const 0))
+                            (local.get $int))))
+                    (else (return (local.get $int)))))
                (else (nop)))
 
            ;; Must be '.'
@@ -6292,6 +6270,9 @@
                (else (nop)))
 
            ;; Convert integer part
+           (if (i32.eqz (ref.test (ref i31) (local.get $int)))
+               (then (return (global.get $false)))
+               (else (nop)))
            (local.set $acc
                       (i32.shr_u
                        (i31.get_u (ref.cast (ref i31) (local.get $int)))
