@@ -891,7 +891,42 @@
             'integer-bitwise
             '(bitwise-first-bit-set -9007199254740992)
             #:gate? #t
-            #:note "bitwise-first-bit-set handles negative bignums via two's-complement.")))
+            #:note "bitwise-first-bit-set handles negative bignums via two's-complement.")
+   (nt-case 'arithmetic-shift-fixnum-left-to-bignum
+            'integer-bitwise
+            '(arithmetic-shift 1 40)
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "arithmetic-shift promotes left shifts beyond the WebRacket fixnum range.")
+   (nt-case 'arithmetic-shift-negative-fixnum-left-to-bignum
+            'integer-bitwise
+            '(arithmetic-shift -1 40)
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "arithmetic-shift preserves sign when left-shifting negative exact integers.")
+   (nt-case 'arithmetic-shift-bignum-left
+            'integer-bitwise
+            '(arithmetic-shift 9007199254740993 5)
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "arithmetic-shift can left-shift bignum exact integers.")
+   (nt-case 'arithmetic-shift-bignum-right
+            'integer-bitwise
+            '(arithmetic-shift 9007199254740993 -20)
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "arithmetic-shift can right-shift positive bignum exact integers.")
+   (nt-case 'arithmetic-shift-negative-bignum-right
+            'integer-bitwise
+            '(arithmetic-shift -9007199254740993 -20)
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "arithmetic-shift right on negative bignums rounds toward negative infinity.")
+   (nt-case 'arithmetic-shift-negative-bignum-huge-right
+            'integer-bitwise
+            '(arithmetic-shift -9007199254740993 -80)
+            #:gate? #t
+            #:note "arithmetic-shift sign-extends negative exact integers shifted past their length.")))
 
 ;; number-tower-groups : -> (listof symbol?)
 ;;   Return the distinct oracle groups in stable display order.

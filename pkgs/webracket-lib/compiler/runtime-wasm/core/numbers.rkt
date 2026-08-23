@@ -3993,16 +3993,18 @@
                                  (i32.const 1))))
 
 
-        ;; NOTE: Only supports fixnum arguments; bignum shifts are not implemented.
         (func $arithmetic-shift (type $Prim2)
               (param $n (ref eq)) ; exact-integer
               (param $m (ref eq)) ; exact-integer
               (result   (ref eq)) ; exact-integer
 
-              (local $n/fx i32)   ; raw bits of n
               (local $m/fx i32)   ; raw bits of m
-              (local $n/i  i32)   ; unboxed signed n
               (local $m/i  i32)   ; unboxed signed m
+              (local $shift i32)
+              (local $pow   (ref eq))
+              (local $vals  (ref $Values))
+              (local $q     (ref eq))
+              (local $comp  (ref eq))
 
               ;; --- Validate inputs ---
               (if (ref.eq (call $exact-integer? (local.get $n)) (global.get $false))
@@ -4016,22 +4018,64 @@
                               (local.get $m))
                         (unreachable)))
 
-              ;; --- Extract values ---
-              (local.set $n/fx (i31.get_s (ref.cast (ref i31) (local.get $n))))
+              (if (ref.test (ref $Bignum) (local.get $m))
+                  (then
+                   (if (i32.lt_s (call $integer-sign/i32 (local.get $m))
+                                 (i32.const 0))
+                       (then
+                        (if (i32.lt_s (call $integer-sign/i32 (local.get $n))
+                                      (i32.const 0))
+                            (then (return ,(Imm -1)))
+                            (else (return ,(Imm 0))))))
+                   (call $raise-expected-fixnum (local.get $m))
+                   (unreachable)))
+
               (local.set $m/fx (i31.get_s (ref.cast (ref i31) (local.get $m))))
-              (local.set $n/i  (i32.shr_s (local.get $n/fx) (i32.const 1)))
               (local.set $m/i  (i32.shr_s (local.get $m/fx) (i32.const 1)))
 
-              ;; --- Compute ---
-              (if (result (ref eq))
-                  (i32.lt_s (local.get $m/i) (i32.const 0))
-                  (then (ref.i31 (i32.shl (i32.shr_s (local.get $n/i)
-                                             (i32.sub (i32.const 0)
-                                                      (local.get $m/i)))
-                                           (i32.const 1))))
-                  (else (ref.i31 (i32.shl (i32.shl (local.get $n/i)
-                                                  (local.get $m/i))
-                                           (i32.const 1))))))
+              (if (i32.eqz (local.get $m/i))
+                  (then (return (local.get $n))))
+              (if (i32.gt_s (local.get $m/i) (i32.const 0))
+                  (then
+                   (local.set $pow
+                              (call $u64-shl->integer
+                                    (i64.const 1)
+                                    (local.get $m/i)))
+                   (return (call $integer-mul/2
+                                 (local.get $n)
+                                 (local.get $pow)))))
+
+              (local.set $shift (i32.sub (i32.const 0) (local.get $m/i)))
+              (local.set $pow
+                         (call $u64-shl->integer
+                               (i64.const 1)
+                               (local.get $shift)))
+              (if (i32.lt_s (call $integer-sign/i32 (local.get $n))
+                            (i32.const 0))
+                  (then
+                   (local.set $comp
+                              (call $integer-sub/2
+                                    ,(Imm -1)
+                                    (local.get $n)))
+                   (local.set $vals
+                              (call $integer-divmod
+                                    (local.get $comp)
+                                    (local.get $pow)))
+                   (local.set $q
+                              (array.get $Values
+                                         (local.get $vals)
+                                         (i32.const 0)))
+                   (return
+                    (call $integer-sub/2
+                          ,(Imm -1)
+                          (local.get $q)))))
+              (local.set $vals
+                         (call $integer-divmod
+                               (local.get $n)
+                               (local.get $pow)))
+              (array.get $Values
+                         (local.get $vals)
+                         (i32.const 0)))
 
 
         (func $integer-length (type $Prim1)
