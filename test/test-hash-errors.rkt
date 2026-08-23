@@ -646,11 +646,18 @@
        (let ([i (hash 'a 1)]
              [m (make-hash '((a . 1)))])
          (and
+          (equal? (hash-iterate-next i 536870912) #f)
+          (equal? (hash-iterate-next m 536870912) #f)
           (catch-contract/contains?
            (lambda () (hash-iterate-key i 99))
            "hash-iterate-key: no element at index"
            "no element at index"
            "index: 99")
+          (catch-contract/contains?
+           (lambda () (hash-iterate-key i 536870912))
+           "hash-iterate-key: no element at index"
+           "no element at index"
+           "index: 536870912")
           (catch-contract/contains?
            (lambda () (hash-iterate-value i 99))
            "hash-iterate-value: no element at index"
@@ -673,7 +680,14 @@
            (lambda () (hash-iterate-key m 99))
            "hash-iterate-key: no element at index"
            "no element at index"
-           "index: 99"))))
+           "index: 99")
+          (equal? (hash-iterate-key i 536870912 'bad) 'bad)
+          (equal? (hash-iterate-value i 536870912 'bad) 'bad)
+          (equal? (hash-iterate-pair i 536870912 'bad) '(bad . bad))
+          (equal? (call-with-values
+                   (lambda () (hash-iterate-key+value i 536870912 'bad))
+                   cons)
+                  '(bad . bad)))))
  (list "mutable hash iteration position errors preserve who"
        (let ([m (make-hash '((a . 1)))])
          (and
@@ -708,11 +722,17 @@
  (list "mutable hash iteration bad-index errors preserve who"
        (let ([m (make-hash '((a . 1)))])
          (and
+          (equal? (mutable-hash-iterate-next m 536870912) #f)
           (catch-contract/contains?
            (lambda () (mutable-hash-iterate-key m 99))
            "mutable-hash-iterate-key: no element at index"
            "no element at index"
            "index: 99")
+          (catch-contract/contains?
+           (lambda () (mutable-hash-iterate-key m 536870912))
+           "mutable-hash-iterate-key: no element at index"
+           "no element at index"
+           "index: 536870912")
           (catch-contract/contains?
            (lambda () (mutable-hash-iterate-value m 99))
            "mutable-hash-iterate-value: no element at index"
@@ -730,7 +750,14 @@
               cons))
            "mutable-hash-iterate-key+value: no element at index"
            "no element at index"
-           "index: 99"))))
+           "index: 99")
+          (equal? (mutable-hash-iterate-key m 536870912 'bad) 'bad)
+          (equal? (mutable-hash-iterate-value m 536870912 'bad) 'bad)
+          (equal? (mutable-hash-iterate-pair m 536870912 'bad) '(bad . bad))
+          (equal? (call-with-values
+                   (lambda () (mutable-hash-iterate-key+value m 536870912 'bad))
+                   cons)
+                  '(bad . bad)))))
  (list "mutable hash iteration type errors preserve who"
        (and
         (catch-contract/contains?

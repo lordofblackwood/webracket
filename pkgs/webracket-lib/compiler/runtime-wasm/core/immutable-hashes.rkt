@@ -5530,12 +5530,12 @@
                   (then (return (local.get $rest))))
               (global.get $false))
 
-        ;; immutable-hash-iterate-index->entry/public : hash? fixnum [any/c] -> entry-or-bad
+        ;; immutable-hash-iterate-index->entry/public : hash? exact-nonnegative-integer? [any/c] -> entry-or-bad
         ;;   Resolve a public exact-nonnegative integer iterator index for an immutable hash.
         (func $immutable-hash-iterate-index->entry/public
               (param $ht        (ref eq)) ;; immutable hash table
               (param $who       (ref eq)) ;; public iterator accessor name
-              (param $pos       (ref eq)) ;; public fixnum iteration index
+              (param $pos       (ref eq)) ;; public iteration index
               (param $bad-index (ref eq)) ;; optional bad-index value, default = raise
               (result           (ref eq))
               (local $view    (ref $HashEqvImmutable))
@@ -5544,26 +5544,22 @@
               (local $index   i32)
               (local.set $view (call $immutable-hash-as-hasheqv (local.get $ht)))
               ;; Decode and validate position before considering bad-index.
-              (if (ref.test (ref i31) (local.get $pos))
-                  (then (local.set $index
-                                   (i31.get_s (ref.cast (ref i31) (local.get $pos))))
-                        (if (i32.ne (i32.and (local.get $index) (i32.const 1))
-                                    (i32.const 0))
-                            (then (call $raise-exact-nonnegative-integer-expected/who
-                                        (local.get $who)
-                                        (local.get $pos))
-                                  (unreachable)))
-                        (local.set $index
-                                   (i32.shr_s (local.get $index) (i32.const 1))))
-                  (else (call $raise-exact-nonnegative-integer-expected/who
-                              (local.get $who)
-                              (local.get $pos))
-                        (unreachable)))
-              (if (i32.lt_s (local.get $index) (i32.const 0))
+              (if (ref.eq (call $exact-nonnegative-integer? (local.get $pos))
+                          (global.get $false))
                   (then (call $raise-exact-nonnegative-integer-expected/who
                               (local.get $who)
                               (local.get $pos))
                         (unreachable)))
+              (local.set $index
+                         (if (result i32)
+                             (ref.test (ref i31) (local.get $pos))
+                             (then
+                              (call $exact-nonnegative-integer->i32/saturating
+                                    (local.get $pos)))
+                             (else
+                              ;; Bignum positions satisfy the contract, then
+                              ;; fall through to the invalid-index path below.
+                              (i32.const 536870911))))
               (block $bad
                      (if (ref.eq (struct.get $HashEqvImmutable $root (local.get $view))
                                  (global.get $missing))
@@ -5613,32 +5609,26 @@
         ;;   Public immutable hash iterator successor index.
         (func $immutable-hash-iterate-next/public (type $Prim2)
               (param $ht  (ref eq)) ;; immutable hash table
-              (param $pos (ref eq)) ;; public fixnum iteration index
+              (param $pos (ref eq)) ;; public iteration index
               (result     (ref eq))
               (local $view  (ref $HashEqvImmutable))
               (local $index i32)
               (local.set $view (call $immutable-hash-as-hasheqv (local.get $ht)))
               ;; Decode and validate position.
-              (if (ref.test (ref i31) (local.get $pos))
-                  (then (local.set $index
-                                   (i31.get_s (ref.cast (ref i31) (local.get $pos))))
-                        (if (i32.ne (i32.and (local.get $index) (i32.const 1))
-                                    (i32.const 0))
-                            (then (call $raise-exact-nonnegative-integer-expected/who
-                                        (global.get $symbol:hash-iterate-next)
-                                        (local.get $pos))
-                                  (unreachable)))
-                        (local.set $index
-                                   (i32.shr_s (local.get $index) (i32.const 1))))
-                  (else (call $raise-exact-nonnegative-integer-expected/who
-                              (global.get $symbol:hash-iterate-next)
-                              (local.get $pos))
-                        (unreachable)))
-              (if (i32.lt_s (local.get $index) (i32.const 0))
+              (if (ref.eq (call $exact-nonnegative-integer? (local.get $pos))
+                          (global.get $false))
                   (then (call $raise-exact-nonnegative-integer-expected/who
                               (global.get $symbol:hash-iterate-next)
                               (local.get $pos))
                         (unreachable)))
+              (local.set $index
+                         (if (result i32)
+                             (ref.test (ref i31) (local.get $pos))
+                             (then
+                              (call $exact-nonnegative-integer->i32/saturating
+                                    (local.get $pos)))
+                             (else
+                              (i32.const 536870911))))
               (local.set $index (i32.add (local.get $index) (i32.const 1)))
               (if (i32.ge_u (local.get $index)
                             (struct.get $HashEqvImmutable $count (local.get $view)))
@@ -5649,7 +5639,7 @@
         ;;   Public immutable hash iterator key accessor.
         (func $immutable-hash-iterate-key/public (type $Prim23)
               (param $ht        (ref eq)) ;; immutable hash table
-              (param $pos       (ref eq)) ;; public fixnum iteration index
+              (param $pos       (ref eq)) ;; public iteration index
               (param $bad-index (ref eq)) ;; optional bad-index value, default = raise
               (result           (ref eq))
               (local $entry (ref eq))
@@ -5668,7 +5658,7 @@
         ;;   Public immutable hash iterator value accessor.
         (func $immutable-hash-iterate-value/public (type $Prim23)
               (param $ht        (ref eq)) ;; immutable hash table
-              (param $pos       (ref eq)) ;; public fixnum iteration index
+              (param $pos       (ref eq)) ;; public iteration index
               (param $bad-index (ref eq)) ;; optional bad-index value, default = raise
               (result           (ref eq))
               (local $entry (ref eq))
@@ -5687,7 +5677,7 @@
         ;;   Public immutable hash iterator pair accessor.
         (func $immutable-hash-iterate-pair/public (type $Prim23)
               (param $ht        (ref eq)) ;; immutable hash table
-              (param $pos       (ref eq)) ;; public fixnum iteration index
+              (param $pos       (ref eq)) ;; public iteration index
               (param $bad-index (ref eq)) ;; optional bad-index value, default = raise
               (result           (ref eq))
               (local $entry (ref eq))
@@ -5710,7 +5700,7 @@
         ;;   Public immutable hash iterator key/value accessor.
         (func $immutable-hash-iterate-key+value/public (type $Prim23)
               (param $ht        (ref eq)) ;; immutable hash table
-              (param $pos       (ref eq)) ;; public fixnum iteration index
+              (param $pos       (ref eq)) ;; public iteration index
               (param $bad-index (ref eq)) ;; optional bad-index value, default = raise
               (result           (ref eq))
               (local $entry (ref eq))

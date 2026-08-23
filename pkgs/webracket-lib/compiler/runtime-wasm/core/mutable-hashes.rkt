@@ -56,26 +56,22 @@
 ;; hash-iterate-position-validation-forms : datum? symbol? symbol? -> (listof datum?)
 ;;   Generate validation for an exact-nonnegative-integer iterator position.
 (define (hash-iterate-position-validation-forms who-expr pos-local index-local)
-  `((if (ref.test (ref i31) (local.get ,pos-local))
-        (then (local.set ,index-local
-                         (i31.get_s (ref.cast (ref i31) (local.get ,pos-local))))
-              (if (i32.ne (i32.and (local.get ,index-local) (i32.const 1))
-                          (i32.const 0))
-                  (then (call $raise-exact-nonnegative-integer-expected/who
-                              ,who-expr
-                              (local.get ,pos-local))
-                        (unreachable)))
-              (local.set ,index-local
-                         (i32.shr_s (local.get ,index-local) (i32.const 1))))
-        (else (call $raise-exact-nonnegative-integer-expected/who
-                    ,who-expr
-                    (local.get ,pos-local))
-              (unreachable)))
-    (if (i32.lt_s (local.get ,index-local) (i32.const 0))
+  `((if (ref.eq (call $exact-nonnegative-integer? (local.get ,pos-local))
+                (global.get $false))
         (then (call $raise-exact-nonnegative-integer-expected/who
                     ,who-expr
                     (local.get ,pos-local))
-              (unreachable)))))
+              (unreachable)))
+    (local.set ,index-local
+               (if (result i32)
+                   (ref.test (ref i31) (local.get ,pos-local))
+                   (then
+                    (call $exact-nonnegative-integer->i32/saturating
+                          (local.get ,pos-local)))
+                   (else
+                    ;; Use a too-large fixnum slot internally, while preserving
+                    ;; the original bignum in public bad-index diagnostics.
+                    (i32.const 536870911))))))
 
 ;; mutable-hash-constructor-runtime-helper-forms : hasheq? -> (listof datum?)
 ;;   Render mutable hash constructor helpers in runtime assembly order.
