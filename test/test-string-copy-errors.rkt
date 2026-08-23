@@ -14,6 +14,8 @@
                    (string-contains? message needle))
                  needles))))
 
+(define too-large-string-index 536870912)
+
 (list
  (list "string-copy! argument errors are catchable with who"
        (and
@@ -83,6 +85,26 @@
          "not enough room in target string"
          "target length: 1"
          "needed length: 2")))
+ (list "string-copy! bignum range errors are catchable with details"
+       (and
+        (catch-contract/contains?
+         (lambda () (string-copy! (make-string 1 #\_) too-large-string-index "abc"))
+         "string-copy!"
+         "starting index is out of range"
+         "valid range: [0, 1]"
+         "string: \"_\"")
+        (catch-contract/contains?
+         (lambda () (string-copy! (make-string 5 #\_) 0 "abc" too-large-string-index))
+         "string-copy!"
+         "starting index is out of range"
+         "valid range: [0, 3]"
+         "string: \"abc\"")
+        (catch-contract/contains?
+         (lambda () (string-copy! (make-string 5 #\_) 0 "abc" 0 too-large-string-index))
+         "string-copy!"
+         "ending index is out of range"
+         "valid range: [0, 3]"
+         "string: \"abc\"")))
  (list "string-copy! success still works"
        (let ([s (make-string 5 #\_)])
          (string-copy! s 1 "abc" 1 3)

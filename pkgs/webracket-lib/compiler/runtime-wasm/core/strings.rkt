@@ -217,6 +217,7 @@
   '($raise-string-index-out-of-range/who/i32
     $raise-bad-string-index
     $raise-bad-string-index/i32
+    $string-index/i32/who
     $raise-string-length:bad-argument
     $raise-string-index-out-of-bounds/i32))
 
@@ -810,6 +811,26 @@
                      (local.get $i)
                      (i32.sub (local.get $len) (i32.const 1)))
                (unreachable))
+         (func $string-index/i32/who
+               (param $who   (ref eq))
+               (param $i-raw (ref eq))
+               (result i32)
+
+               (local $idx i32)
+
+               (local.set $idx
+                          (call $exact-nonnegative-integer->i32/saturating
+                                (local.get $i-raw)))
+               (if (i32.lt_s (local.get $idx) (i32.const 0))
+                   (then
+                    (call $raise-argument-error1
+                          (local.get $who)
+                          (global.get $string:exact-nonnegative-integer?)
+                          (local.get $i-raw))
+                    (unreachable)))
+               (if (i32.gt_s (local.get $idx) (i32.const 536870911))
+                   (then (return (i32.const 536870911))))
+               (local.get $idx))
          (func $raise-string-length:bad-argument
                (param $x (ref eq))
                (call $raise-argument-error1
@@ -1098,28 +1119,20 @@
                (param $i (ref eq))
                (result (ref eq))
 
-               (local $str     (ref $String))
-               (local $idx-i31 (ref i31))
-               (local $idx     i32)
-               (local $len     i32)
+               (local $str (ref $String))
+               (local $idx i32)
+               (local $len i32)
 
                ;; --- All tests ---
                (if (i32.eqz (ref.test (ref $String) (local.get $s)))
                    (then (call $raise-string-ref:string-expected (local.get $s))))
 
-               (if (i32.eqz (ref.test (ref i31) (local.get $i)))
-                   (then (call $raise-string-ref:index-expected (local.get $i))))
-
-               (local.set $idx-i31 (ref.cast (ref i31) (local.get $i)))
-               (local.set $idx (i31.get_u (local.get $idx-i31)))
-               (if (i32.ne (i32.and (local.get $idx) (i32.const 1)) (i32.const 0))
-                   (then (call $raise-string-ref:index-expected (local.get $i))))
-
                ;; --- All decoding ---
                (local.set $str (ref.cast (ref $String) (local.get $s)))
-               (local.set $idx (i32.shr_s (i31.get_s (local.get $idx-i31)) (i32.const 1)))
-               (if (i32.lt_s (local.get $idx) (i32.const 0))
-                   (then (call $raise-string-ref:index-expected (local.get $i))))
+               (local.set $idx
+                          (call $string-index/i32/who
+                                (global.get $symbol:string-ref)
+                                (local.get $i)))
                (local.set $len (call $string-length/checked/i32 (local.get $str)))
 
                ;; --- Bounds check and delegate ---
@@ -1205,8 +1218,10 @@
                ;; --- Type checks ---
                (if (i32.eqz (ref.test (ref $String) (local.get $s)))
                    (then (call $raise-string-set!:string-expected (local.get $s))))
-               (if (i32.eqz (ref.test (ref i31) (local.get $i)))
-                   (then (call $raise-string-set!:fixnum-expected (local.get $i))))
+               (local.set $idx
+                          (call $string-index/i32/who
+                                (global.get $symbol:string-set!)
+                                (local.get $i)))
                (if (i32.eqz (ref.test (ref i31) (local.get $ch)))
                    (then (call $raise-string-set!:char-expected (local.get $ch))))
                ;; --- Decode ---
@@ -1214,16 +1229,6 @@
                ;; Check for immutability
                (if (i32.eq (struct.get $String $immutable (local.get $str)) (i32.const 1))
                    (then (call $raise-string-set!:string-immutable (local.get $s))))
-               ;; Decode and validate fixnum index
-               (local.set $idx (i31.get_u (ref.cast (ref i31) (local.get $i))))
-               (if (i32.eqz (i32.and (local.get $idx) (i32.const 1)))
-                   (then (local.set $idx
-                                    (i32.shr_s
-                                     (i31.get_s (ref.cast (ref i31) (local.get $i)))
-                                     (i32.const 1))))
-                   (else (call $raise-string-set!:fixnum-expected (local.get $i))))
-               (if (i32.lt_s (local.get $idx) (i32.const 0))
-                   (then (call $raise-string-set!:fixnum-expected (local.get $i))))
                ;; Decode and validate character
                (local.set $tagged (i31.get_u (ref.cast (ref i31) (local.get $ch))))
                (if (i32.ne (i32.and (local.get $tagged) (i32.const ,char-mask)) (i32.const ,char-tag))
@@ -1366,36 +1371,22 @@
                   (then (local.set $str (ref.cast (ref $String) (local.get $s))))
                   (else (call $raise-substring:string-expected (local.get $s))))
               ;; decode and check start index
-              (if (ref.test (ref i31) (local.get $start))
-                  (then (local.set $i32start (i31.get_u (ref.cast (ref i31) (local.get $start))))
-                        (if (i32.ne (i32.and (local.get $i32start) (i32.const 1)) (i32.const 0))
-                            (then (call $raise-substring:index-expected (local.get $start))))
-                        (local.set $i32start
-                                   (i32.shr_s
-                                    (i31.get_s (ref.cast (ref i31) (local.get $start)))
-                                    (i32.const 1))))
-                  (else (call $raise-substring:index-expected (local.get $start))))
-              (if (i32.lt_s (local.get $i32start) (i32.const 0))
-                  (then (call $raise-substring:index-expected (local.get $start))))
+              (local.set $i32start
+                         (call $string-index/i32/who
+                               (global.get $symbol:substring)
+                               (local.get $start)))
               ;; get array and length
               (local.set $arr (struct.get $String $codepoints (local.get $str)))
               (local.set $len (call $i32array-length (local.get $arr)))
               ;; supply default value for the optional end index
               (if (ref.eq (local.get $end) (global.get $missing))
-                  (then (local.set $end
-                                   (ref.i31 (i32.shl (local.get $len) (i32.const 1))))))
-              ;; decode and check end index
-              (if (ref.test (ref i31) (local.get $end))
-                  (then (local.set $i32end (i31.get_u (ref.cast (ref i31) (local.get $end))))
-                        (if (i32.ne (i32.and (local.get $i32end) (i32.const 1)) (i32.const 0))
-                            (then (call $raise-substring:index-expected (local.get $end))))
-                        (local.set $i32end
-                                   (i32.shr_s
-                                    (i31.get_s (ref.cast (ref i31) (local.get $end)))
-                                    (i32.const 1))))
-                  (else (call $raise-substring:index-expected (local.get $end))))
-              (if (i32.lt_s (local.get $i32end) (i32.const 0))
-                  (then (call $raise-substring:index-expected (local.get $end))))
+                  (then (local.set $i32end (local.get $len)))
+                  (else
+                   ;; decode and check end index
+                   (local.set $i32end
+                              (call $string-index/i32/who
+                                    (global.get $symbol:substring)
+                                    (local.get $end)))))
               ;; bounds check: start <= end <= len
               (if (i32.gt_u (local.get $i32start) (local.get $len))
                   (then (call $raise-substring-index-out-of-range
@@ -3447,8 +3438,8 @@
                (param $dst-raw       (ref eq))
                (param $dst-start-raw (ref eq))
                (param $src-raw       (ref eq))
-               (param $src-start-raw (ref eq))   ;; fixnum or $missing
-               (param $src-end-raw   (ref eq))   ;; fixnum or $missing
+               (param $src-start-raw (ref eq))   ;; optional exact nonnegative integer, default = 0
+               (param $src-end-raw   (ref eq))   ;; optional exact nonnegative integer, default = source length
                (result (ref eq))
 
                (local $dst        (ref $String))
@@ -3458,29 +3449,16 @@
                (local $src-end    i32)
                (local $src-len    i32)
                (local $dst-len    i32)
-               (local $bits       i32)
-               ;; --- Type + fixnum checks ---
+               (local $needed     i32)
+               ;; --- Type + index checks ---
                (if (i32.eqz (ref.test (ref $String) (local.get $dst-raw)))
                    (then (call $raise-string-copy!:bad-destination (local.get $dst-raw))
                          (unreachable)))
                (local.set $dst (ref.cast (ref $String) (local.get $dst-raw)))
-               (if (i32.eqz (ref.test (ref i31) (local.get $dst-start-raw)))
-                   (then (call $raise-string-copy!:bad-destination-start (local.get $dst-start-raw))
-                         (unreachable)))
-               (local.set $bits
-                          (i31.get_u
-                           (ref.cast (ref i31) (local.get $dst-start-raw))))
-               (if (i32.ne (i32.and (local.get $bits) (i32.const 1)) (i32.const 0))
-                   (then (call $raise-string-copy!:bad-destination-start (local.get $dst-start-raw))
-                         (unreachable)))
                (local.set $dst-start
-                          (i32.shr_s
-                           (i31.get_s
-                            (ref.cast (ref i31) (local.get $dst-start-raw)))
-                           (i32.const 1)))
-               (if (i32.lt_s (local.get $dst-start) (i32.const 0))
-                   (then (call $raise-string-copy!:bad-destination-start (local.get $dst-start-raw))
-                         (unreachable)))
+                          (call $string-index/i32/who
+                                (global.get $symbol:string-copy!)
+                                (local.get $dst-start-raw)))
 
                (if (i32.eqz (ref.test (ref $String) (local.get $src-raw)))
                    (then (call $raise-string-copy!:bad-source (local.get $src-raw))
@@ -3491,44 +3469,18 @@
                (if (ref.eq (local.get $src-start-raw) (global.get $missing))
                    (then (local.set $src-start (i32.const 0)))
                    (else
-                    (if (i32.eqz (ref.test (ref i31) (local.get $src-start-raw)))
-                        (then (call $raise-string-copy!:bad-source-start (local.get $src-start-raw))
-                              (unreachable)))
-                    (local.set $bits
-                               (i31.get_u
-                                (ref.cast (ref i31) (local.get $src-start-raw))))
-                    (if (i32.ne (i32.and (local.get $bits) (i32.const 1)) (i32.const 0))
-                        (then (call $raise-string-copy!:bad-source-start (local.get $src-start-raw))
-                              (unreachable)))
                     (local.set $src-start
-                               (i32.shr_s
-                                (i31.get_s
-                                 (ref.cast (ref i31) (local.get $src-start-raw)))
-                                (i32.const 1)))
-                    (if (i32.lt_s (local.get $src-start) (i32.const 0))
-                        (then (call $raise-string-copy!:bad-source-start (local.get $src-start-raw))
-                              (unreachable)))))
+                               (call $string-index/i32/who
+                                     (global.get $symbol:string-copy!)
+                                     (local.get $src-start-raw)))))
                ;; src-end optional
                (if (ref.eq (local.get $src-end-raw) (global.get $missing))
                    (then (local.set $src-end (local.get $src-len)))
                    (else
-                    (if (i32.eqz (ref.test (ref i31) (local.get $src-end-raw)))
-                        (then (call $raise-string-copy!:bad-source-end (local.get $src-end-raw))
-                              (unreachable)))
-                    (local.set $bits
-                               (i31.get_u
-                                (ref.cast (ref i31) (local.get $src-end-raw))))
-                    (if (i32.ne (i32.and (local.get $bits) (i32.const 1)) (i32.const 0))
-                        (then (call $raise-string-copy!:bad-source-end (local.get $src-end-raw))
-                              (unreachable)))
                     (local.set $src-end
-                               (i32.shr_s
-                                (i31.get_s
-                                 (ref.cast (ref i31) (local.get $src-end-raw)))
-                                (i32.const 1)))
-                    (if (i32.lt_s (local.get $src-end) (i32.const 0))
-                        (then (call $raise-string-copy!:bad-source-end (local.get $src-end-raw))
-                              (unreachable)))))
+                               (call $string-index/i32/who
+                                     (global.get $symbol:string-copy!)
+                                     (local.get $src-end-raw)))))
                ;; --- Mutability Check ---
                (if (i32.ne (struct.get $String $immutable (local.get $dst)) (i32.const 0))
                    (then (call $raise-immutable-string (local.get $dst))
@@ -3546,16 +3498,16 @@
                                (local.get $src-end)
                                (local.get $src-len))
                          (unreachable)))
-               (if (i32.gt_u
-                    (i32.add (local.get $dst-start)
-                             (i32.sub (local.get $src-end) (local.get $src-start)))
-                    (local.get $dst-len))
+               (local.set $needed
+                          (i32.add (local.get $dst-start)
+                                   (i32.sub (local.get $src-end) (local.get $src-start))))
+               (if (i32.gt_u (local.get $needed) (i32.const 536870911))
+                   (then (local.set $needed (i32.const 536870911))))
+               (if (i32.gt_u (local.get $needed) (local.get $dst-len))
                    (then (call $raise-string-copy!:bad-destination-range
                                (local.get $dst)
                                (local.get $dst-start)
-                               (i32.add
-                                (local.get $dst-start)
-                                (i32.sub (local.get $src-end) (local.get $src-start)))
+                               (local.get $needed)
                                (local.get $dst-len))
                          (unreachable)))
                ;; --- Delegate ---

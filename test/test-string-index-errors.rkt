@@ -14,6 +14,8 @@
                    (string-contains? message needle))
                  needles))))
 
+(define too-large-string-index 536870912)
+
 (list
  (list "string take/drop type errors are catchable with who"
        (and
@@ -79,6 +81,34 @@
         "index: 2"
         "valid range: [0, 0]"
         "string: \"a\""))
+ (list "string bignum index errors are catchable with who"
+       (and
+        (catch-contract/contains?
+         (lambda () (string-ref "abc" too-large-string-index))
+         "string-ref"
+         "index is out of range"
+         "valid range: [0, 2]"
+         "string: \"abc\"")
+        (catch-contract/contains?
+         (lambda ()
+           (let ([s (string #\a)])
+             (string-set! s too-large-string-index #\b)))
+         "string-set!"
+         "index is out of range"
+         "valid range: [0, 0]"
+         "string: \"a\"")
+        (catch-contract/contains?
+         (lambda () (substring "abc" too-large-string-index))
+         "substring"
+         "starting index is out of range"
+         "valid range: [0, 3]"
+         "string: \"abc\"")
+        (catch-contract/contains?
+         (lambda () (substring "abc" 0 too-large-string-index))
+         "substring"
+         "ending index is out of range"
+         "valid range: [0, 3]"
+         "string: \"abc\"")))
  (list "string take/drop out-of-range errors are catchable with who"
        (and
         (catch-contract/contains? (lambda () (string-take "abc" 4))
