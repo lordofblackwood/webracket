@@ -75,6 +75,7 @@
          "core/ports.rkt"
          "core/procedures.rkt"
          "core/random.rkt"
+         "core/rationals.rkt"
          "core/realms.rkt"
          "core/reflection.rkt"
          "core/regexps.rkt"
@@ -144,6 +145,7 @@
    port-core-runtime-helpers
    procedure-core-runtime-helpers
    random-core-runtime-helpers
+   rational-core-runtime-helpers
    reflection-core-runtime-helpers
    regexp-core-runtime-helpers
    security-core-runtime-helpers

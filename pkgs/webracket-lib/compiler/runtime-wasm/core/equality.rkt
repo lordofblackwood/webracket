@@ -105,6 +105,8 @@
 	               (local $fbits2 i64)
 	               (local $b1 (ref $Bignum))
 	               (local $b2 (ref $Bignum))
+	               (local $r1 (ref $Rational))
+	               (local $r2 (ref $Rational))
 	               (local $c1 (ref $Complex))
 	               (local $c2 (ref $Complex))
 	               ;; --- Fast path: ref.eq ---
@@ -117,6 +119,13 @@
                     (local.set $b1 (ref.cast (ref $Bignum) (local.get $v1)))
                     (local.set $b2 (ref.cast (ref $Bignum) (local.get $v2)))
                     (return (call $bignum-eqv? (local.get $b1) (local.get $b2)))))
+               ;; --- Case: both rationals ---
+               (if (i32.and (ref.test (ref $Rational) (local.get $v1))
+                            (ref.test (ref $Rational) (local.get $v2)))
+                   (then
+                    (local.set $r1 (ref.cast (ref $Rational) (local.get $v1)))
+                    (local.set $r2 (ref.cast (ref $Rational) (local.get $v2)))
+                    (return (call $rational-eqv? (local.get $r1) (local.get $r2)))))
                ;; --- Case: both flonums ---
                (if (i32.and (ref.test (ref $Flonum) (local.get $v1))
                             (ref.test (ref $Flonum) (local.get $v2)))

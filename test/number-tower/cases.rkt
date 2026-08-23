@@ -114,11 +114,43 @@
    (nt-case 'two-fourths
             'rational-representation
             2/4
+            #:gate? #t
             #:note "Rational literals must canonicalize to 1/2.")
    (nt-case 'exact-decimal-tenth
             'rational-representation
             #e0.1
+            #:gate? #t
             #:note "Exact decimal syntax must preserve 1/10.")
+   (nt-case 'rational-predicate
+            'rational-representation
+            '(rational? 1/2)
+            #:gate? #t
+            #:note "Exact rational values satisfy rational?.")
+   (nt-case 'rational-exact-predicate
+            'rational-representation
+            '(exact? 1/2)
+            #:gate? #t
+            #:note "Exact rational values satisfy exact?.")
+   (nt-case 'rational-noninteger-predicate
+            'rational-representation
+            '(integer? 1/2)
+            #:gate? #t
+            #:note "Non-integer exact rationals are not integer?.")
+   (nt-case 'rational-eqv-same-value
+            'rational-representation
+            '(eqv? 2/4 1/2)
+            #:gate? #t
+            #:note "Canonical rationals compare by numerator and denominator.")
+   (nt-case 'rational-binary-string
+            'rational-representation
+            '(number->string 1/10 2)
+            #:gate? #t
+            #:note "Rational number->string applies the radix to both parts.")
+   (nt-case 'negative-rational-hex-string
+            'rational-representation
+            '(number->string -1/10 16)
+            #:gate? #t
+            #:note "Rational number->string preserves signs and radix.")
    (nt-case 'rectangular-literal
             'complex-basic
             1+2i

@@ -1365,6 +1365,11 @@
                    (then (return (call $bignum->string
                                        (ref.cast (ref $Bignum) (local.get $v))
                                        (i32.const 10)))))
+               ;; --- Case: rational ---
+               (if (ref.test (ref $Rational) (local.get $v))
+                   (then (return (call $rational->string
+                                       (ref.cast (ref $Rational) (local.get $v))
+                                       (i32.const 10)))))
                ;; --- Case: flonum ---
                (if (ref.test (ref $Flonum) (local.get $v))
                    (then (return (call $format/display:flonum

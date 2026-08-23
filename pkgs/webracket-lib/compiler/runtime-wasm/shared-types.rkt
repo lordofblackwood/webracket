@@ -574,6 +574,13 @@
                                (field $hash  (mut i32))
                                (field $sign  i32)
                                (field $limbs (ref $I32Array)))))
+          ;; Exact non-integer rationals. Numerators and denominators are
+          ;; canonical exact integers; denominators are positive and not 1.
+          (type $Rational (sub $Real
+                               (struct
+                                 (field $hash (mut i32))
+                                 (field $num  (ref eq))
+                                 (field $den  (ref eq)))))
           (type $Flonum (sub $Real  ; double precision
                              (struct
                                (field $hash (mut i32))

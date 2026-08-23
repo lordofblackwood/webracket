@@ -28,6 +28,7 @@
     (exact-nonnegative-integer? "exact-nonnegative-integer?")
     (exact-integer?             "exact-integer?")
     (number->string:radix       "(or/c 2 8 10 16)")
+    (slash                      "/")
     (string->number:radix       "(integer-in 2 16)")
     (real->floating-point-bytes:size "(or/c 4 8)")
     (real->floating-point-bytes:short-dest ": byte string length is shorter than starting position plus size")
@@ -323,10 +324,9 @@
                             (else (global.get $false))))))
 
          (func $rational? (type $Prim1)
-               ;; WebRacket currently has fixnums and flonums as real numeric
-               ;; values. Racket reports finite flonums as rational? but not
-               ;; +inf.0, -inf.0, or +nan.0. Exact rationals and complex
-               ;; rationals can be added when those representations exist.
+               ;; Racket reports finite flonums as rational? but not +inf.0,
+               ;; -inf.0, or +nan.0. WebRacket exact rationals are canonical
+               ;; $Rational values.
                (param $v (ref eq))
                (result (ref eq))
                (local $f64v f64)
@@ -337,6 +337,8 @@
                         (then (return (global.get $true)))
                         (else (return (global.get $false))))))
                (if (ref.test (ref $Bignum) (local.get $v))
+                   (then (return (global.get $true))))
+               (if (ref.test (ref $Rational) (local.get $v))
                    (then (return (global.get $true))))
                (if (ref.test (ref $Flonum) (local.get $v))
                    (then
@@ -353,7 +355,7 @@
                (global.get $false))
 
          (func $exact? (type $Prim1)
-               ;; A number is exact if it's a fixnum: a ref i31 with LSB = 0
+               ;; Exact numbers are fixnums, bignums, and exact rationals.
                (param $z (ref eq))
                (result   (ref eq))
 
@@ -366,7 +368,8 @@
                              (then (global.get $true))
                              (else (global.get $false))))
                    (else (if (result (ref eq))
-                             (ref.test (ref $Bignum) (local.get $z))
+                             (i32.or (ref.test (ref $Bignum) (local.get $z))
+                                     (ref.test (ref $Rational) (local.get $z)))
                              (then (global.get $true))
                              (else (global.get $false))))))
 
@@ -3795,6 +3798,7 @@
            (local $i31   (ref i31))
            (local $bits  i32)
            (local $b     (ref $Bignum))
+           (local $q     (ref $Rational))
            (local $c     (ref $Complex))
            ;; Treat missing radix as #f to reuse the existing default-radix path.
            (if (ref.eq (local.get $radix-raw) (global.get $missing))
@@ -3819,6 +3823,26 @@
                     (then (call $raise-number->string-bad-radix (local.get $radix-raw))
                           (unreachable)))
                 (return (call $bignum->string (local.get $b) (local.get $radix)))))
+           ;; Exact rationals support the same radix set as exact integers.
+           (if (ref.test (ref $Rational) (local.get $z))
+               (then
+                (local.set $q (ref.cast (ref $Rational) (local.get $z)))
+                (if (ref.eq (local.get $radix-raw) (global.get $false))
+                    (then (local.set $radix (i32.const 10)))
+                    (else
+                     (if (i32.eqz (ref.test (ref i31) (local.get $radix-raw)))
+                         (then (call $raise-number->string-bad-radix (local.get $radix-raw))
+                               (unreachable)))
+                     (local.set $i31 (ref.cast (ref i31) (local.get $radix-raw)))
+                     (local.set $bits (i31.get_u (local.get $i31)))
+                     (if (i32.and (local.get $bits) (i32.const 1))
+                         (then (call $raise-number->string-bad-radix (local.get $radix-raw))
+                               (unreachable)))
+                     (local.set $radix (i32.shr_u (local.get $bits) (i32.const 1)))))
+                (if (i32.eqz (call $number->string:check-radix (local.get $radix)))
+                    (then (call $raise-number->string-bad-radix (local.get $radix-raw))
+                          (unreachable)))
+                (return (call $rational->string (local.get $q) (local.get $radix)))))
            ;; Step 1: Check if $z is a fixnum or flonum
            (if (ref.test (ref i31) (local.get $z))
                (then

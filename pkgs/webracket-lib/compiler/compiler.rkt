@@ -822,6 +822,7 @@
 (define (wr-number? v)
   (and (number? v)
        (or (exact-integer? v)
+           (and (rational? v) (exact? v))
            #;(inexact? v))))
 
 (define bignum-base (expt 2 32))
@@ -863,6 +864,21 @@
                                    ,(length limbs)
                                    ,@(for/list ([limb (in-list limbs)])
                                        `(i32.const ,(u32-limb->i32-const-value limb)))))]))
+
+;; rational-literal->expr : exact-rational? -> AExpr
+;;   Construct a canonical exact rational literal, collapsing integers.
+(define (rational-literal->expr v)
+  (cond
+    [(not (and (rational? v) (exact? v)))
+     (raise-arguments-error 'webify
+                            "expected an exact rational literal"
+                            "literal" v)]
+    [(exact-integer? v)
+     (bignum-literal->expr v)]
+    [else
+     `(call $rational-normalize
+            ,(bignum-literal->expr (numerator v))
+            ,(bignum-literal->expr (denominator v)))]))
 
 (define (constant? v)
   (or (wr-number? v)
@@ -5027,7 +5043,9 @@
     ;;   Normalize folded constants the same way later quotation conversion does.
     (define (normalize-folded-constant-value v)
       (cond
-        [(and (number? v) (exact-integer? v))
+        [(and (number? v)
+              (rational? v)
+              (exact? v))
          v]
         [(and (number? v)
               (not (or (wr-fixnum? v)
@@ -8370,6 +8388,8 @@
                  [(not (real? v))
                   `(quote ,s ,(datum s v))]
                  [(exact-integer? v)
+                  `(quote ,s ,(datum s v))]
+                 [(and (rational? v) (exact? v))
                   `(quote ,s ,(datum s v))]
                  [(not (or (wr-signed-fixnum? v) (flonum? v)))
                   `(quote ,s ,(datum s (* 1.0 v)))] ; convert to a flonum
@@ -19304,6 +19324,8 @@
          (Imm v)]
         [(exact-integer? v)
          (bignum-literal->expr v)]
+        [(and (rational? v) (exact? v))
+         (rational-literal->expr v)]
         [(flonum? v)
          (define l (case v
                      [(+nan.0) 'nan] [(-nan.0) '-nan]
@@ -19549,6 +19571,10 @@
                              [(and (exact-integer? v)
                                    (not (wr-signed-fixnum? v)))
                               (bignum-literal->expr v)]
+                             [(and (number? v)
+                                   (rational? v)
+                                   (exact? v))
+                              (rational-literal->expr v)]
                              [(and (number? v)
                                    (not (or (wr-signed-fixnum? v)
                                             (flonum? v))))
