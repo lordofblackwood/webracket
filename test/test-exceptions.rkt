@@ -37,10 +37,52 @@
          (raise-argument-error* 'map 'racket "list?" 0 42 'extra)
          #f))
  (list "error-message->adjusted-string"
-       (string=? (error-message->adjusted-string "add1" 'realm "problem" 'other)
+       (string=? (error-message->adjusted-string 'add1 'realm "problem" 'other)
                  "add1: problem")
        (string=? (error-message->adjusted-string #f 'realm "problem" 'other)
                  "problem"))
+
+ (list "raise-range-error"
+       (let ([n 536870912])
+         (and
+          (with-handlers ([exn:fail:contract?
+                           (lambda (e)
+                             (define message (exn-message e))
+                             (and (string-contains? message "demo")
+                                  (string-contains? message "index")
+                                  (string-contains? message "536870912")
+                                  (string-contains? message "0")
+                                  (string-contains? message "1")))])
+            (raise-range-error 'demo "vector" "" n #(a b) 0 1)
+            #f)
+          (with-handlers ([exn:fail:contract?
+                           (lambda (e)
+                             (define message (exn-message e))
+                             (and (string-contains? message "demo")
+                                  (string-contains? message "ending index")
+                                  (string-contains? message "536870912")
+                                  (string-contains? message "0")
+                                  (string-contains? message "1")))])
+            (raise-range-error* 'demo 'racket "vector" "ending " n #(a b) 0 1)
+            #f)
+          (with-handlers ([exn:fail:contract?
+                           (lambda (e)
+                             (define message (exn-message e))
+                             (and (string-contains? message "demo")
+                                  (string-contains? message "ending index")
+                                  (string-contains? message "starting index")
+                                  (string-contains? message "536870912")
+                                  (string-contains? message "536870914")
+                                  (string-contains? message "536870916")))])
+            (raise-range-error 'demo
+                               "vector"
+                               "ending "
+                               n
+                               #(a b)
+                               (+ n 2)
+                               (+ n 4)
+                               n)
+            #f))))
 
  (list "raise-arguments-error"
        (with-handlers ([exn:fail:contract? (λ (e)

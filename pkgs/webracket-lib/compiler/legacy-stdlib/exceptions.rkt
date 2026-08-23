@@ -141,7 +141,7 @@
     (define (error-message->adjusted-string name name-realm message message-realm)
       ; todo: call an error message adjuster
       (if name
-          (string-append (format "~a" name) ": " message)
+          (string-append (symbol->string name) ": " message)
           message))
 
     (define error-value->string
