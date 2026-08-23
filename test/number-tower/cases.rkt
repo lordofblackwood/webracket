@@ -428,6 +428,46 @@
                     (= r 925925941327160484)))
             #:gate? #t
             #:note "Multi-limb division handles a non-power divisor and remainder.")
+   (nt-case 'bignum-divmod-fixed-random-positive
+            'integer-division
+            '(let ([n 340282366920938463463374607431768211457]
+                   [d 18446744073709551617])
+               (let-values ([(q r) (quotient/remainder n d)])
+                 (and (= q 18446744073709551615)
+                      (= r 2)
+                      (= n (+ (* q d) r)))))
+            #:gate? #t
+            #:note "Fixed random divmod invariant for positive multi-limb operands.")
+   (nt-case 'bignum-divmod-fixed-random-negative-dividend
+            'integer-division
+            '(let ([n -1234567890123456789012345678901234567890]
+                   [d 98765432109876543210987654321])
+               (let-values ([(q r) (quotient/remainder n d)])
+                 (and (= q -12499999886)
+                      (= r -9259259400925925941327160484)
+                      (= n (+ (* q d) r)))))
+            #:gate? #t
+            #:note "Fixed random divmod invariant with a negative dividend.")
+   (nt-case 'bignum-divmod-fixed-random-negative-divisor
+            'integer-division
+            '(let ([n 99999999999999999999999999999999999999]
+                   [d -3333333333333333333333333333])
+               (let-values ([(q r) (quotient/remainder n d)])
+                 (and (= q -30000000000)
+                      (= r 9999999999)
+                      (= n (+ (* q d) r)))))
+            #:gate? #t
+            #:note "Fixed random divmod invariant with a negative divisor.")
+   (nt-case 'bignum-divmod-fixed-random-both-negative
+            'integer-division
+            '(let ([n -340282366920938463463374607431768211455]
+                   [d -18446744073709551615])
+               (let-values ([(q r) (quotient/remainder n d)])
+                 (and (= q 18446744073709551617)
+                      (= r 0)
+                      (= n (+ (* q d) r)))))
+            #:gate? #t
+            #:note "Fixed random divmod invariant with both operands negative.")
    (nt-case 'bignum-quotient-equal-multi-limb
             'integer-division
             '(quotient 18446744073709551616 18446744073709551616)
