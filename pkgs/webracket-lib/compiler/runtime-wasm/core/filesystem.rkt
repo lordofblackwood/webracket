@@ -2414,11 +2414,10 @@
                                          (local.get $mode-raw))
                                    (unreachable)))
                          (local.set $mode
-                                    (i32.shr_s
-                                     (i31.get_s
-                                      (ref.cast (ref i31) (local.get $mode-raw)))
-                                     (i32.const 1)))
-                         (if (i32.gt_u (local.get $mode) (i32.const 65535))
+                                    (call $exact-nonnegative-integer->i32/saturating
+                                          (local.get $mode-raw)))
+                         (if (i32.or (i32.lt_s (local.get $mode) (i32.const 0))
+                                     (i32.gt_u (local.get $mode) (i32.const 65535)))
                              (then (call $raise-argument-error1
                                          (global.get $symbol:file-or-directory-permissions)
                                          (global.get $string:permissions-mode)

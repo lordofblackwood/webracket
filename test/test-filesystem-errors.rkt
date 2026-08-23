@@ -39,6 +39,13 @@
         "webracket-vfs-write-file"
         "file content is too large"
         "/tmp/too-large"))
+ (list "permissions mode bignum errors are catchable"
+       (let ([_ (webracket-vfs-write-file "/app/perms-bignum.txt" #"x")])
+         (catch-fail/contains?
+          (lambda () (file-or-directory-permissions "/app/perms-bignum.txt" 536870912))
+          "file-or-directory-permissions"
+          "(or/c #f 'bits (integer-in 0 65535))"
+          "given: 536870912")))
  (list "read-side VFS failures report who and path"
        (and
         (catch-fail/contains?
