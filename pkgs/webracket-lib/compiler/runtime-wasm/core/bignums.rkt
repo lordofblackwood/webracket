@@ -761,6 +761,216 @@
                  (ref.cast (ref $Bignum) (local.get $x))
                  (ref.cast (ref $Bignum) (local.get $y))))
 
+     ;; $u64-shl->integer : i64 i32 -> exact-integer?
+     ;;   Build a canonical positive exact integer from an unsigned 64-bit
+     ;;   mantissa shifted left by a nonnegative bit count.
+     (func $u64-shl->integer
+           (param $m i64)
+           (param $shift i32)
+           (result (ref eq))
+
+           (local $low        i32)
+           (local $high       i32)
+           (local $word-shift i32)
+           (local $bit-shift  i32)
+           (local $out        (ref $I32Array))
+           (local $pos        i32)
+           (local $acc        i64)
+           (local $carry      i64)
+
+           (if (i64.eqz (local.get $m))
+               (then (return (ref.i31 (i32.const 0)))))
+
+           (local.set $low  (i32.wrap_i64 (local.get $m)))
+           (local.set $high (i32.wrap_i64
+                             (i64.shr_u (local.get $m) (i64.const 32))))
+           (local.set $word-shift
+                      (i32.div_u (local.get $shift) (i32.const 32)))
+           (local.set $bit-shift
+                      (i32.rem_u (local.get $shift) (i32.const 32)))
+           (local.set $out
+                      (array.new_default
+                       $I32Array
+                       (i32.add (local.get $word-shift) (i32.const 3))))
+
+           (local.set $pos (local.get $word-shift))
+           (local.set $acc
+                      (i64.shl
+                       (i64.extend_i32_u (local.get $low))
+                       (i64.extend_i32_u (local.get $bit-shift))))
+           (array.set $I32Array
+                      (local.get $out)
+                      (local.get $pos)
+                      (i32.wrap_i64 (local.get $acc)))
+           (local.set $carry
+                      (i64.shr_u (local.get $acc) (i64.const 32)))
+
+           (local.set $pos (i32.add (local.get $pos) (i32.const 1)))
+           (if (i32.eqz (local.get $high))
+               (then
+                (array.set $I32Array
+                           (local.get $out)
+                           (local.get $pos)
+                           (i32.wrap_i64 (local.get $carry))))
+               (else
+                (local.set $acc
+                           (i64.add
+                            (i64.shl
+                             (i64.extend_i32_u (local.get $high))
+                             (i64.extend_i32_u (local.get $bit-shift)))
+                            (local.get $carry)))
+                (array.set $I32Array
+                           (local.get $out)
+                           (local.get $pos)
+                           (i32.wrap_i64 (local.get $acc)))
+                (array.set $I32Array
+                           (local.get $out)
+                           (i32.add (local.get $pos) (i32.const 1))
+                           (i32.wrap_i64
+                            (i64.shr_u (local.get $acc) (i64.const 32))))))
+           (call $bignum-normalize (i32.const 1) (local.get $out)))
+
+     ;; $integer-flonum-abs-compare/i32 : exact-integer? f64 -> integer?
+     ;;   Compare |x| against the exact positive finite f64 value, returning
+     ;;   -1, 0, or 1.
+     (func $integer-flonum-abs-compare/i32
+           (param $x (ref eq))
+           (param $y f64)
+           (result i32)
+
+           (local $bits      i64)
+           (local $exp       i32)
+           (local $shift     i32)
+           (local $d         i32)
+           (local $mantissa  i64)
+           (local $floor     (ref eq))
+           (local $cmp       i32)
+           (local $frac-mask i64)
+
+           (if (f64.lt (local.get $y) (f64.const 1.0))
+               (then (return (i32.const 1))))
+
+           (local.set $bits (i64.reinterpret_f64 (local.get $y)))
+           (local.set $exp
+                      (i32.wrap_i64
+                       (i64.and
+                        (i64.shr_u (local.get $bits) (i64.const 52))
+                        (i64.const 2047))))
+           (if (i32.eqz (local.get $exp))
+               (then (return (i32.const 1))))
+           (local.set $mantissa
+                      (i64.or
+                       (i64.and (local.get $bits)
+                                (i64.const 4503599627370495))
+                       (i64.const 4503599627370496)))
+           (local.set $shift
+                      (i32.sub (local.get $exp) (i32.const 1075)))
+
+           (if (i32.ge_s (local.get $shift) (i32.const 0))
+               (then
+                (return
+                 (call $integer-compare/i32
+                       (call $integer-abs (local.get $x))
+                       (call $u64-shl->integer
+                             (local.get $mantissa)
+                             (local.get $shift))))))
+
+           (local.set $d (i32.sub (i32.const 0) (local.get $shift)))
+           (local.set $floor
+                      (call $integer-from-i64
+                            (i64.shr_u
+                             (local.get $mantissa)
+                             (i64.extend_i32_u (local.get $d)))))
+           (local.set $cmp
+                      (call $integer-compare/i32
+                            (call $integer-abs (local.get $x))
+                            (local.get $floor)))
+           (if (i32.ne (local.get $cmp) (i32.const 0))
+               (then (return (local.get $cmp))))
+           (local.set $frac-mask
+                      (i64.sub
+                       (i64.shl (i64.const 1)
+                                (i64.extend_i32_u (local.get $d)))
+                       (i64.const 1)))
+           (if (result i32)
+               (i64.eqz
+                (i64.and (local.get $mantissa) (local.get $frac-mask)))
+               (then (i32.const 0))
+               (else (i32.const -1))))
+
+     ;; $integer-flonum-compare/i32 : exact-integer? flonum? -> integer?
+     ;;   Compare an exact integer against a flonum's exact binary value.
+     ;;   Returns 2 for unordered NaN comparisons.
+     (func $integer-flonum-compare/i32
+           (param $x (ref eq))
+           (param $y/fl (ref $Flonum))
+           (result i32)
+
+           (local $y f64)
+           (local $xv i32)
+           (local $x-sign i32)
+           (local $y-sign i32)
+           (local $cmp i32)
+
+           (local.set $y (struct.get $Flonum $v (local.get $y/fl)))
+           (if (f64.ne (local.get $y) (local.get $y))
+               (then (return (i32.const 2))))
+           (if (f64.eq (local.get $y) (f64.const +inf))
+               (then (return (i32.const -1))))
+           (if (f64.eq (local.get $y) (f64.const -inf))
+               (then (return (i32.const 1))))
+           (if (f64.eq (local.get $y) (f64.const 0.0))
+               (then
+                (return
+                 (call $integer-compare/i32
+                       (local.get $x)
+                       (ref.i31 (i32.const 0))))))
+
+           (if (ref.test (ref i31) (local.get $x))
+               (then
+                (local.set $xv
+                           (i32.shr_s
+                            (i31.get_s (ref.cast (ref i31) (local.get $x)))
+                            (i32.const 1)))
+                (if (i32.eqz (local.get $xv))
+                    (then (local.set $x-sign (i32.const 0)))
+                    (else
+                     (local.set $x-sign
+                                (select (i32.const 1)
+                                        (i32.const -1)
+                                        (i32.gt_s (local.get $xv) (i32.const 0)))))))
+               (else
+                (local.set $x-sign
+                           (struct.get $Bignum $sign
+                                       (ref.cast (ref $Bignum)
+                                                 (local.get $x))))))
+           (local.set $y-sign
+                      (select (i32.const 1)
+                              (i32.const -1)
+                              (f64.gt (local.get $y) (f64.const 0.0))))
+           (if (i32.eqz (local.get $x-sign))
+               (then
+                (return
+                 (select (i32.const -1)
+                         (i32.const 1)
+                         (i32.gt_s (local.get $y-sign) (i32.const 0))))))
+           (if (i32.ne (local.get $x-sign) (local.get $y-sign))
+               (then
+                (return
+                 (select (i32.const 1)
+                         (i32.const -1)
+                         (i32.gt_s (local.get $x-sign)
+                                   (local.get $y-sign))))))
+
+           (local.set $cmp
+                      (call $integer-flonum-abs-compare/i32
+                            (local.get $x)
+                            (f64.abs (local.get $y))))
+           (if (result i32)
+               (i32.gt_s (local.get $x-sign) (i32.const 0))
+               (then (local.get $cmp))
+               (else (i32.sub (i32.const 0) (local.get $cmp)))))
+
      ;; $integer-negate : exact-integer? -> exact-integer?
      ;;   Return the additive inverse, promoting the most-negative fixnum.
      (func $integer-negate

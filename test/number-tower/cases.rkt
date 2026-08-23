@@ -268,7 +268,83 @@
             'integer-ordering
             '(< -9007199254740993 -536870913 0 536870912 9007199254740993)
             #:gate? #t
-            #:note "Variadic < threads exact fixnum and bignum comparisons.")))
+            #:note "Variadic < threads exact fixnum and bignum comparisons.")
+   (nt-case 'mixed-exact-flonum-equal-rounded-down
+            'integer-ordering
+            '(= 9007199254740993 9007199254740992.0)
+            #:gate? #t
+            #:note "Mixed = compares against the exact f64 value, not a rounded exact integer.")
+   (nt-case 'mixed-exact-flonum-greater-rounded-down
+            'integer-ordering
+            '(> 9007199254740993 9007199254740992.0)
+            #:gate? #t
+            #:note "Mixed > keeps exact integer precision past 2^53.")
+   (nt-case 'mixed-exact-flonum-less-next-f64
+            'integer-ordering
+            '(< 9007199254740993 9007199254740994.0)
+            #:gate? #t
+            #:note "Mixed < compares a bignum with a neighboring finite f64.")
+   (nt-case 'mixed-exact-flonum-equal-two-to-53
+            'integer-ordering
+            '(= 9007199254740992 9007199254740992.0)
+            #:gate? #t
+            #:note "Mixed = recognizes an exactly representable f64 integer.")
+   (nt-case 'mixed-exact-flonum-positive-infinity
+            'integer-ordering
+            '(< 9007199254740993 +inf.0)
+            #:gate? #t
+            #:note "Mixed < orders finite exact integers below +inf.0.")
+   (nt-case 'mixed-exact-flonum-negative-infinity
+            'integer-ordering
+            '(> -9007199254740993 -inf.0)
+            #:gate? #t
+            #:note "Mixed > orders finite exact integers above -inf.0.")
+   (nt-case 'mixed-exact-flonum-nan-unordered
+            'integer-ordering
+            '(< 9007199254740993 +nan.0)
+            #:gate? #t
+            #:note "Mixed comparisons with NaN are unordered and return #f.")
+   (nt-case 'bignum-min-exact-only
+            'integer-ordering
+            '(min 9007199254740993 2)
+            #:gate? #t
+            #:note "Generic min accepts bignum exact integers.")
+   (nt-case 'bignum-max-exact-only
+            'integer-ordering
+            '(max 9007199254740993 2)
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "Generic max can return a bignum exact integer.")
+   (nt-case 'bignum-min-mixed-flonum
+            'integer-ordering
+            '(min 9007199254740993 2.0)
+            #:gate? #t
+            #:note "Generic min accepts mixed bignum/flonum inputs.")
+   (nt-case 'bignum-max-mixed-flonum
+            'integer-ordering
+            '(max 9007199254740993 2.0)
+            #:gate? #t
+            #:note "Generic max returns inexact when a flonum participates.")
+   (nt-case 'mixed-min-signed-zero-tie
+            'integer-ordering
+            '(eqv? (min -0.0 0) 0.0)
+            #:gate? #t
+            #:note "Mixed min preserves the current signed-zero tie behavior.")
+   (nt-case 'mixed-max-signed-zero-tie
+            'integer-ordering
+            '(eqv? (max 0 -0.0) -0.0)
+            #:gate? #t
+            #:note "Mixed max preserves the current signed-zero tie behavior.")
+   (nt-case 'bignum-min-nan
+            'integer-ordering
+            '(eqv? (min +nan.0 9007199254740993) +nan.0)
+            #:gate? #t
+            #:note "Generic min propagates NaN with bignum inputs.")
+   (nt-case 'bignum-max-nan
+            'integer-ordering
+            '(eqv? (max 9007199254740993 +nan.0) +nan.0)
+            #:gate? #t
+            #:note "Generic max propagates NaN with bignum inputs.")))
 
 ;; number-tower-groups : -> (listof symbol?)
 ;;   Return the distinct oracle groups in stable display order.

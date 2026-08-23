@@ -2906,6 +2906,15 @@
                  [(>=) `(i32.ge_s (local.get $cmp/i32) (i32.const 0))]
                  [else (error 'gencmp "unknown comparator: ~a" who)]))
 
+             (define (cmp-result->boolean who)
+               `((if (i32.eq (local.get $cmp/i32) (i32.const 2))
+                     (then (return (global.get $false))))
+                 (return
+                  (if (result (ref eq))
+                      ,(cmp-result-test who)
+                      (then (global.get $true))
+                      (else (global.get $false))))))
+
              (define (gencmp cmp who expected fxcmp flcmp)
                `(func ,cmp
                       (param $x (ref eq))
@@ -2938,21 +2947,47 @@
                                       (call $integer-compare/i32
                                             (local.get $x)
                                             (local.get $y)))
-                           (return
-                            (if (result (ref eq))
-                                ,(cmp-result-test who)
-                                (then (global.get $true))
-                                (else (global.get $false))))))
+                           ,@(cmp-result->boolean who)))
                       ;; --- Check if x is a flonum ---
                       (local.set $x/is-fl (ref.test (ref $Flonum) (local.get $x)))
                       ;; --- Raise if x is not a number ---
-                      (if (i32.eqz (i32.or (local.get $x/is-fx) (local.get $x/is-fl)))
+                      (if (i32.eqz
+                           (i32.or
+                            (i32.or (local.get $x/is-fx) (local.get $x/is-big))
+                            (local.get $x/is-fl)))
                           (then ,@(raise-expected expected who `(local.get $x))))
                       ;; --- Check if y is a flonum ---
                       (local.set $y/is-fl (ref.test (ref $Flonum) (local.get $y)))
                       ;; --- Raise if y is not a number ---
-                      (if (i32.eqz (i32.or (local.get $y/is-fx) (local.get $y/is-fl)))
+                      (if (i32.eqz
+                           (i32.or
+                            (i32.or (local.get $y/is-fx) (local.get $y/is-big))
+                            (local.get $y/is-fl)))
                           (then ,@(raise-expected expected who `(local.get $y))))
+                      ;; --- Exact integer/flonum mixed cases compare exactly. ---
+                      (if (i32.and
+                           (i32.or (local.get $x/is-fx) (local.get $x/is-big))
+                           (local.get $y/is-fl))
+                          (then
+                           (local.set $cmp/i32
+                                      (call $integer-flonum-compare/i32
+                                            (local.get $x)
+                                            (ref.cast (ref $Flonum) (local.get $y))))
+                           ,@(cmp-result->boolean who)))
+                      (if (i32.and
+                           (local.get $x/is-fl)
+                           (i32.or (local.get $y/is-fx) (local.get $y/is-big)))
+                          (then
+                           (local.set $cmp/i32
+                                      (call $integer-flonum-compare/i32
+                                            (local.get $y)
+                                            (ref.cast (ref $Flonum) (local.get $x))))
+                           (if (i32.ne (local.get $cmp/i32) (i32.const 2))
+                               (then
+                                (local.set $cmp/i32
+                                           (i32.sub (i32.const 0)
+                                                    (local.get $cmp/i32)))))
+                           ,@(cmp-result->boolean who)))
                       ;; --- If both are fixnums, use fx< ---
                       (if (i32.and (local.get $x/is-fx) (local.get $y/is-fx))
                           (then (return (call ,fxcmp (local.get $x) (local.get $y)))))
@@ -3061,27 +3096,38 @@
               (define $name/2 (string->symbol (~a "$" name "/2")))
               (define $name   (string->symbol (~a "$" name)))
               (define $who    (symbol-global name))
+              (define exact-x-wins?
+                (case name
+                  [(min) `(i32.lt_s (local.get $cmp/i32) (i32.const 0))]
+                  [(max) `(i32.gt_s (local.get $cmp/i32) (i32.const 0))]
+                  [else (error 'gen-minmax "unknown min/max primitive: ~a" name)]))
+              (define fl-exact-x-wins?
+                (case name
+                  [(min) `(i32.gt_s (local.get $cmp/i32) (i32.const 0))]
+                  [(max) `(i32.lt_s (local.get $cmp/i32) (i32.const 0))]
+                  [else (error 'gen-minmax "unknown min/max primitive: ~a" name)]))
               `((func ,$name/2 (type $Prim2)
                       (param $x (ref eq))
                       (param $y (ref eq))
                       (result   (ref eq))
 
                       (local $x/is-fx i32)
+                      (local $x/is-big i32)
                       (local $x/is-fl i32)
-                      (local $x-fl    (ref $Flonum))
 
                       (local $y/is-fx i32)
+                      (local $y/is-big i32)
                       (local $y/is-fl i32)
-                      (local $y-fl    (ref $Flonum))
-
-                      ; Initialize non-defaultable locals
-                      (local.set $x-fl (ref.cast (ref $Flonum) (global.get $flzero)))
-                      (local.set $y-fl (ref.cast (ref $Flonum) (global.get $flzero)))
+                      (local $cmp/i32 i32)
 
                       ;; Type check $x
                       (local.set $x/is-fx (call $fx?/i32 (local.get $x)))
+                      (local.set $x/is-big (ref.test (ref $Bignum) (local.get $x)))
                       (local.set $x/is-fl (ref.test (ref $Flonum) (local.get $x)))
-                      (if (i32.eqz (i32.or (local.get $x/is-fx) (local.get $x/is-fl)))
+                      (if (i32.eqz
+                           (i32.or
+                            (i32.or (local.get $x/is-fx) (local.get $x/is-big))
+                            (local.get $x/is-fl)))
                           (then (call $raise-expected-real
                                       (global.get ,$who)
                                       (local.get $x))
@@ -3089,8 +3135,12 @@
 
                       ;; Type check $y
                       (local.set $y/is-fx (call $fx?/i32 (local.get $y)))
+                      (local.set $y/is-big (ref.test (ref $Bignum) (local.get $y)))
                       (local.set $y/is-fl (ref.test (ref $Flonum) (local.get $y)))
-                      (if (i32.eqz (i32.or (local.get $y/is-fx) (local.get $y/is-fl)))
+                      (if (i32.eqz
+                           (i32.or
+                            (i32.or (local.get $y/is-fx) (local.get $y/is-big))
+                            (local.get $y/is-fl)))
                           (then (call $raise-expected-real
                                       (global.get ,$who)
                                       (local.get $y))
@@ -3099,16 +3149,66 @@
                       (if (i32.and (local.get $x/is-fx) (local.get $y/is-fx))
                           (then (return (call ,fxop (local.get $x) (local.get $y)))))
 
-                      (if (local.get $x/is-fl)
-                          (then (local.set $x-fl (ref.cast (ref $Flonum) (local.get $x))))
-                          (else (local.set $x-fl (call $fx->fl/precise (local.get $x)))))
-                      (if (local.get $y/is-fl)
-                          (then (local.set $y-fl (ref.cast (ref $Flonum) (local.get $y))))
-                          (else (local.set $y-fl (call $fx->fl/precise (local.get $y)))))
+                      (if (i32.and
+                           (i32.or (local.get $x/is-fx) (local.get $x/is-big))
+                           (i32.or (local.get $y/is-fx) (local.get $y/is-big)))
+                          (then
+                           (local.set $cmp/i32
+                                      (call $integer-compare/i32
+                                            (local.get $x)
+                                            (local.get $y)))
+                           (return
+                            (if (result (ref eq))
+                                ,exact-x-wins?
+                                (then (local.get $x))
+                                (else (local.get $y))))))
 
-                      (call ,flop
-                            (ref.as_non_null (local.get $x-fl))
-                            (ref.as_non_null (local.get $y-fl))))
+                      (if (i32.and (local.get $x/is-fl) (local.get $y/is-fl))
+                          (then
+                           (return
+                            (call ,flop
+                                  (ref.cast (ref $Flonum) (local.get $x))
+                                  (ref.cast (ref $Flonum) (local.get $y))))))
+
+                      (if (i32.and
+                           (i32.or (local.get $x/is-fx) (local.get $x/is-big))
+                           (local.get $y/is-fl))
+                          (then
+                           (local.set $cmp/i32
+                                      (call $integer-flonum-compare/i32
+                                            (local.get $x)
+                                            (ref.cast (ref $Flonum) (local.get $y))))
+                           (if (i32.eq (local.get $cmp/i32) (i32.const 2))
+                               (then (return (local.get $y))))
+                           (return
+                            (if (result (ref eq))
+                                ,exact-x-wins?
+                                (then
+                                 (struct.new $Flonum
+                                             (i32.const 0)
+                                             (call $integer->f64 (local.get $x))))
+                                (else (local.get $y))))))
+
+                      (if (i32.and
+                           (local.get $x/is-fl)
+                           (i32.or (local.get $y/is-fx) (local.get $y/is-big)))
+                          (then
+                           (local.set $cmp/i32
+                                      (call $integer-flonum-compare/i32
+                                            (local.get $y)
+                                            (ref.cast (ref $Flonum) (local.get $x))))
+                           (if (i32.eq (local.get $cmp/i32) (i32.const 2))
+                               (then (return (local.get $x))))
+                           (return
+                            (if (result (ref eq))
+                                ,fl-exact-x-wins?
+                                (then (local.get $x))
+                                (else
+                                 (struct.new $Flonum
+                                             (i32.const 0)
+                                             (call $integer->f64 (local.get $y))))))))
+
+                      (unreachable))
 
                 (func ,$name (type $Prim>=1)
                       (param $x0  (ref eq))
