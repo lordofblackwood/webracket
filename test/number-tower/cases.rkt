@@ -552,6 +552,28 @@
             '(= 1+2i 1+3i)
             #:gate? #t
             #:note "Numeric equality rejects different imaginary components.")
+   (nt-case 'complex-eqv-same
+            'complex-basic
+            '(eqv? 1+2i (make-rectangular 1 2))
+            #:gate? #t
+            #:note "eqv? compares exact complex components.")
+   (nt-case 'complex-equal-predicate-same
+            'complex-basic
+            '(equal? 1+2i (make-rectangular 1 2))
+            #:gate? #t
+            #:note "equal? falls through to component-wise complex equality.")
+   (nt-case 'complex-equal-hash-consistent
+            'complex-basic
+            '(= (equal-hash-code 1+2i)
+                (equal-hash-code (make-rectangular 1 2)))
+            #:gate? #t
+            #:note "equal-hash-code is stable across equal complex values.")
+   (nt-case 'complex-eqv-hash-consistent
+            'complex-basic
+            '(= (eqv-hash-code 1+2i)
+                (eqv-hash-code (make-rectangular 1 2)))
+            #:gate? #t
+            #:note "eqv-hash-code is stable across eqv complex values.")
    (nt-case 'positive-nan
             'real-special-values
             +nan.0
