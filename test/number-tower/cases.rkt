@@ -354,6 +354,31 @@
             '(lcm 9007199254740993/2 3/2)
             #:gate? #t
             #:note "Rational lcm can preserve a bignum numerator.")
+   (nt-case 'rational-sqr
+            'rational-unary
+            '(sqr 1/2)
+            #:gate? #t
+            #:note "sqr accepts exact rationals and preserves exactness.")
+   (nt-case 'rational-abs
+            'rational-unary
+            '(abs -1/2)
+            #:gate? #t
+            #:note "abs accepts exact rationals and returns a nonnegative exact rational.")
+   (nt-case 'rational-sgn-positive
+            'rational-unary
+            '(sgn 1/2)
+            #:gate? #t
+            #:note "sgn accepts positive exact rationals.")
+   (nt-case 'rational-sgn-negative
+            'rational-unary
+            '(sgn -1/2)
+            #:gate? #t
+            #:note "sgn accepts negative exact rationals.")
+   (nt-case 'bignum-sgn-negative
+            'rational-unary
+            '(sgn -9007199254740993)
+            #:gate? #t
+            #:note "sgn accepts bignum exact integers.")
    (nt-case 'rectangular-literal
             'complex-basic
             1+2i

@@ -251,6 +251,7 @@
   (call-with-output-file path
     (lambda (out)
       (display "#lang racket/base\n" out)
+      (display "(require racket/math)\n" out)
       (write `(begin
                 (write ,(cases-expression cases))
                 (newline))

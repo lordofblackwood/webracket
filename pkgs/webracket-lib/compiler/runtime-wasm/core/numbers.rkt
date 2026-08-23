@@ -1958,14 +1958,19 @@
                    (then (return (call $integer-mul/2
                                        (local.get $x)
                                        (local.get $x)))))
-               ;; Case 2: Bignum
-               (if (ref.test (ref $Bignum) (local.get $x))
-                   (then (return (call $integer-mul/2
-                                       (local.get $x)
-                                       (local.get $x)))))
-               ;; Case 3: Flonum
-               (if (ref.test (ref $Flonum) (local.get $x))
-                   (then (return (call $fl* (local.get $x) (local.get $x)))))
+              ;; Case 2: Bignum
+              (if (ref.test (ref $Bignum) (local.get $x))
+                  (then (return (call $integer-mul/2
+                                      (local.get $x)
+                                      (local.get $x)))))
+              ;; Case 3: Rational
+              (if (ref.test (ref $Rational) (local.get $x))
+                  (then (return (call $exact-rational-mul/2
+                                      (local.get $x)
+                                      (local.get $x)))))
+              ;; Case 4: Flonum
+              (if (ref.test (ref $Flonum) (local.get $x))
+                  (then (return (call $fl* (local.get $x) (local.get $x)))))
                ;; Not a number
                (call $raise-expected-number/who
                      (global.get $symbol:sqr)
@@ -2038,6 +2043,10 @@
                 (case kind
                   [(fx-abs) `((return (call $integer-abs (local.get $x))))]
                   [else     `((return (local.get $x)))]))
+              (define rationalstmts
+                (case kind
+                  [(fx-abs) `((return (call $exact-rational-abs (local.get $x))))]
+                  [else     '()]))
               `(func ,(string->symbol (format "$~a" name))
                      (type $Prim1)
                      (param $x (ref eq))
@@ -2062,6 +2071,12 @@
                      (if (ref.test (ref $Bignum) (local.get $x))
                          (then ,@bignumstmts))
 
+                     ;; Rational case
+                     ,@(if (null? rationalstmts)
+                           '()
+                           `((if (ref.test (ref $Rational) (local.get $x))
+                                 (then ,@rationalstmts))))
+
                      ;; Flonum case
                      (if (ref.test (ref $Flonum) (local.get $x))
                          (then
@@ -2084,6 +2099,8 @@
               (local $bits i32)
               (local $fl   (ref $Flonum))
               (local $f64  f64)
+              (local $bn   (ref $Bignum))
+              (local $rat  (ref $Rational))
 
               ;; Fixnum case
               (if (ref.test (ref i31) (local.get $x))
@@ -2101,6 +2118,26 @@
                                    (global.get $symbol:sgn)
                                    (local.get $x))
                              (unreachable)))))
+
+              ;; Bignum case
+              (if (ref.test (ref $Bignum) (local.get $x))
+                  (then
+                   (local.set $bn (ref.cast (ref $Bignum) (local.get $x)))
+                   (if (i32.gt_s (struct.get $Bignum $sign (local.get $bn))
+                                 (i32.const 0))
+                       (then (return ,(Imm 1)))
+                       (else (return ,(Imm -1))))))
+
+              ;; Rational case
+              (if (ref.test (ref $Rational) (local.get $x))
+                  (then
+                   (local.set $rat (ref.cast (ref $Rational) (local.get $x)))
+                   (if (i32.gt_s
+                        (call $integer-sign/i32
+                              (struct.get $Rational $num (local.get $rat)))
+                        (i32.const 0))
+                       (then (return ,(Imm 1)))
+                       (else (return ,(Imm -1))))))
 
               ;; Flonum case
               (if (ref.test (ref $Flonum) (local.get $x))
