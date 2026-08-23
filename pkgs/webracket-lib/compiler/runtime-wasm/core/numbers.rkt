@@ -6142,6 +6142,8 @@
            (local $s        (ref $String))
            (local $radix    i32)
            (local $radix-bits i32)
+           (local $saw-radix-prefix i32)
+           (local $exactness i32)
            (local $arr      (ref $I32Array))
            (local $len      i32)
            (local $i        i32)
@@ -6149,11 +6151,14 @@
            (local $cp       i32)
            (local $int      (ref eq))
            (local $den      (ref eq))
+           (local $frac-int (ref eq))
+           (local $scale-int (ref eq))
            (local $n        i32)
            (local $den-len  i32)
            (local $has-int  i32)
            (local $acc      i32)
            (local $frac     f64)
+           (local $j        i32)
            (local $m        i32)
            (local $res      f64)
 
@@ -6200,38 +6205,91 @@
                (then (return (global.get $false)))
                (else (nop)))
 
-           ;; Source radix prefixes override the optional radix argument.
+           ;; Source prefixes may specify radix and exactness in either order.
            (local.set $i (i32.const 0))
-           (if (i32.ge_u (local.get $len) (i32.const 2))
-               (then
-                (local.set $cp (call $i32array-ref (local.get $arr) (i32.const 0)))
-                (if (i32.eq (local.get $cp) (i32.const 35))
-                    (then
-                     (local.set $cp (call $i32array-ref (local.get $arr) (i32.const 1)))
-                     (if (i32.or
-                          (i32.eq (local.get $cp) (i32.const 98))
-                          (i32.eq (local.get $cp) (i32.const 66)))
-                         (then
-                          (local.set $radix (i32.const 2))
-                          (local.set $i (i32.const 2))))
-                     (if (i32.or
-                          (i32.eq (local.get $cp) (i32.const 111))
-                          (i32.eq (local.get $cp) (i32.const 79)))
-                         (then
-                          (local.set $radix (i32.const 8))
-                          (local.set $i (i32.const 2))))
-                     (if (i32.or
-                          (i32.eq (local.get $cp) (i32.const 100))
-                          (i32.eq (local.get $cp) (i32.const 68)))
-                         (then
-                          (local.set $radix (i32.const 10))
-                          (local.set $i (i32.const 2))))
-                     (if (i32.or
-                          (i32.eq (local.get $cp) (i32.const 120))
-                          (i32.eq (local.get $cp) (i32.const 88)))
-                         (then
-                          (local.set $radix (i32.const 16))
-                          (local.set $i (i32.const 2))))))))
+           (local.set $saw-radix-prefix (i32.const 0))
+           (local.set $exactness (i32.const 0))
+           (block $prefixes-done
+                  (loop $prefixes
+                        (if (i32.ge_u
+                             (i32.add (local.get $i) (i32.const 1))
+                             (local.get $len))
+                            (then (br $prefixes-done)))
+                        (local.set $cp
+                                   (call $i32array-ref
+                                         (local.get $arr)
+                                         (local.get $i)))
+                        (if (i32.ne (local.get $cp) (i32.const 35))
+                            (then (br $prefixes-done)))
+                        (local.set $cp
+                                   (call $i32array-ref
+                                         (local.get $arr)
+                                         (i32.add (local.get $i) (i32.const 1))))
+                        (if (i32.or
+                             (i32.eq (local.get $cp) (i32.const 98))
+                             (i32.eq (local.get $cp) (i32.const 66)))
+                            (then
+                             (if (local.get $saw-radix-prefix)
+                                 (then (return (global.get $false))))
+                             (local.set $radix (i32.const 2))
+                             (local.set $saw-radix-prefix (i32.const 1))
+                             (local.set $i
+                                        (i32.add (local.get $i) (i32.const 2)))
+                             (br $prefixes)))
+                        (if (i32.or
+                             (i32.eq (local.get $cp) (i32.const 111))
+                             (i32.eq (local.get $cp) (i32.const 79)))
+                            (then
+                             (if (local.get $saw-radix-prefix)
+                                 (then (return (global.get $false))))
+                             (local.set $radix (i32.const 8))
+                             (local.set $saw-radix-prefix (i32.const 1))
+                             (local.set $i
+                                        (i32.add (local.get $i) (i32.const 2)))
+                             (br $prefixes)))
+                        (if (i32.or
+                             (i32.eq (local.get $cp) (i32.const 100))
+                             (i32.eq (local.get $cp) (i32.const 68)))
+                            (then
+                             (if (local.get $saw-radix-prefix)
+                                 (then (return (global.get $false))))
+                             (local.set $radix (i32.const 10))
+                             (local.set $saw-radix-prefix (i32.const 1))
+                             (local.set $i
+                                        (i32.add (local.get $i) (i32.const 2)))
+                             (br $prefixes)))
+                        (if (i32.or
+                             (i32.eq (local.get $cp) (i32.const 120))
+                             (i32.eq (local.get $cp) (i32.const 88)))
+                            (then
+                             (if (local.get $saw-radix-prefix)
+                                 (then (return (global.get $false))))
+                             (local.set $radix (i32.const 16))
+                             (local.set $saw-radix-prefix (i32.const 1))
+                             (local.set $i
+                                        (i32.add (local.get $i) (i32.const 2)))
+                             (br $prefixes)))
+                        (if (i32.or
+                             (i32.eq (local.get $cp) (i32.const 101))
+                             (i32.eq (local.get $cp) (i32.const 69)))
+                            (then
+                             (if (i32.ne (local.get $exactness) (i32.const 0))
+                                 (then (return (global.get $false))))
+                             (local.set $exactness (i32.const 1))
+                             (local.set $i
+                                        (i32.add (local.get $i) (i32.const 2)))
+                             (br $prefixes)))
+                        (if (i32.or
+                             (i32.eq (local.get $cp) (i32.const 105))
+                             (i32.eq (local.get $cp) (i32.const 73)))
+                            (then
+                             (if (i32.ne (local.get $exactness) (i32.const 0))
+                                 (then (return (global.get $false))))
+                             (local.set $exactness (i32.const 2))
+                             (local.set $i
+                                        (i32.add (local.get $i) (i32.const 2)))
+                             (br $prefixes)))
+                        (br $prefixes-done)))
 
            (if (i32.eq (local.get $i) (local.get $len))
                (then (return (global.get $false))))
@@ -6307,20 +6365,52 @@
                          (then (return (global.get $false))))
                      (if (call $integer-zero?/i32 (local.get $den))
                          (then (return (global.get $false))))
+                     (if (i32.and
+                          (i32.eq (local.get $exactness) (i32.const 2))
+                          (i32.and
+                           (local.get $neg)
+                           (call $integer-zero?/i32 (local.get $int))))
+                         (then
+                          (return
+                           (struct.new $Flonum
+                                       (i32.const 0)
+                                       (f64.neg (f64.const 0.0))))))
                      (if (local.get $neg)
                          (then
                           (local.set $int
                                      (call $integer-sub/2
                                            (ref.i31 (i32.const 0))
                                            (local.get $int)))))
+                     (local.set $int
+                                (call $rational-normalize
+                                      (local.get $int)
+                                      (local.get $den)))
+                     (if (i32.eq (local.get $exactness) (i32.const 2))
+                         (then
+                          (return (call $exact->inexact (local.get $int)))))
                      (return
-                      (call $rational-normalize
-                            (local.get $int)
-                            (local.get $den)))))))
+                      (local.get $int))))))
 
            ;; No fractional part -> return exact integer.
            (if (i32.eq (local.get $i) (local.get $len))
                (then
+                (if (i32.eq (local.get $exactness) (i32.const 2))
+                    (then
+                     (if (i32.and
+                          (local.get $neg)
+                          (call $integer-zero?/i32 (local.get $int)))
+                         (then
+                          (return
+                           (struct.new $Flonum
+                                       (i32.const 0)
+                                       (f64.neg (f64.const 0.0))))))
+                     (if (local.get $neg)
+                         (then
+                          (local.set $int
+                                     (call $integer-sub/2
+                                           (ref.i31 (i32.const 0))
+                                           (local.get $int)))))
+                     (return (call $exact->inexact (local.get $int)))))
                 (if (local.get $neg)
                     (then
                      (return
@@ -6340,6 +6430,63 @@
            (if (i32.ne (local.get $radix) (i32.const 10))
                (then (return (global.get $false)))
                (else (nop)))
+
+           ;; Exact decimal mode accumulates digits into numerator/10^m.
+           (if (i32.eq (local.get $exactness) (i32.const 1))
+               (then
+                ;; Skip '.'
+                (local.set $i (i32.add (local.get $i) (i32.const 1)))
+
+                (call $string->number:parse-integer
+                      (local.get $s)
+                      (local.get $i)
+                      (i32.const 10))
+                (local.set $m)
+                (local.set $frac-int)
+                (if (ref.eq (local.get $frac-int) (global.get $false))
+                    (then (local.set $frac-int (ref.i31 (i32.const 0)))))
+
+                ;; A bare decimal point is not a number.
+                (if (i32.and
+                     (i32.eqz (local.get $has-int))
+                     (i32.eqz (local.get $m)))
+                    (then (return (global.get $false))))
+
+                ;; Must consume entire string
+                (local.set $i (i32.add (local.get $i) (local.get $m)))
+                (if (i32.ne (local.get $i) (local.get $len))
+                    (then (return (global.get $false))))
+
+                (local.set $scale-int (global.get $one))
+                (local.set $j (i32.const 0))
+                (block $scale-done
+                       (loop $scale-loop
+                             (br_if $scale-done
+                                    (i32.ge_u (local.get $j) (local.get $m)))
+                             (local.set $scale-int
+                                        (call $integer-mul/2
+                                              (local.get $scale-int)
+                                              (ref.i31 (i32.const 20))))
+                             (local.set $j
+                                        (i32.add (local.get $j) (i32.const 1)))
+                             (br $scale-loop)))
+
+                (local.set $int
+                           (call $integer-add/2
+                                 (call $integer-mul/2
+                                       (local.get $int)
+                                       (local.get $scale-int))
+                                 (local.get $frac-int)))
+                (if (local.get $neg)
+                    (then
+                     (local.set $int
+                                (call $integer-sub/2
+                                      (ref.i31 (i32.const 0))
+                                      (local.get $int)))))
+                (return
+                 (call $rational-normalize
+                       (local.get $int)
+                       (local.get $scale-int)))))
 
            ;; Convert integer part
            (if (i32.eqz (ref.test (ref i31) (local.get $int)))

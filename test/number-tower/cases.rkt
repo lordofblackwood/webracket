@@ -210,6 +210,51 @@
             '(string->number "#x")
             #:gate? #t
             #:note "Bare radix prefixes parse as #f.")
+   (nt-case 'string->number-inexact-prefix
+            'string-number
+            '(string->number "#i10")
+            #:gate? #t
+            #:note "Inexact prefixes convert exact integer syntax to flonums.")
+   (nt-case 'string->number-exact-decimal-prefix
+            'string-number
+            '(string->number "#e1.5")
+            #:gate? #t
+            #:note "Exact prefixes convert decimal syntax to exact rationals.")
+   (nt-case 'string->number-exact-leading-dot
+            'string-number
+            '(string->number "#e.1")
+            #:gate? #t
+            #:note "Exact decimal parsing handles missing integer parts.")
+   (nt-case 'string->number-exact-before-radix
+            'string-number
+            '(string->number "#e#x10")
+            #:gate? #t
+            #:note "Exactness prefixes can precede source radix prefixes.")
+   (nt-case 'string->number-exact-after-radix
+            'string-number
+            '(string->number "#x#e10")
+            #:gate? #t
+            #:note "Exactness prefixes can follow source radix prefixes.")
+   (nt-case 'string->number-inexact-radix-rational
+            'string-number
+            '(string->number "#i#x1/10")
+            #:gate? #t
+            #:note "Inexact prefixes convert prefixed exact rationals to flonums.")
+   (nt-case 'string->number-duplicate-exactness-prefix
+            'string-number
+            '(string->number "#e#i10")
+            #:gate? #t
+            #:note "Duplicate exactness prefixes parse as #f.")
+   (nt-case 'string->number-duplicate-radix-prefix
+            'string-number
+            '(string->number "#x#x10")
+            #:gate? #t
+            #:note "Duplicate radix prefixes parse as #f.")
+   (nt-case 'string->number-inexact-negative-zero
+            'string-number
+            '(string->number "#i-0")
+            #:gate? #t
+            #:note "Inexact prefixes preserve negative zero for signed exact zero syntax.")
    (nt-case 'string->number-zero-denominator
             'string-number
             '(string->number "1/0")
