@@ -58,6 +58,18 @@
         "date*"
         "(integer-in 0 999999999)"
         "given: 1000000000"))
+ (list "date constructors preserve bignum exact fields"
+       (let* ([n 536870912]
+              [d (date 0 0 0 1 1 n 0 0 #f n)]
+              [d* (date* 0 0 0 1 1 n 0 0 #f n n "UTC")])
+         (and (date? d)
+              (date*? d*)
+              (equal? (date-year d) n)
+              (equal? (date-time-zone-offset d) n)
+              (equal? (date-year d*) n)
+              (equal? (date-time-zone-offset d*) n)
+              (equal? (date*-nanosecond d*) n)
+              (equal? (date*-time-zone-name d*) "UTC"))))
  (list "date accessors reject non-date values with who"
        (and
         (catch-contract/contains?

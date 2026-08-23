@@ -86,23 +86,26 @@
               (then (global.get $true))
               (else (global.get $false))))
 
-    ;; exact-fixnum-in-range? : any/c i32 i32 -> i32
-    ;;   Validate the fixnum subset used by date range fields.
-    (func $exact-fixnum-in-range?
+    ;; exact-integer-in-range? : any/c i32 i32 -> i32
+    ;;   Validate date range fields using exact integers, including bignums.
+    (func $exact-integer-in-range?
           (param $v    (ref eq))
           (param $low  i32)
           (param $high i32)
           (result      i32)
-          (local $raw i32)
-          (local $n   i32)
-          (if (i32.eqz (ref.test (ref i31) (local.get $v)))
+          (if (ref.eq (call $exact-integer? (local.get $v)) (global.get $false))
               (then (return (i32.const 0))))
-          (local.set $raw (i31.get_s (ref.cast (ref i31) (local.get $v))))
-          (if (i32.ne (i32.and (local.get $raw) (i32.const 1)) (i32.const 0))
-              (then (return (i32.const 0))))
-          (local.set $n (i32.shr_s (local.get $raw) (i32.const 1)))
-          (i32.and (i32.ge_s (local.get $n) (local.get $low))
-                   (i32.le_s (local.get $n) (local.get $high))))
+          (i32.and
+           (i32.ge_s
+            (call $integer-compare/i32
+                  (local.get $v)
+                  (call $integer-from-i64 (i64.extend_i32_s (local.get $low))))
+            (i32.const 0))
+           (i32.le_s
+            (call $integer-compare/i32
+                  (local.get $v)
+                  (call $integer-from-i64 (i64.extend_i32_s (local.get $high))))
+            (i32.const 0))))
 
     ;; ensure-date-range-field : symbol? string? any/c i32 i32 -> any/c
     ;;   Check a date range field and return it unchanged.
@@ -113,7 +116,7 @@
           (param $low      i32)
           (param $high     i32)
           (result          (ref eq))
-          (if (i32.eqz (call $exact-fixnum-in-range?
+          (if (i32.eqz (call $exact-integer-in-range?
                              (local.get $v)
                              (local.get $low)
                              (local.get $high)))
