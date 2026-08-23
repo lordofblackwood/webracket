@@ -30,6 +30,9 @@
     (number->string:radix       "(or/c 2 8 10 16)")
     (slash                      "/")
     (string->number:radix       "(integer-in 2 16)")
+    (string->number:convert-mode "(or/c 'number-or-false 'read)")
+    (string->number:decimal-mode "(or/c 'decimal-as-exact 'decimal-as-inexact)")
+    (string->number:single-mode  "(or/c 'single 'double)")
     (real->floating-point-bytes:size "(or/c 4 8)")
     (real->floating-point-bytes:short-dest ": byte string length is shorter than starting position plus size")
     (real->floating-point-bytes:byte-string-length "\n  byte string length: ")
@@ -60,6 +63,12 @@
     inexact->exact
     exact->inexact
     real->double-flonum
+    read
+    number-or-false
+    decimal-as-exact
+    decimal-as-inexact
+    single
+    double
     zero?
     make-rectangular
     make-polar
@@ -195,6 +204,9 @@
 (define string-number-conversion-runtime-only-helper-names
   '($raise-string->number:bad-argument
     $raise-string->number:bad-radix
+    $raise-string->number:bad-convert-mode
+    $raise-string->number:bad-decimal-mode
+    $raise-string->number:bad-single-mode
     $string->number:special-tail
     $string->number:component
     $string->number:parse-fractional-part
@@ -5995,6 +6007,24 @@
                  (global.get $string:string->number:radix)
                  (local.get $bad))
            (unreachable))
+     (func $raise-string->number:bad-convert-mode (param $bad (ref eq))
+           (call $raise-argument-error1
+                 (global.get $symbol:string->number)
+                 (global.get $string:string->number:convert-mode)
+                 (local.get $bad))
+           (unreachable))
+     (func $raise-string->number:bad-decimal-mode (param $bad (ref eq))
+           (call $raise-argument-error1
+                 (global.get $symbol:string->number)
+                 (global.get $string:string->number:decimal-mode)
+                 (local.get $bad))
+           (unreachable))
+     (func $raise-string->number:bad-single-mode (param $bad (ref eq))
+           (call $raise-argument-error1
+                 (global.get $symbol:string->number)
+                 (global.get $string:string->number:single-mode)
+                 (local.get $bad))
+           (unreachable))
 
      ;; string->number:special-tail : string? i32 -> i32
      ;;   Return 1 for inf.0, 2 for nan.0, and 0 otherwise.
@@ -6090,7 +6120,7 @@
 
            (i32.const 0))
 
-     ;; string->number:component : string? i32 i32 i32 i32 -> number?/#f
+     ;; string->number:component : string? i32 i32 i32 i32 i32 -> number?/#f
      ;;   Parse a real component slice with the parent radix and exactness.
      (func $string->number:component
            (param $s         (ref $String))
@@ -6098,6 +6128,7 @@
            (param $end       i32)
            (param $radix     i32)
            (param $exactness i32)
+           (param $decimal-exact i32)
            (result           (ref eq))
 
            (local $src        (ref $I32Array))
@@ -6154,7 +6185,10 @@
                              (local.get $out))
                  (ref.i31 (i32.shl (local.get $radix) (i32.const 1)))
                  (global.get $missing)
-                 (global.get $missing)
+                 (if (result (ref eq))
+                     (local.get $decimal-exact)
+                     (then (global.get $symbol:decimal-as-exact))
+                     (else (global.get $missing)))
                  (global.get $missing)))
 
      ;; string->number:parse-fractional-part : string? i32 -> f64 i32
@@ -6314,6 +6348,7 @@
            (local $radix-bits i32)
            (local $saw-radix-prefix i32)
            (local $exactness i32)
+           (local $decimal-exact i32)
            (local $arr      (ref $I32Array))
            (local $len      i32)
            (local $i        i32)
@@ -6376,6 +6411,53 @@
                 (call $raise-string->number:bad-radix (local.get $radix-raw))
                 (unreachable))
                (else (nop)))
+
+           ;; Optional conversion modes. convert-mode and single-mode are
+           ;; validated for compatibility; WebRacket currently parses the
+           ;; supported syntax the same way for both accepted choices.
+           (if (ref.eq (local.get $convert-mode) (global.get $missing))
+               (then (nop))
+               (else
+                (if (i32.eqz
+                     (i32.or
+                      (ref.eq (local.get $convert-mode)
+                              (global.get $symbol:number-or-false))
+                      (ref.eq (local.get $convert-mode)
+                              (global.get $symbol:read))))
+                    (then
+                     (call $raise-string->number:bad-convert-mode
+                           (local.get $convert-mode))
+                     (unreachable)))))
+
+           (local.set $decimal-exact (i32.const 0))
+           (if (ref.eq (local.get $decimal-mode) (global.get $missing))
+               (then (nop))
+               (else
+                (if (ref.eq (local.get $decimal-mode)
+                            (global.get $symbol:decimal-as-exact))
+                    (then (local.set $decimal-exact (i32.const 1)))
+                    (else
+                     (if (ref.eq (local.get $decimal-mode)
+                                 (global.get $symbol:decimal-as-inexact))
+                         (then (local.set $decimal-exact (i32.const 0)))
+                         (else
+                          (call $raise-string->number:bad-decimal-mode
+                                (local.get $decimal-mode))
+                          (unreachable)))))))
+
+           (if (ref.eq (local.get $single-mode) (global.get $missing))
+               (then (nop))
+               (else
+                (if (i32.eqz
+                     (i32.or
+                      (ref.eq (local.get $single-mode)
+                              (global.get $symbol:single))
+                      (ref.eq (local.get $single-mode)
+                              (global.get $symbol:double))))
+                    (then
+                     (call $raise-string->number:bad-single-mode
+                           (local.get $single-mode))
+                     (unreachable)))))
 
            ;; String data
            (local.set $arr (struct.get $String $codepoints (local.get $s)))
@@ -6504,7 +6586,8 @@
                                  (local.get $body-start)
                                  (local.get $split)
                                  (local.get $radix)
-                                 (local.get $exactness)))
+                                 (local.get $exactness)
+                                 (local.get $decimal-exact)))
                 (if (i32.or
                      (ref.eq (local.get $real) (global.get $false))
                      (i32.eqz (call $real-number?/i32 (local.get $real))))
@@ -6515,7 +6598,8 @@
                                  (i32.add (local.get $split) (i32.const 1))
                                  (local.get $len)
                                  (local.get $radix)
-                                 (local.get $exactness)))
+                                 (local.get $exactness)
+                                 (local.get $decimal-exact)))
                 (if (i32.or
                      (ref.eq (local.get $imag) (global.get $false))
                      (i32.eqz (call $real-number?/i32 (local.get $imag))))
@@ -6611,7 +6695,8 @@
                                       (local.get $body-start)
                                       (local.get $tail)
                                       (local.get $radix)
-                                      (local.get $exactness)))
+                                      (local.get $exactness)
+                                      (local.get $decimal-exact)))
                      (if (ref.eq (local.get $imag) (global.get $false))
                          (then (return (global.get $false))))
                      (return
@@ -6631,7 +6716,8 @@
                                  (local.get $body-start)
                                  (local.get $split)
                                  (local.get $radix)
-                                 (local.get $exactness)))
+                                 (local.get $exactness)
+                                 (local.get $decimal-exact)))
                 (if (ref.eq (local.get $real) (global.get $false))
                     (then (return (global.get $false))))
                 (if (i32.eq (i32.add (local.get $split) (i32.const 1))
@@ -6663,7 +6749,8 @@
                                  (local.get $split)
                                  (local.get $tail)
                                  (local.get $radix)
-                                 (local.get $exactness)))
+                                 (local.get $exactness)
+                                 (local.get $decimal-exact)))
                 (if (ref.eq (local.get $imag) (global.get $false))
                     (then (return (global.get $false))))
                 (return
@@ -6838,7 +6925,11 @@
                (else (nop)))
 
            ;; Exact decimal mode accumulates digits into numerator/10^m.
-           (if (i32.eq (local.get $exactness) (i32.const 1))
+           (if (i32.or
+                (i32.eq (local.get $exactness) (i32.const 1))
+                (i32.and
+                 (i32.eq (local.get $exactness) (i32.const 0))
+                 (local.get $decimal-exact)))
                (then
                 ;; Skip '.'
                 (local.set $i (i32.add (local.get $i) (i32.const 1)))

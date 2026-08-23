@@ -428,6 +428,42 @@
             '(string->number "1+2i@3")
             #:gate? #t
             #:note "Polar magnitude and angle components must be real.")
+   (nt-case 'string->number-decimal-mode-exact
+            'string-number
+            '(string->number "1.5" 10 'number-or-false 'decimal-as-exact)
+            #:gate? #t
+            #:note "decimal-as-exact converts decimal tokens to exact rationals.")
+   (nt-case 'string->number-decimal-mode-inexact
+            'string-number
+            '(string->number "1.5" 10 'number-or-false 'decimal-as-inexact)
+            #:gate? #t
+            #:note "decimal-as-inexact keeps decimal tokens as flonums.")
+   (nt-case 'string->number-read-convert-mode
+            'string-number
+            '(string->number "1.5" 10 'read 'decimal-as-exact 'double)
+            #:gate? #t
+            #:note "The read convert mode accepts the documented decimal mode.")
+   (nt-case 'string->number-single-flonum-mode
+            'string-number
+            '(string->number "1.5" 10 'number-or-false 'decimal-as-inexact 'single)
+            #:gate? #t
+            #:note "The single-flonum mode is accepted, but WebRacket has only double flonums.")
+   (nt-case 'string->number-decimal-mode-prefix-override
+            'string-number
+            '(string->number "#i1.5" 10 'number-or-false 'decimal-as-exact)
+            #:gate? #t
+            #:note "Explicit #i exactness overrides decimal-as-exact mode.")
+   (nt-case 'string->number-decimal-mode-rectangular
+            'string-number
+            '(string->number "1+2.5i" 10 'number-or-false 'decimal-as-exact)
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "decimal-as-exact applies to rectangular decimal components.")
+   (nt-case 'string->number-decimal-mode-polar
+            'string-number
+            '(string->number "1@2.5" 10 'number-or-false 'decimal-as-exact)
+            #:gate? #t
+            #:note "decimal-as-exact applies to polar components without exactifying the polar result.")
    (nt-case 'string->number-zero-denominator
             'string-number
             '(string->number "1/0")

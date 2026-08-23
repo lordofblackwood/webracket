@@ -235,7 +235,19 @@
           (catch-contract/who+expected+given?
            "(integer-in 2 16)"
            "given: 2.0"
-           (lambda () (string->number "1" 2.0))))))
+           (lambda () (string->number "1" 2.0)))
+          (catch-contract/who+expected+given?
+           "number-or-false"
+           "bad"
+           (lambda () (string->number "1" 10 'bad)))
+          (catch-contract/who+expected+given?
+           "decimal-as-exact"
+           "bad"
+           (lambda () (string->number "1" 10 'number-or-false 'bad)))
+          (catch-contract/who+expected+given?
+           "single"
+           "bad"
+           (lambda () (string->number "1" 10 'number-or-false 'decimal-as-inexact 'bad))))))
  (list "number conversion contracts use error-value->string-handler"
        (let ([old (error-value->string-handler)])
          (error-value->string-handler
