@@ -349,7 +349,6 @@
           (param $who (ref eq))
           (param $v   (ref eq))
           (result     f64)
-          (local $bits i32)
           (local $f64  f64)
           (if (ref.test (ref $Flonum) (local.get $v))
               (then
@@ -369,12 +368,8 @@
                                (local.get $v))
                          (unreachable)))
                (return (local.get $f64))))
-          (if (ref.test (ref i31) (local.get $v))
-              (then
-               (local.set $bits (i31.get_s (ref.cast (ref i31) (local.get $v))))
-               (if (i32.eqz (i32.and (local.get $bits) (i32.const 1)))
-                   (then (return (f64.convert_i32_s
-                                  (i32.shr_s (local.get $bits) (i32.const 1))))))))
+          (if (call $exact-rational?/i32 (local.get $v))
+              (then (return (call $exact-rational->f64 (local.get $v)))))
           (call $raise-expected-real (local.get $who) (local.get $v))
           (unreachable))
 

@@ -129,4 +129,19 @@
          (lambda () (seconds->date -inf.0))
          "inexact->exact"
          "no exact representation"
-         "-inf.0"))))
+         "-inf.0")))
+ (list "seconds->date accepts bignum seconds"
+       (let ([d (seconds->date 536870912 #f)])
+         (and (date*? d)
+              (equal? (date-second d) 32)
+              (equal? (date-minute d) 48)
+              (equal? (date-hour d) 18)
+              (equal? (date-day d) 5)
+              (equal? (date-month d) 1)
+              (equal? (date-year d) 1987)
+              (equal? (date-week-day d) 1)
+              (equal? (date-year-day d) 4)
+              (equal? (date-dst? d) #f)
+              (equal? (date-time-zone-offset d) 0)
+              (equal? (date*-nanosecond d) 0)
+              (equal? (date*-time-zone-name d) "UTC")))))
