@@ -16,6 +16,14 @@ const VFS_PATH_BUFFER_BASE = 1048576;
 const VFS_PATH_BUFFER_LENGTH = 4096;
 const CALLBACK_BUFFER_BASE = 1052672;
 const CALLBACK_BUFFER_LENGTH = 65536;
+const faslFixnumMin = -(1 << 29);
+const faslFixnumMax = (1 << 29) - 1;
+const faslBigIntZero = BigInt(0);
+const faslBigIntOne = BigInt(1);
+const faslBigIntThirtyTwo = BigInt(32);
+const faslBigIntU32Mask = BigInt(0xFFFFFFFF);
+const faslFixnumMinBig = BigInt(faslFixnumMin);
+const faslFixnumMaxBig = BigInt(faslFixnumMax);
 
 var output_string = [];
 var externals = [];
@@ -1073,6 +1081,10 @@ function read_u32(arr, i) {
           (arr[i + 2] << 8)  | arr[i + 3]) >>> 0;
 }
 
+function fasl_bigint_fits_fixnum(n) {
+  return n >= faslFixnumMinBig && n <= faslFixnumMaxBig;
+}
+
 function fasl_to_js_value(arr, i = 0) {
   function keywordValue(name) {
     return {
@@ -1149,6 +1161,28 @@ function fasl_to_js_value(arr, i = 0) {
       dv.setUint32(4, lo);
       return [dv.getFloat64(0), i];
     }
+    case 14: {
+      const signRaw = u32();
+      const len = u32();
+      let magnitude = faslBigIntZero;
+      for (let j = 0; j < len; j++) {
+        magnitude += BigInt(u32()) << (faslBigIntThirtyTwo * BigInt(j));
+      }
+      const sign = signRaw === 0xFFFFFFFF ? -faslBigIntOne : faslBigIntOne;
+      return [sign * magnitude, i];
+    }
+    case 15: {
+      let numerator, denominator;
+      [numerator, i] = fasl_to_js_value(arr, i);
+      [denominator, i] = fasl_to_js_value(arr, i);
+      return [{tag: 'rational', numerator, denominator}, i];
+    }
+    case 16: {
+      let real, imag;
+      [real, i] = fasl_to_js_value(arr, i);
+      [imag, i] = fasl_to_js_value(arr, i);
+      return [{tag: 'complex', real, imag}, i];
+    }
     case 10:
       return [undefined, i];
     case 11:
@@ -1206,6 +1240,25 @@ function js_value_to_fasl(v) {
     writeByte(9);
     writeF64(x);
   }
+  function writeBignum(n) {
+    if (fasl_bigint_fits_fixnum(n)) {
+      writeFixnum(Number(n));
+      return;
+    }
+    writeByte(14);
+    const negative = n < faslBigIntZero;
+    let magnitude = negative ? -n : n;
+    writeU32(negative ? 0xFFFFFFFF : 1);
+    const limbs = [];
+    while (magnitude > faslBigIntZero) {
+      limbs.push(Number(magnitude & faslBigIntU32Mask));
+      magnitude >>= faslBigIntThirtyTwo;
+    }
+    writeU32(limbs.length >>> 0);
+    for (let i = 0; i < limbs.length; i++) {
+      writeU32(limbs[i] >>> 0);
+    }
+  }
   function writeCharacter(cp) {
     // cp = Unicode scalar value (number)
     writeByte(1);
@@ -1255,11 +1308,15 @@ function js_value_to_fasl(v) {
   function writeAny(x) {
     // Fast paths by JS type
     if (typeof x === "number") {
-      if (Number.isInteger(x) && x >= -(1 << 29) && x <= ((1 << 29) - 1)) {
+      if (Number.isInteger(x) && x >= faslFixnumMin && x <= faslFixnumMax) {
         writeFixnum(x);
       } else {
         writeFlonum(x);
       }
+      return;
+    }
+    if (typeof x === "bigint") {
+      writeBignum(x);
       return;
     }
     // Number object
@@ -1327,6 +1384,18 @@ function js_value_to_fasl(v) {
     }
     if (x && x.tag === "keyword" && typeof x.name === "string") {
       writeKeyword(x.name);
+      return;
+    }
+    if (x && x.tag === "rational") {
+      writeByte(15);
+      writeAny(x.numerator);
+      writeAny(x.denominator);
+      return;
+    }
+    if (x && x.tag === "complex") {
+      writeByte(16);
+      writeAny(x.real);
+      writeAny(x.imag);
       return;
     }
     // String
@@ -1570,6 +1639,7 @@ function testsuite(js_value_to_fasl, fasl_to_js_value, { log = true } = {}) {
     // Treat "char-wrappers" and 1-char strings as equal
     const ac = charToString(a), bc = charToString(b);
     if (ac !== null || bc !== null) return ac === bc;
+    if (typeof a === 'bigint' || typeof b === 'bigint') return a === b;
     // numbers (handle NaN, -0)
     if (typeof a === 'number' || typeof b === 'number') return Object.is(a, b);
     // Uint8Array (bytes)
@@ -1583,6 +1653,16 @@ function testsuite(js_value_to_fasl, fasl_to_js_value, { log = true } = {}) {
       const ka = Symbol.keyFor(a) ?? a.description ?? '';
       const kb = Symbol.keyFor(b) ?? b.description ?? '';
       return ka === kb;
+    }
+    if (a && b && a.tag === 'keyword' && b.tag === 'keyword') {
+      return a.name === b.name;
+    }
+    if (a && b && a.tag === 'rational' && b.tag === 'rational') {
+      return deepEq(a.numerator, b.numerator) &&
+             deepEq(a.denominator, b.denominator);
+    }
+    if (a && b && a.tag === 'complex' && b.tag === 'complex') {
+      return deepEq(a.real, b.real) && deepEq(a.imag, b.imag);
     }
     // Pairs
     if (a && b && a.tag === 'pair' && b.tag === 'pair') {
@@ -1621,6 +1701,8 @@ function testsuite(js_value_to_fasl, fasl_to_js_value, { log = true } = {}) {
   test('fixnum 0', 0);
   test('fixnum 123', 123);
   test('fixnum -5', -5);
+  test('bignum 2^32', 4294967296n);
+  test('negative bignum -2^32', -4294967296n);
   // Flonums
   test('flonum 1.5', 1.5);
   test('flonum -0.0', -0.0);
@@ -1639,6 +1721,11 @@ function testsuite(js_value_to_fasl, fasl_to_js_value, { log = true } = {}) {
   // Symbols
   test('symbol foo', Symbol.for('foo'));
   test('keyword attrs', { tag: 'keyword', name: 'attrs' });
+  test('rational exact', { tag: 'rational', numerator: 1n, denominator: 2n });
+  test('complex exact rational',
+       { tag: 'complex',
+         real: { tag: 'rational', numerator: 1n, denominator: 2n },
+         imag: { tag: 'rational', numerator: 1n, denominator: 3n } });
   // Bytes (Uint8Array)
   test('bytes', new Uint8Array([0, 1, 2, 255]));
   // Pairs

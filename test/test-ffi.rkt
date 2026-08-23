@@ -155,6 +155,31 @@
                      [id  (js-eval "(x => x)")]
                      [new (js-send/value id "call" (vector (js-global-this) old))])
                 (equal? old new)))
+        (list "js-send/value BigInt result"
+              (let* ([obj (js-eval "({ b: function(){ return 4294967296n; } })")]
+                     [n   (js-send/value obj "b" (vector))])
+                (and (exact-integer? n)
+                     (equal? n 4294967296))))
+        (list "bignum arguments marshal as BigInt"
+              (let ([obj (js-eval "({ check: function(x){ return typeof x === 'bigint' && x === 4294967296n; } })")])
+                (equal? (js-send/boolean obj "check" (vector 4294967296))
+                        #t)))
+        (list "rational arguments marshal as tagged records"
+              (let ([obj (js-eval "({ check: function(x){ return x && x.tag === 'rational' && x.numerator === 1 && x.denominator === 2; } })")])
+                (equal? (js-send/boolean obj "check" (vector 1/2))
+                        #t)))
+        (list "js-send/value rational tagged record"
+              (let* ([obj (js-eval "({ q: function(){ return { tag: 'rational', numerator: 1n, denominator: 2n }; } })")]
+                     [q   (js-send/value obj "q" (vector))])
+                (equal? q 1/2)))
+        (list "complex arguments marshal as tagged records"
+              (let ([obj (js-eval "({ check: function(x){ return x && x.tag === 'complex' && x.real && x.imag && x.real.tag === 'rational' && x.imag.tag === 'rational' && x.real.numerator === 1 && x.real.denominator === 2 && x.imag.numerator === 1 && x.imag.denominator === 3; } })")])
+                (equal? (js-send/boolean obj "check" (vector 1/2+1/3i))
+                        #t)))
+        (list "js-send/value complex tagged record"
+              (let* ([obj (js-eval "({ z: function(){ return { tag: 'complex', real: { tag: 'rational', numerator: 1n, denominator: 2n }, imag: { tag: 'rational', numerator: 1n, denominator: 3n } }; } })")]
+                     [z   (js-send/value obj "z" (vector))])
+                (equal? z 1/2+1/3i)))
         (list "js-send/boolean"
               (let ([arr (js-array/extern (vector 1 2 3))])
                 (and (equal? (js-send/boolean arr "includes" (vector 2)) #t)
