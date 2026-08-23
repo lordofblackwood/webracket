@@ -7299,38 +7299,38 @@
            ;; --- Decode start ---
            (if (ref.eq (local.get $start) (global.get $missing))
                (then (local.set $from (i32.const 0)))
-               (else (if (ref.test (ref i31) (local.get $start))
-                         (then (local.set $from (i31.get_s (ref.cast (ref i31) (local.get $start))))
-                               (if (i32.eqz (i32.and (local.get $from) (i32.const 1)))
-                                   (then (local.set $from (i32.shr_s (local.get $from) (i32.const 1))))
-                                   (else (call $raise-floating-point-bytes->real:bad-index
-                                               (local.get $start))
-                                         (unreachable)))
-                               (if (i32.lt_s (local.get $from) (i32.const 0))
-                                   (then (call $raise-floating-point-bytes->real:bad-index
-                                               (local.get $start))
-                                         (unreachable))))
-                         (else (call $raise-floating-point-bytes->real:bad-index
-                                     (local.get $start))
-                               (unreachable)))))
+               (else
+                (if (ref.eq (call $exact-nonnegative-integer? (local.get $start))
+                            (global.get $false))
+                    (then (call $raise-floating-point-bytes->real:bad-index
+                                (local.get $start))
+                          (unreachable)))
+                (local.set $from
+                           (if (result i32)
+                               (ref.test (ref i31) (local.get $start))
+                               (then
+                                (call $exact-nonnegative-integer->i32/saturating
+                                      (local.get $start)))
+                               (else
+                                (i32.add (local.get $len) (i32.const 1)))))))
 
            ;; --- Decode end ---
            (if (ref.eq (local.get $end) (global.get $missing))
                (then (local.set $to (local.get $len)))
-               (else (if (ref.test (ref i31) (local.get $end))
-                         (then (local.set $to (i31.get_s (ref.cast (ref i31) (local.get $end))))
-                               (if (i32.eqz (i32.and (local.get $to) (i32.const 1)))
-                                   (then (local.set $to (i32.shr_s (local.get $to) (i32.const 1))))
-                                   (else (call $raise-floating-point-bytes->real:bad-index
-                                               (local.get $end))
-                                         (unreachable)))
-                               (if (i32.lt_s (local.get $to) (i32.const 0))
-                                   (then (call $raise-floating-point-bytes->real:bad-index
-                                               (local.get $end))
-                                         (unreachable))))
-                         (else (call $raise-floating-point-bytes->real:bad-index
-                                     (local.get $end))
-                               (unreachable)))))
+               (else
+                (if (ref.eq (call $exact-nonnegative-integer? (local.get $end))
+                            (global.get $false))
+                    (then (call $raise-floating-point-bytes->real:bad-index
+                                (local.get $end))
+                          (unreachable)))
+                (local.set $to
+                           (if (result i32)
+                               (ref.test (ref i31) (local.get $end))
+                               (then
+                                (call $exact-nonnegative-integer->i32/saturating
+                                      (local.get $end)))
+                               (else
+                                (i32.add (local.get $len) (i32.const 1)))))))
 
            ;; --- Bounds check ---
            (if (i32.gt_u (local.get $from) (local.get $len))
@@ -7446,20 +7446,19 @@
            (if (ref.eq (local.get $start-raw) (global.get $missing))
                (then)
                (else
-                (if (i32.eqz (ref.test (ref i31) (local.get $start-raw)))
+                (if (ref.eq (call $exact-nonnegative-integer? (local.get $start-raw))
+                            (global.get $false))
                     (then (call $raise-real->floating-point-bytes:bad-start
                                 (local.get $start-raw))
                           (unreachable)))
-                (local.set $start (i31.get_s (ref.cast (ref i31) (local.get $start-raw))))
-                (if (i32.and (local.get $start) (i32.const 1))
-                    (then (call $raise-real->floating-point-bytes:bad-start
-                                (local.get $start-raw))
-                          (unreachable)))
-                (local.set $start (i32.shr_s (local.get $start) (i32.const 1)))
-                (if (i32.lt_s (local.get $start) (i32.const 0))
-                    (then (call $raise-real->floating-point-bytes:bad-start
-                                (local.get $start-raw))
-                          (unreachable)))))
+                (local.set $start
+                           (if (result i32)
+                               (ref.test (ref i31) (local.get $start-raw))
+                               (then
+                                (call $exact-nonnegative-integer->i32/saturating
+                                      (local.get $start-raw)))
+                               (else
+                                (i32.const 536870911))))))
 
            ;; --- Allocate or validate destination ---
            (if (ref.eq (local.get $dest-raw) (global.get $missing))

@@ -363,7 +363,21 @@
                        (lambda () (floating-point-bytes->real #"abc" #t 2 1))
                        "floating-point-bytes->real"
                        "ending index is smaller than starting index"
-                       "index: CUSTOM-BYTES"))])
+                       "index: CUSTOM-BYTES")
+                      (catch-contract/contains?
+                       (lambda () (floating-point-bytes->real #"abc" #t 536870912 536870916))
+                       "floating-point-bytes->real"
+                       "starting index is out of range"
+                       "index: CUSTOM-BYTES")
+                      (catch-contract/contains?
+                       (lambda () (floating-point-bytes->real #"abc" #t 0 536870912))
+                       "floating-point-bytes->real"
+                       "ending index is out of range"
+                       "index: CUSTOM-BYTES")
+                      (catch-contract/contains?
+                       (lambda () (real->floating-point-bytes 1.0 8 #f (make-bytes 8) 536870912))
+                       "real->floating-point-bytes"
+                       "byte string length is shorter than starting position plus size"))])
              (error-value->string-handler old)
              ok))))
  (list "real contract errors print non-self-rendering values"
