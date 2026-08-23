@@ -335,6 +335,24 @@
         (lambda () (write-bytes #"abc" (sink 42) 4))
         "write-bytes"
         "starting index is out of range"))
+ (list "output byte/string bignum range errors are catchable with who"
+       (and
+        (catch-contract/contains?
+         (lambda () (write-bytes #"abc" (sink 42) too-large-port-index))
+         "write-bytes"
+         "starting index is out of range")
+        (catch-contract/contains?
+         (lambda () (write-bytes #"abc" (sink 42) 0 too-large-port-index))
+         "write-bytes"
+         "ending index is out of range")
+        (catch-contract/contains?
+         (lambda () (write-string "abc" (open-output-string) too-large-port-index))
+         "write-string"
+         "starting index is out of range")
+        (catch-contract/contains?
+         (lambda () (write-string "abc" (open-output-string) 0 too-large-port-index))
+         "write-string"
+         "ending index is out of range")))
  (list "output byte/string range errors use error-value->string-handler"
        (let ([old (error-value->string-handler)])
          (error-value->string-handler
