@@ -370,6 +370,16 @@
                          too-large-port-index))
          "read-string!"
          "ending index is out of range")))
+ (list "input byte/string bignum counts fail catchably"
+       (and
+        (catch-fail/contains?
+         (lambda () (read-bytes too-large-port-index (open-input-bytes #"abc")))
+         "read-bytes"
+         "requested length is too large for WebRacket")
+        (catch-fail/contains?
+         (lambda () (read-string too-large-port-index (open-input-string "abc")))
+         "read-string"
+         "requested length is too large for WebRacket")))
  (list "custom input-port peek backends are catchable unsupported errors"
        (and
         (catch-unsupported/contains?
