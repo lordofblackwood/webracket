@@ -557,6 +557,7 @@
  truncate
  numerator
  denominator
+ rationalize
  ;; 4.3.2.2 Number Comparison
  =
  <

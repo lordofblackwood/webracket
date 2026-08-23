@@ -93,6 +93,7 @@
     exact-truncate
     numerator
     denominator
+    rationalize
     sin
     cos
     tan
@@ -1489,6 +1490,7 @@
     $exact-truncate
     $numerator
     $denominator
+    $rationalize
     $sin
     $cos
     $tan
@@ -2507,6 +2509,42 @@
                     (global.get $symbol:denominator)
                     (local.get $q))
               (unreachable))
+
+        ;; $rationalize : real? real? -> real?
+        ;;   Return the simplest rational within abs(tolerance) of x.
+        (func $rationalize (type $Prim2)
+              (param $x         (ref eq))
+              (param $tolerance (ref eq))
+              (result (ref eq))
+
+              (local $x-exact         (ref eq))
+              (local $tolerance-exact (ref eq))
+              (local $result          (ref eq))
+              (local $inexact?        i32)
+
+              (local.set $x-exact         (ref.i31 (i32.const 0)))
+              (local.set $tolerance-exact (ref.i31 (i32.const 0)))
+              (local.set $result          (ref.i31 (i32.const 0)))
+              (local.set $inexact?
+                         (i32.or
+                          (ref.test (ref $Flonum) (local.get $x))
+                          (ref.test (ref $Flonum) (local.get $tolerance))))
+              (local.set $x-exact
+                         (call $rational-argument->exact
+                               (global.get $symbol:rationalize)
+                               (local.get $x)))
+              (local.set $tolerance-exact
+                         (call $rational-argument->exact
+                               (global.get $symbol:rationalize)
+                               (local.get $tolerance)))
+              (local.set $result
+                         (call $exact-rational-rationalize
+                               (local.get $x-exact)
+                               (local.get $tolerance-exact)))
+              (if (local.get $inexact?)
+                  (then (return (call $exact->inexact
+                                      (local.get $result)))))
+              (local.get $result))
 
         ;; Trigonometric functions
         ;               name js            inbits outbits

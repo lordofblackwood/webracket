@@ -178,6 +178,170 @@
                        (struct.get $Rational $den (local.get $q))))))
            (call $integer-abs (local.get $x)))
 
+     ;; $exact-rational-negate : exact-rational? -> exact-rational?
+     ;;   Return the exact additive inverse.
+     (func $exact-rational-negate
+           (param $x (ref eq))
+           (result (ref eq))
+
+           (local $q (ref $Rational))
+
+           (if (ref.test (ref $Rational) (local.get $x))
+               (then
+                (local.set $q (ref.cast (ref $Rational) (local.get $x)))
+                (return
+                 (call $rational-normalize
+                       (call $integer-negate
+                             (struct.get $Rational $num (local.get $q)))
+                       (struct.get $Rational $den (local.get $q))))))
+           (call $integer-negate (local.get $x)))
+
+     ;; $exact-rational-sign/i32 : exact-rational? -> i32
+     ;;   Return -1, 0, or 1 according to x's sign.
+     (func $exact-rational-sign/i32
+           (param $x (ref eq))
+           (result i32)
+
+           (call $integer-sign/i32
+                 (call $exact-rational-numerator (local.get $x))))
+
+     ;; $exact-rational-simplest-positive : exact-rational? exact-rational? -> exact-rational?
+     ;;   Return the simplest rational in the positive interval [x, y].
+     (func $exact-rational-simplest-positive
+           (param $x (ref eq))
+           (param $y (ref eq))
+           (result (ref eq))
+
+           (local $fx     (ref eq))
+           (local $fy     (ref eq))
+           (local $x-frac (ref eq))
+           (local $y-frac (ref eq))
+           (local $inner  (ref eq))
+
+           (local.set $fx     (ref.i31 (i32.const 0)))
+           (local.set $fy     (ref.i31 (i32.const 0)))
+           (local.set $x-frac (ref.i31 (i32.const 0)))
+           (local.set $y-frac (ref.i31 (i32.const 0)))
+           (local.set $inner  (ref.i31 (i32.const 2)))
+
+           (local.set $fx (call $exact-rational-floor (local.get $x)))
+           (if (i32.eqz
+                (call $exact-rational-compare/i32
+                      (local.get $x)
+                      (local.get $fx)))
+               (then (return (local.get $fx))))
+           (local.set $fy (call $exact-rational-floor (local.get $y)))
+           (if (i32.ne
+                (call $integer-compare/i32
+                      (local.get $fx)
+                      (local.get $fy))
+                (i32.const 0))
+               (then
+                (return
+                 (call $integer-add/2
+                       (local.get $fx)
+                       (ref.i31 (i32.const 2))))))
+
+           (local.set $x-frac
+                      (call $exact-rational-sub/2
+                            (local.get $x)
+                            (local.get $fx)))
+           (local.set $y-frac
+                      (call $exact-rational-sub/2
+                            (local.get $y)
+                            (local.get $fx)))
+           (local.set $inner
+                      (call $exact-rational-simplest-between
+                            (call $exact-rational-div/2
+                                  (ref.i31 (i32.const 2))
+                                  (local.get $y-frac))
+                            (call $exact-rational-div/2
+                                  (ref.i31 (i32.const 2))
+                                  (local.get $x-frac))))
+           (call $exact-rational-add/2
+                 (local.get $fx)
+                 (call $exact-rational-div/2
+                       (ref.i31 (i32.const 2))
+                       (local.get $inner))))
+
+     ;; $exact-rational-simplest-between : exact-rational? exact-rational? -> exact-rational?
+     ;;   Return the simplest rational in the closed interval [lo, hi].
+     (func $exact-rational-simplest-between
+           (param $lo (ref eq))
+           (param $hi (ref eq))
+           (result (ref eq))
+
+           (local $tmp (ref eq))
+           (local $neg-lo (ref eq))
+           (local $neg-hi (ref eq))
+
+           (local.set $tmp    (ref.i31 (i32.const 0)))
+           (local.set $neg-lo (ref.i31 (i32.const 0)))
+           (local.set $neg-hi (ref.i31 (i32.const 0)))
+
+           (if (i32.gt_s
+                (call $exact-rational-compare/i32
+                      (local.get $lo)
+                      (local.get $hi))
+                (i32.const 0))
+               (then
+                (local.set $tmp (local.get $lo))
+                (local.set $lo  (local.get $hi))
+                (local.set $hi  (local.get $tmp))))
+           (if (i32.eqz
+                (call $exact-rational-compare/i32
+                      (local.get $lo)
+                      (local.get $hi)))
+               (then (return (local.get $lo))))
+           (if (i32.gt_s (call $exact-rational-sign/i32 (local.get $lo))
+                         (i32.const 0))
+               (then
+                (return
+                 (call $exact-rational-simplest-positive
+                       (local.get $lo)
+                       (local.get $hi)))))
+           (if (i32.lt_s (call $exact-rational-sign/i32 (local.get $hi))
+                         (i32.const 0))
+               (then
+                (local.set $neg-hi
+                           (call $exact-rational-negate (local.get $hi)))
+                (local.set $neg-lo
+                           (call $exact-rational-negate (local.get $lo)))
+                (return
+                 (call $exact-rational-negate
+                       (call $exact-rational-simplest-positive
+                             (local.get $neg-hi)
+                             (local.get $neg-lo))))))
+           (ref.i31 (i32.const 0)))
+
+     ;; $exact-rational-rationalize : exact-rational? exact-rational? -> exact-rational?
+     ;;   Return the simplest rational within abs(tolerance) of x.
+     (func $exact-rational-rationalize
+           (param $x         (ref eq))
+           (param $tolerance (ref eq))
+           (result (ref eq))
+
+           (local $t  (ref eq))
+           (local $lo (ref eq))
+           (local $hi (ref eq))
+
+           (local.set $t  (ref.i31 (i32.const 0)))
+           (local.set $lo (ref.i31 (i32.const 0)))
+           (local.set $hi (ref.i31 (i32.const 0)))
+
+           (local.set $t (call $exact-rational-abs (local.get $tolerance)))
+           (local.set $lo
+                      (call $exact-rational-sub/2
+                            (local.get $x)
+                            (local.get $t)))
+           (local.set $hi
+                      (call $exact-rational-add/2
+                            (local.get $x)
+                            (local.get $t)))
+           (call $exact-rational-simplest-between
+                 (local.get $lo)
+                 (local.get $hi)))
+
      ;; $exact-rational-truncate : exact-rational? -> exact-integer?
      ;;   Truncate x toward zero.
      (func $exact-rational-truncate

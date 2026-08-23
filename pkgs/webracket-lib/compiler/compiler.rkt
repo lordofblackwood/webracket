@@ -2506,7 +2506,7 @@
   real->double-flonum
   exact-round exact-floor exact-ceiling exact-truncate
   round floor ceiling truncate
-  numerator denominator
+  numerator denominator rationalize
   sin  cos  tan  asin  acos  atan
   sinh cosh tanh asinh acosh atanh
   degrees->radians radians->degrees

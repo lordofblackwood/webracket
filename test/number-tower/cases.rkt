@@ -893,6 +893,36 @@
             '(sqrt (/ (expt 9007199254740993 2) 25))
             #:gate? #t
             #:note "sqrt preserves exactness for bignum rational perfect squares.")
+   (nt-case 'rationalize-positive-exact
+            'real-math
+            '(rationalize 1/4 1/10)
+            #:gate? #t
+            #:note "rationalize finds the simplest exact rational in an exact interval.")
+   (nt-case 'rationalize-negative-exact
+            'real-math
+            '(rationalize -1/4 1/10)
+            #:gate? #t
+            #:note "rationalize handles negative exact intervals symmetrically.")
+   (nt-case 'rationalize-interval-crosses-zero
+            'real-math
+            '(rationalize 1/4 1/4)
+            #:gate? #t
+            #:note "rationalize chooses zero when the interval contains zero.")
+   (nt-case 'rationalize-smallest-denominator
+            'real-math
+            '(rationalize 11/40 1/4)
+            #:gate? #t
+            #:note "rationalize picks the simplest denominator in a wide interval.")
+   (nt-case 'rationalize-inexact-tolerance
+            'real-math
+            '(rationalize 1/4 0.1)
+            #:gate? #t
+            #:note "rationalize returns an inexact result when the tolerance is inexact.")
+   (nt-case 'rationalize-inexact-inputs
+            'real-math
+            '(rationalize 1.2 0.1)
+            #:gate? #t
+            #:note "rationalize accepts finite flonum inputs and returns an inexact result.")
    (nt-case 'integer-length-bignum-two-to-53-plus-one
             'integer-bitwise
             '(integer-length 9007199254740993)
