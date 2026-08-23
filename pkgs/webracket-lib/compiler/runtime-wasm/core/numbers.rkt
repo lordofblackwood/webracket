@@ -1392,7 +1392,7 @@
                                              (if (i32.eqz (i32.and (local.get $mu) (i32.const 1)))
                                                  (then (return (call $fxquotient (local.get $n) (local.get $m)))))))))))
 
-               ;; Case 1b: exact integer with a one-limb divisor
+               ;; Case 1b: exact integers
                (local.set $n/exact
                           (i32.or (call $fx?/i32 (local.get $n))
                                   (ref.test (ref $Bignum) (local.get $n))))
@@ -1403,22 +1403,14 @@
                    (then
                     (if (call $integer-zero?/i32 (local.get $m))
                         (then (call $raise-division-by-zero) (unreachable)))
-                    (if (i32.lt_s
-                         (call $integer-compare/i32
-                               (call $integer-abs (local.get $n))
-                               (call $integer-abs (local.get $m)))
-                         (i32.const 0))
-                        (then (return (ref.i31 (i32.const 0)))))
-                    (if (call $integer-single-limb?/i32 (local.get $m))
-                        (then
-                         (local.set $vals
-                                    (call $integer-divmod/single-limb
-                                          (local.get $n)
-                                          (local.get $m)))
-                         (return
-                          (array.get $Values
-                                     (local.get $vals)
-                                     (i32.const 0)))))))
+                    (local.set $vals
+                               (call $integer-divmod
+                                     (local.get $n)
+                                     (local.get $m)))
+                    (return
+                     (array.get $Values
+                                (local.get $vals)
+                                (i32.const 0)))))
 
                ;; Case 2: flonum/inexact
                ;; convert n to f64
@@ -1516,7 +1508,7 @@
                                                            (then (call $raise-division-by-zero) (unreachable)))
                                                        (return (ref.i31 (i32.rem_s (local.get $nu) (local.get $mu))))))))))))
 
-               ;; Case 1b: exact integer with a one-limb divisor
+               ;; Case 1b: exact integers
                (local.set $n/exact
                           (i32.or (call $fx?/i32 (local.get $n))
                                   (ref.test (ref $Bignum) (local.get $n))))
@@ -1527,22 +1519,14 @@
                    (then
                     (if (call $integer-zero?/i32 (local.get $m))
                         (then (call $raise-division-by-zero) (unreachable)))
-                    (if (i32.lt_s
-                         (call $integer-compare/i32
-                               (call $integer-abs (local.get $n))
-                               (call $integer-abs (local.get $m)))
-                         (i32.const 0))
-                        (then (return (local.get $n))))
-                    (if (call $integer-single-limb?/i32 (local.get $m))
-                        (then
-                         (local.set $vals
-                                    (call $integer-divmod/single-limb
-                                          (local.get $n)
-                                          (local.get $m)))
-                         (return
-                          (array.get $Values
-                                     (local.get $vals)
-                                     (i32.const 1)))))))
+                    (local.set $vals
+                               (call $integer-divmod
+                                     (local.get $n)
+                                     (local.get $m)))
+                    (return
+                     (array.get $Values
+                                (local.get $vals)
+                                (i32.const 1)))))
 
                ;; Case 2: flonum/inexact
                ;; convert n to f64
@@ -1634,7 +1618,7 @@
                (local $mf f64)
 	               (local $rf f64)
 
-               ;; Exact integer with a one-limb divisor
+               ;; Exact integers
                (local.set $n/exact
                           (i32.or (call $fx?/i32 (local.get $n))
                                   (ref.test (ref $Bignum) (local.get $n))))
@@ -1645,45 +1629,25 @@
                    (then
                     (if (call $integer-zero?/i32 (local.get $m))
                         (then (call $raise-division-by-zero) (unreachable)))
-                    (if (i32.lt_s
-                         (call $integer-compare/i32
-                               (call $integer-abs (local.get $n))
-                               (call $integer-abs (local.get $m)))
-                         (i32.const 0))
-                        (then
-                         (local.set $r (local.get $n))
-                         (if (call $integer-zero?/i32 (local.get $r))
-                             (then (return (local.get $r))))
-                         (local.set $r-sign (call $integer-sign/i32 (local.get $r)))
-                         (local.set $m-sign (call $integer-sign/i32 (local.get $m)))
-                         (if (i32.eq (local.get $r-sign) (local.get $m-sign))
-                             (then (return (local.get $r)))
-                             (else
-                              (return
-                               (call $integer-add/2
-                                     (local.get $r)
-                                     (local.get $m)))))))
-                    (if (call $integer-single-limb?/i32 (local.get $m))
-                        (then
-                         (local.set $vals
-                                    (call $integer-divmod/single-limb
-                                          (local.get $n)
-                                          (local.get $m)))
-                         (local.set $r
-                                    (array.get $Values
-                                               (local.get $vals)
-                                               (i32.const 1)))
-                         (if (call $integer-zero?/i32 (local.get $r))
-                             (then (return (local.get $r))))
-                         (local.set $r-sign (call $integer-sign/i32 (local.get $r)))
-                         (local.set $m-sign (call $integer-sign/i32 (local.get $m)))
-                         (if (i32.eq (local.get $r-sign) (local.get $m-sign))
-                             (then (return (local.get $r)))
-                             (else
-                              (return
-                               (call $integer-add/2
-                                     (local.get $r)
-                                     (local.get $m)))))))))
+                    (local.set $vals
+                               (call $integer-divmod
+                                     (local.get $n)
+                                     (local.get $m)))
+                    (local.set $r
+                               (array.get $Values
+                                          (local.get $vals)
+                                          (i32.const 1)))
+                    (if (call $integer-zero?/i32 (local.get $r))
+                        (then (return (local.get $r))))
+                    (local.set $r-sign (call $integer-sign/i32 (local.get $r)))
+                    (local.set $m-sign (call $integer-sign/i32 (local.get $m)))
+                    (if (i32.eq (local.get $r-sign) (local.get $m-sign))
+                        (then (return (local.get $r)))
+                        (else
+                         (return
+                          (call $integer-add/2
+                                (local.get $r)
+                                (local.get $m)))))))
 
 	               ;; Validate here so user-facing type errors preserve `modulo` as `who`.
 	               (if (ref.eq (call $integer? (local.get $n)) (global.get $false))
@@ -1787,7 +1751,7 @@
                                                                               (ref.i31 (local.get $q))
                                                                               (ref.i31 (local.get $r))))))))))))
 
-               ;; Case 1b: exact integer with a one-limb divisor
+               ;; Case 1b: exact integers
                (local.set $n/exact
                           (i32.or (call $fx?/i32 (local.get $n))
                                   (ref.test (ref $Bignum) (local.get $n))))
@@ -1798,22 +1762,10 @@
                    (then
                     (if (call $integer-zero?/i32 (local.get $m))
                         (then (call $raise-division-by-zero) (unreachable)))
-                    (if (i32.lt_s
-                         (call $integer-compare/i32
-                               (call $integer-abs (local.get $n))
-                               (call $integer-abs (local.get $m)))
-                         (i32.const 0))
-                        (then
-                         (return
-                          (array.new_fixed $Values 2
-                                           (ref.i31 (i32.const 0))
-                                           (local.get $n)))))
-                    (if (call $integer-single-limb?/i32 (local.get $m))
-                        (then
-                         (return
-                          (call $integer-divmod/single-limb
-                                (local.get $n)
-                                (local.get $m)))))))
+                    (return
+                     (call $integer-divmod
+                           (local.get $n)
+                           (local.get $m)))))
 
                ;; Case 2: flonum/inexact
                ;; convert n to f64

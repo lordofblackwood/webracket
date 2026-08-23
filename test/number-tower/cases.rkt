@@ -378,6 +378,66 @@
             '(remainder 3 9007199254740993)
             #:gate? #t
             #:note "Exact remainder handles the trivial dividend remainder with a multi-limb divisor.")
+   (nt-case 'bignum-quotient-multi-limb-divisor
+            'integer-division
+            '(quotient 18446744073709551616 4294967296)
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "Exact quotient handles a multi-limb divisor.")
+   (nt-case 'bignum-remainder-multi-limb-divisor
+            'integer-division
+            '(remainder 18446744073709551617 4294967296)
+            #:gate? #t
+            #:note "Exact remainder handles a multi-limb divisor.")
+   (nt-case 'negative-bignum-modulo-multi-limb-divisor
+            'integer-division
+            '(modulo -18446744073709551617 4294967296)
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "Exact modulo adjusts signs after multi-limb division.")
+   (nt-case 'bignum-quotient-negative-multi-limb-divisor
+            'integer-division
+            '(quotient 18446744073709551617 -4294967296)
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "Exact quotient follows sign rules with a negative multi-limb divisor.")
+   (nt-case 'bignum-remainder-negative-multi-limb-divisor
+            'integer-division
+            '(remainder 18446744073709551617 -4294967296)
+            #:gate? #t
+            #:note "Exact remainder keeps the dividend sign with a negative multi-limb divisor.")
+   (nt-case 'bignum-modulo-negative-multi-limb-divisor
+            'integer-division
+            '(modulo 18446744073709551617 -4294967296)
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "Exact modulo follows the negative divisor sign.")
+   (nt-case 'bignum-quotient-remainder-multi-limb-divisor
+            'integer-division
+            '(let-values ([(q r) (quotient/remainder -18446744073709551617
+                                                     4294967296)])
+               (and (= q -4294967296)
+                    (= r -1)))
+            #:gate? #t
+            #:note "quotient/remainder handles signed multi-limb division.")
+   (nt-case 'bignum-quotient-remainder-non-power-divisor
+            'integer-division
+            '(let-values ([(q r) (quotient/remainder 123456789012345678901234567890
+                                                     9876543210987654321)])
+               (and (= q 12499999886)
+                    (= r 925925941327160484)))
+            #:gate? #t
+            #:note "Multi-limb division handles a non-power divisor and remainder.")
+   (nt-case 'bignum-quotient-equal-multi-limb
+            'integer-division
+            '(quotient 18446744073709551616 18446744073709551616)
+            #:gate? #t
+            #:note "Exact quotient handles equal multi-limb operands.")
+   (nt-case 'bignum-remainder-equal-multi-limb
+            'integer-division
+            '(remainder 18446744073709551616 18446744073709551616)
+            #:gate? #t
+            #:note "Exact remainder handles equal multi-limb operands.")
    (nt-case 'bignum-gcd-small-divisor
             'integer-gcd
             '(gcd 9007199254740993 3)
@@ -394,7 +454,19 @@
             '(gcd 0 9007199254740993)
             #:comparison 'ignore-fixnum-width
             #:gate? #t
-            #:note "gcd handles the zero-left case with a multi-limb divisor.")))
+            #:note "gcd handles the zero-left case with a multi-limb divisor.")
+   (nt-case 'bignum-gcd-multi-limb-divisor
+            'integer-gcd
+            '(gcd 18446744073709551616 4294967296)
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "gcd can reduce exact integers through multi-limb division.")
+   (nt-case 'bignum-lcm-multi-limb-divisor
+            'integer-gcd
+            '(lcm 18446744073709551616 4294967296)
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "lcm can use exact quotient with a multi-limb gcd.")))
 
 ;; number-tower-groups : -> (listof symbol?)
 ;;   Return the distinct oracle groups in stable display order.
