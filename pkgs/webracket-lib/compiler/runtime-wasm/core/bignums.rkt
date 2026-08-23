@@ -154,17 +154,16 @@
                        (array.new_fixed $I32Array 1
                                         (local.get $magnitude))))
 
-     ;; $bignum-negate : bignum? -> bignum?
+     ;; $bignum-negate : bignum? -> exact-integer?
      ;;   Return the canonical additive inverse of a nonzero bignum.
      (func $bignum-negate
            (param $b (ref $Bignum))
            (result (ref eq))
 
-           (struct.new $Bignum
-                       (i32.const 0)
-                       (i32.sub (i32.const 0)
-                                (struct.get $Bignum $sign (local.get $b)))
-                       (struct.get $Bignum $limbs (local.get $b))))
+           (call $bignum-normalize
+                 (i32.sub (i32.const 0)
+                          (struct.get $Bignum $sign (local.get $b)))
+                 (struct.get $Bignum $limbs (local.get $b))))
 
      ;; $bignum-magnitude-compare/i32 : i32-array? i32-array? -> integer?
      ;;   Compare unsigned little-endian limb arrays, returning -1, 0, or 1.
@@ -494,6 +493,136 @@
                  (local.get $sign)
                  (local.get $out)))
 
+     ;; $bignum-power-of-two-shift/i32 : bignum? -> integer?
+     ;;   Return k for a magnitude of 2^k, or -1 when the magnitude is not a power of two.
+     (func $bignum-power-of-two-shift/i32
+           (param $b (ref $Bignum))
+           (result i32)
+
+           (local $limbs (ref $I32Array))
+           (local $len   i32)
+           (local $i     i32)
+           (local $limb  i32)
+           (local $seen  i32)
+           (local $shift i32)
+
+           (local.set $limbs (struct.get $Bignum $limbs (local.get $b)))
+           (local.set $len (array.len (local.get $limbs)))
+           (local.set $shift (i32.const -1))
+           (block $done
+                  (loop $loop
+                        (br_if $done
+                               (i32.ge_u (local.get $i) (local.get $len)))
+                        (local.set $limb
+                                   (array.get $I32Array
+                                              (local.get $limbs)
+                                              (local.get $i)))
+                        (if (i32.ne (local.get $limb) (i32.const 0))
+                            (then
+                             (if (local.get $seen)
+                                 (then (return (i32.const -1))))
+                             (if (i32.ne
+                                  (i32.and
+                                   (local.get $limb)
+                                   (i32.sub (local.get $limb) (i32.const 1)))
+                                  (i32.const 0))
+                                 (then (return (i32.const -1))))
+                             (local.set $seen (i32.const 1))
+                             (local.set $shift
+                                        (i32.add
+                                         (i32.mul (local.get $i) (i32.const 32))
+                                         (i32.ctz (local.get $limb))))))
+                        (local.set $i
+                                   (i32.add (local.get $i) (i32.const 1)))
+                        (br $loop)))
+           (local.get $shift))
+
+     ;; $bignum-shl-by-i32/sign : bignum? integer? integer? -> exact-integer?
+     ;;   Shift a bignum magnitude left by shift bits and apply sign.
+     (func $bignum-shl-by-i32/sign
+           (param $b     (ref $Bignum))
+           (param $shift i32)
+           (param $sign  i32)
+           (result (ref eq))
+
+           (local $limbs      (ref $I32Array))
+           (local $len        i32)
+           (local $word-shift i32)
+           (local $bit-shift  i32)
+           (local $out        (ref $I32Array))
+           (local $i          i32)
+           (local $pos        i32)
+           (local $acc        i64)
+           (local $carry      i64)
+
+           (local.set $limbs (struct.get $Bignum $limbs (local.get $b)))
+           (local.set $len (array.len (local.get $limbs)))
+           (local.set $word-shift
+                      (i32.div_u (local.get $shift) (i32.const 32)))
+           (local.set $bit-shift
+                      (i32.rem_u (local.get $shift) (i32.const 32)))
+           (local.set $out
+                      (array.new_default
+                       $I32Array
+                       (i32.add
+                        (i32.add (local.get $len) (local.get $word-shift))
+                        (i32.const 1))))
+           (block $done
+                  (loop $loop
+                        (br_if $done
+                               (i32.ge_u (local.get $i) (local.get $len)))
+                        (local.set $pos
+                                   (i32.add (local.get $i)
+                                            (local.get $word-shift)))
+                        (local.set $acc
+                                   (i64.or
+                                    (i64.shl
+                                     (i64.extend_i32_u
+                                      (array.get $I32Array
+                                                 (local.get $limbs)
+                                                 (local.get $i)))
+                                     (i64.extend_i32_u (local.get $bit-shift)))
+                                    (local.get $carry)))
+                        (array.set $I32Array
+                                   (local.get $out)
+                                   (local.get $pos)
+                                   (i32.wrap_i64 (local.get $acc)))
+                        (local.set $carry
+                                   (i64.shr_u (local.get $acc)
+                                              (i64.const 32)))
+                        (local.set $i
+                                   (i32.add (local.get $i) (i32.const 1)))
+                        (br $loop)))
+           (array.set $I32Array
+                      (local.get $out)
+                      (i32.add (local.get $word-shift) (local.get $len))
+                      (i32.wrap_i64 (local.get $carry)))
+           (call $bignum-normalize
+                 (local.get $sign)
+                 (local.get $out)))
+
+     ;; $integer-shl-by-i32/sign : exact-integer? integer? integer? -> exact-integer?
+     ;;   Shift an exact integer magnitude left by shift bits and apply sign.
+     (func $integer-shl-by-i32/sign
+           (param $x     (ref eq))
+           (param $shift i32)
+           (param $sign  i32)
+           (result (ref eq))
+
+           (if (ref.test (ref i31) (local.get $x))
+               (then
+                (return
+                 (call $integer-apply-sign
+                       (call $u64-shl->integer
+                             (i64.extend_i32_u
+                              (call $integer-abs-u32 (local.get $x)))
+                             (local.get $shift))
+                       (local.get $sign)))))
+           (call $bignum-shl-by-i32/sign
+                 (ref.cast (ref $Bignum) (local.get $x))
+                 (local.get $shift)
+                 (local.get $sign)))
+
      ;; $bignum-mul : bignum? bignum? -> exact-integer?
      ;;   Multiply two signed canonical bignums with schoolbook limbs.
      (func $bignum-mul
@@ -517,6 +646,7 @@
            (local $pos i32)
            (local $small-limb i32)
            (local $large-limb i32)
+           (local $shift i32)
            (local $acc i64)
            (local $carry i64)
 
@@ -547,6 +677,24 @@
 	                                  (local.get $b-limbs)
 	                                  (i32.const 0))
 	                       (local.get $sign)))))
+           (local.set $shift (call $bignum-power-of-two-shift/i32
+                                   (local.get $a)))
+           (if (i32.ge_s (local.get $shift) (i32.const 0))
+               (then
+                (return
+                 (call $integer-shl-by-i32/sign
+                       (local.get $b)
+                       (local.get $shift)
+                       (local.get $sign)))))
+           (local.set $shift (call $bignum-power-of-two-shift/i32
+                                   (local.get $b)))
+           (if (i32.ge_s (local.get $shift) (i32.const 0))
+               (then
+                (return
+                 (call $integer-shl-by-i32/sign
+                       (local.get $a)
+                       (local.get $shift)
+                       (local.get $sign)))))
            (local.set $small-limbs (local.get $a-limbs))
            (local.set $small-len   (local.get $a-len))
            (local.set $large-limbs (local.get $b-limbs))
@@ -756,6 +904,8 @@
 
            (local $xv i64)
            (local $yv i64)
+           (local $sign i32)
+           (local $shift i32)
 
            (if (ref.test (ref i31) (local.get $x))
                (then
@@ -779,31 +929,55 @@
                      (return
                       (call $integer-from-i64
                             (i64.mul (local.get $xv) (local.get $yv))))))
+                (local.set $sign
+                           (select (i32.const 1)
+                                   (i32.const -1)
+                                   (i32.eq (call $integer-sign/i32
+                                                 (local.get $x))
+                                           (call $integer-sign/i32
+                                                 (local.get $y)))))
+                (local.set $shift
+                           (call $bignum-power-of-two-shift/i32
+                                 (ref.cast (ref $Bignum) (local.get $y))))
+                (if (i32.ge_s (local.get $shift) (i32.const 0))
+                    (then
+                     (return
+                      (call $integer-shl-by-i32/sign
+                            (local.get $x)
+                            (local.get $shift)
+                            (local.get $sign)))))
                 (return
                  (call $bignum-mul-u32
                        (ref.cast (ref $Bignum) (local.get $y))
                        (call $integer-abs-u32 (local.get $x))
-                       (select (i32.const 1)
-                               (i32.const -1)
-                               (i32.eq (call $integer-sign/i32
-                                             (local.get $x))
-                                       (call $integer-sign/i32
-                                             (local.get $y))))))))
+                       (local.get $sign)))))
            (if (ref.test (ref i31) (local.get $y))
                (then
                 (if (i32.eqz
                      (i31.get_s (ref.cast (ref i31) (local.get $y))))
                     (then (return (ref.i31 (i32.const 0)))))
+                (local.set $sign
+                           (select (i32.const 1)
+                                   (i32.const -1)
+                                   (i32.eq (call $integer-sign/i32
+                                                 (local.get $x))
+                                           (call $integer-sign/i32
+                                                 (local.get $y)))))
+                (local.set $shift
+                           (call $bignum-power-of-two-shift/i32
+                                 (ref.cast (ref $Bignum) (local.get $x))))
+                (if (i32.ge_s (local.get $shift) (i32.const 0))
+                    (then
+                     (return
+                      (call $integer-shl-by-i32/sign
+                            (local.get $y)
+                            (local.get $shift)
+                            (local.get $sign)))))
                 (return
                  (call $bignum-mul-u32
                        (ref.cast (ref $Bignum) (local.get $x))
                        (call $integer-abs-u32 (local.get $y))
-                       (select (i32.const 1)
-                               (i32.const -1)
-                               (i32.eq (call $integer-sign/i32
-                                             (local.get $x))
-                                       (call $integer-sign/i32
-                                             (local.get $y))))))))
+                       (local.get $sign)))))
            (call $bignum-mul
                  (ref.cast (ref $Bignum) (local.get $x))
                  (ref.cast (ref $Bignum) (local.get $y))))
@@ -955,7 +1129,15 @@
            (result (ref eq))
 
            (if (i32.lt_s (local.get $sign) (i32.const 0))
-               (then (return (call $integer-negate (local.get $mag)))))
+               (then
+                (if (ref.test (ref i31) (local.get $mag))
+                    (then (return (call $integer-negate (local.get $mag)))))
+                (return
+                 (call $bignum-normalize
+                       (i32.const -1)
+                       (struct.get $Bignum $limbs
+                                   (ref.cast (ref $Bignum)
+                                             (local.get $mag)))))))
            (local.get $mag))
 
      ;; $integer-nonnegative-limb-count/i32 : exact-nonnegative-integer? -> i32

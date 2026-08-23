@@ -1384,6 +1384,27 @@
             #:comparison 'ignore-fixnum-width
             #:gate? #t
             #:note "Bignum multiplication is order-independent for sparse operands.")
+   (nt-case 'bignum-mul-power-of-two-bignum-left
+            'integer-arithmetic
+            '(* (arithmetic-shift 1 130)
+                (+ (arithmetic-shift 1 95) 12345))
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "Bignum multiplication by a multi-limb power of two matches left shift.")
+   (nt-case 'bignum-mul-power-of-two-bignum-right
+            'integer-arithmetic
+            '(* (+ (arithmetic-shift 1 95) 12345)
+                (arithmetic-shift 1 130))
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "Bignum multiplication by a multi-limb power of two is order-independent.")
+   (nt-case 'bignum-mul-power-of-two-bignum-negative
+            'integer-arithmetic
+            '(* (- (arithmetic-shift 1 130))
+                (+ (arithmetic-shift 1 95) 12345))
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "Bignum multiplication by a negative power of two preserves the product sign.")
    (nt-case 'bignum-mul-sparse-alternating
             'integer-arithmetic
             '(* (+ (arithmetic-shift 1 96) (arithmetic-shift 1 32) 1)
@@ -1411,6 +1432,18 @@
             #:comparison 'ignore-fixnum-width
             #:gate? #t
             #:note "Bignum multiplication canonicalizes results in the WebRacket fixnum range.")
+   (nt-case 'bignum-mul-normalizes-to-fixnum-predicate
+            'integer-arithmetic
+            '(let ([n (* 536870912 -1)])
+               (fixnum? n))
+            #:gate? #t
+            #:note "Bignum multiplication returns a WebRacket fixnum for the most-negative fixnum.")
+   (nt-case 'bignum-negate-normalizes-to-fixnum-predicate
+            'integer-arithmetic
+            '(let ([n (- 0 536870912)])
+               (fixnum? n))
+            #:gate? #t
+            #:note "Negating a positive bignum can canonicalize to the most-negative WebRacket fixnum.")
    (nt-case 'add1-overflow
             'integer-arithmetic
             '(add1 536870911)
