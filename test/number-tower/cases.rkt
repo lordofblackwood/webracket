@@ -542,6 +542,17 @@
             '(/ 1+2i 3+4i)
             #:gate? #t
             #:note "Exact complex division keeps rational components.")
+   (nt-case 'complex-div-inexact-underflow-scaled
+            'complex-basic
+            '(/ (make-rectangular 1e-308 1e-308)
+                (make-rectangular 1e-308 -1e-308))
+            #:gate? #t
+            #:note "Inexact complex division avoids denominator underflow.")
+   (nt-case 'complex-div-inexact-zero
+            'complex-basic
+            '(/ 1 (make-rectangular 0.0 0.0))
+            #:gate? #t
+            #:note "Inexact zero complex divisors produce NaN components.")
    (nt-case 'complex-equal-same
             'complex-basic
             '(= 1+2i 1+2i)

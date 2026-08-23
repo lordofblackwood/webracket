@@ -3544,16 +3544,103 @@
                (param $y (ref eq))
                (result (ref eq))
 
-               (local $a     (ref eq))
-               (local $b     (ref eq))
-               (local $c     (ref eq))
-               (local $d     (ref eq))
-               (local $denom (ref eq))
+               (local $a        (ref eq))
+               (local $b        (ref eq))
+               (local $c        (ref eq))
+               (local $d        (ref eq))
+               (local $denom    (ref eq))
+               (local $inexact? i32)
+               (local $af       f64)
+               (local $bf       f64)
+               (local $cf       f64)
+               (local $df       f64)
+               (local $r        f64)
+               (local $denomf   f64)
 
                (local.set $a (call $number-real-part/unchecked (local.get $x)))
                (local.set $b (call $number-imag-part/unchecked (local.get $x)))
                (local.set $c (call $number-real-part/unchecked (local.get $y)))
                (local.set $d (call $number-imag-part/unchecked (local.get $y)))
+               (local.set $inexact?
+                          (i32.or
+                           (i32.or
+                            (ref.test (ref $Flonum) (local.get $a))
+                            (ref.test (ref $Flonum) (local.get $b)))
+                           (i32.or
+                            (ref.test (ref $Flonum) (local.get $c))
+                            (ref.test (ref $Flonum) (local.get $d)))))
+               (if (local.get $inexact?)
+                   (then
+                    (local.set $af
+                               (call $real->f64/checked
+                                     (global.get $symbol:/)
+                                     (local.get $a)))
+                    (local.set $bf
+                               (call $real->f64/checked
+                                     (global.get $symbol:/)
+                                     (local.get $b)))
+                    (local.set $cf
+                               (call $real->f64/checked
+                                     (global.get $symbol:/)
+                                     (local.get $c)))
+                    (local.set $df
+                               (call $real->f64/checked
+                                     (global.get $symbol:/)
+                                     (local.get $d)))
+                    (if (f64.ge (f64.abs (local.get $cf))
+                                (f64.abs (local.get $df)))
+                        (then
+                         (local.set $r
+                                    (f64.div (local.get $df)
+                                             (local.get $cf)))
+                         (local.set $denomf
+                                    (f64.add (local.get $cf)
+                                             (f64.mul (local.get $df)
+                                                      (local.get $r))))
+                         (return
+                          (call $make-rectangular/canonical
+                                (struct.new $Flonum
+                                            (i32.const 0)
+                                            (f64.div
+                                             (f64.add
+                                              (local.get $af)
+                                              (f64.mul (local.get $bf)
+                                                       (local.get $r)))
+                                             (local.get $denomf)))
+                                (struct.new $Flonum
+                                            (i32.const 0)
+                                            (f64.div
+                                             (f64.sub
+                                              (local.get $bf)
+                                              (f64.mul (local.get $af)
+                                                       (local.get $r)))
+                                             (local.get $denomf))))))
+                        (else
+                         (local.set $r
+                                    (f64.div (local.get $cf)
+                                             (local.get $df)))
+                         (local.set $denomf
+                                    (f64.add (local.get $df)
+                                             (f64.mul (local.get $cf)
+                                                      (local.get $r))))
+                         (return
+                          (call $make-rectangular/canonical
+                                (struct.new $Flonum
+                                            (i32.const 0)
+                                            (f64.div
+                                             (f64.add
+                                              (f64.mul (local.get $af)
+                                                       (local.get $r))
+                                              (local.get $bf))
+                                             (local.get $denomf)))
+                                (struct.new $Flonum
+                                            (i32.const 0)
+                                            (f64.div
+                                             (f64.sub
+                                              (f64.mul (local.get $bf)
+                                                       (local.get $r))
+                                              (local.get $af))
+                                             (local.get $denomf)))))))))
                (local.set $denom
                           (call $+/2
                                 (call $*/2 (local.get $c) (local.get $c))

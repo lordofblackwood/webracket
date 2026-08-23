@@ -525,9 +525,13 @@
                                           (global.get $false))))
                (local.set $suffix (call $make-string/checked (i32.const 1) (i32.const 105))) ;; "i"
                (local.set $imag-len (call $string-length/checked/i32 (local.get $imag-str)))
-               (if (i32.and (i32.gt_u (local.get $imag-len) (i32.const 0))
-                            (i32.eq (call $string-ref/checked/i32 (local.get $imag-str) (i32.const 0))
-                                    (i32.const 45))) ;; "-"
+               (if (i32.and
+                    (i32.gt_u (local.get $imag-len) (i32.const 0))
+                    (i32.or
+                     (i32.eq (call $string-ref/checked/i32 (local.get $imag-str) (i32.const 0))
+                             (i32.const 45)) ;; "-"
+                     (i32.eq (call $string-ref/checked/i32 (local.get $imag-str) (i32.const 0))
+                             (i32.const 43)))) ;; "+"
                    (then (return (call $string-append/2
                                        (call $string-append/2 (local.get $real-str)
                                                              (local.get $imag-str))
