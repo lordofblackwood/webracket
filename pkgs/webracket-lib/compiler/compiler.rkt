@@ -1406,6 +1406,7 @@
       bytes-convert
       make-logger
       make-log-receiver
+      format fprintf
       sync sync/timeout
       chaperone-procedure unsafe-chaperone-procedure unsafe-impersonate-procedure
       chaperone-struct chaperone-vector chaperone-box chaperone-hash
@@ -1417,7 +1418,7 @@
     (λ (name)
       (case name
         [(+ * unsafe-fx+ unsafe-fx* compose compose1 cartesian-product string-append-immutable gcd lcm hash hasheq hasheqv hashalw) 0]
-        [(error) 1]
+        [(error format) 1]
         [(- / unsafe-fx- fx-/wraparound unsafe-fx-/wraparound min max
              flmin flmax unsafe-flmin unsafe-flmax
              fxmin fxmax unsafe-fxmin unsafe-fxmax
@@ -1442,13 +1443,14 @@
         [(stencil-vector $system-stencil-vector unsafe-stencil-vector) 1]
         [(make-instance make-prefab-struct) 1]
         [(bytes-convert) 2]
+        [(fprintf) 2]
         [else 2]))
     ; - max-proc
     (λ (_name) #f)
     ; - rest-start-proc
     (λ (name)
       (case name
-        [(error apply list*) 1]
+        [(error apply list* format) 1]
         [(extend-parameterization) 1]
         [(vector-count map andmap ormap append-map count for-each vector-map vector-map! filter-map
                        instance-variable-value) 2]
@@ -1465,6 +1467,7 @@
         [(make-log-receiver) 2]
         [(bytes-convert) 2]
         [(+ * unsafe-fx+ unsafe-fx* compose compose1 cartesian-product string-append-immutable gcd lcm hash hasheq hasheqv hashalw) 0]
+        [(fprintf) 2]
         [else 1])))
    (make-inline-specs '(date make-date date* make-date*) 'variadic-args 0 #f 0)
    (make-inline-specs '(= < > <= >=) 'variadic-args 1 #f 1)
@@ -2831,6 +2834,8 @@
   write-byte
   write-char
   newline
+  format
+  fprintf
   display
   displayln
   write-bytes

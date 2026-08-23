@@ -176,6 +176,47 @@
             '(number->string 10+11/12i 16)
             #:gate? #t
             #:note "Complex number->string applies radix to exact rational components.")
+   (nt-case 'format-display-bignum
+            'number-formatting
+            '(format "~a" 4294967296)
+            #:gate? #t
+            #:note "format ~a uses numeric display formatting for bignums.")
+   (nt-case 'format-write-rational
+            'number-formatting
+            '(format "~s" 1/10)
+            #:gate? #t
+            #:note "format ~s uses numeric write formatting for rationals.")
+   (nt-case 'format-print-complex-rational
+            'number-formatting
+            '(format "~v" 1/2+1/3i)
+            #:gate? #t
+            #:note "format ~v uses numeric print formatting for exact complex values.")
+   (nt-case 'format-radix-bignum
+            'number-formatting
+            '(format "~b ~o ~x" 4294967296 4294967296 4294967296)
+            #:gate? #t
+            #:note "format radix directives use number->string for bignums.")
+   (nt-case 'display-bignum
+            'number-formatting
+            '(let ([out (open-output-string)])
+               (display 4294967296 out)
+               (get-output-string out))
+            #:gate? #t
+            #:note "display writes bignums through numeric display formatting.")
+   (nt-case 'displayln-rational
+            'number-formatting
+            '(let ([out (open-output-string)])
+               (displayln 1/10 out)
+               (get-output-string out))
+            #:gate? #t
+            #:note "displayln writes rationals and a newline.")
+   (nt-case 'fprintf-complex
+            'number-formatting
+            '(let ([out (open-output-string)])
+               (fprintf out "~a|~s|~v" 4294967296 1/10 1/2+1/3i)
+               (get-output-string out))
+            #:gate? #t
+            #:note "fprintf inherits number formatting for display, write, and print modes.")
    (nt-case 'string->number-decimal-bignum
             'string-number
             '(string->number "4294967296")
