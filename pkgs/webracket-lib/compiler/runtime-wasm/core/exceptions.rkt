@@ -4583,22 +4583,16 @@
                     (local.set $rest-args (ref.cast (ref $Args) (local.get $rest)))
                     (if (i32.gt_u (array.len (local.get $rest-args)) (i32.const 0))
                         (then
-                         (if (i32.eqz (call $fx?/i32 (local.get $third)))
+                         (if (ref.eq (call $exact-nonnegative-integer? (local.get $third))
+                                     (global.get $false))
                              (then (call $raise-argument-error1
                                          (local.get $position-who)
                                          (global.get $string:exact-nonnegative-integer?)
                                          (local.get $third))
                                    (unreachable)))
                          (local.set $pos
-                                    (i32.shr_s
-                                     (i31.get_s (ref.cast (ref i31) (local.get $third)))
-                                     (i32.const 1)))
-                         (if (i32.lt_s (local.get $pos) (i32.const 0))
-                             (then (call $raise-argument-error1
-                                         (local.get $position-who)
-                                         (global.get $string:exact-nonnegative-integer?)
-                                         (local.get $third))
-                                   (unreachable)))
+                                    (call $exact-nonnegative-integer->i32/saturating
+                                          (local.get $third)))
                          (if (i32.ge_u (local.get $pos)
                                        (array.len (local.get $rest-args)))
                              (then (call $raise-argument-error1

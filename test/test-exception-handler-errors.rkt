@@ -76,6 +76,16 @@
          "#f"
          "'a")
         (catch-contract/contains?
+         (lambda () (raise-argument-error 'demo "number?" 536870912 #f))
+         "demo"
+         "expected: number?"
+         "given: #f")
+        (catch-contract/contains?
+         (lambda () (raise-argument-error* 'demo 'racket "number?" 536870912 #f))
+         "demo"
+         "expected: number?"
+         "given: #f")
+        (catch-contract/contains?
          (lambda () (raise-argument-error* 'demo "number?" 0 #f))
          "demo"
          "expected: number?"
