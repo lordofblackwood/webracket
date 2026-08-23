@@ -216,7 +216,17 @@
              (lambda () (bytes-convert converter #"abc" 0 3 'bad))
              "bytes-convert"
              "bytes?"
-             "given: 'bad")))))
+             "given: 'bad")
+            (catch-contract/contains?
+             (lambda () (bytes-convert converter #"abc" too-large-byte-index))
+             "bytes-convert"
+             "starting index is out of range"
+             "valid range: [0, 3]")
+            (catch-contract/contains?
+             (lambda () (bytes-convert converter #"abc" 0 too-large-byte-index))
+             "bytes-convert"
+             "ending index is out of range"
+             "valid range: [0, 3]")))))
  (list "bytes-convert success still works"
        (let ([converter (bytes-open-converter "UTF-8" "UTF-8")])
          (let-values ([(out read status) (bytes-convert converter #"abc")])

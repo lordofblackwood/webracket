@@ -876,6 +876,9 @@
            (local $dest-start   (ref eq))
            (local $slice        (ref eq))
            (local $read-count   i32)
+           (local $src-start/i  i32)
+           (local $src-end/i    i32)
+           (local $src-len      i32)
 
            (if (i32.eqz (ref.test (ref $BytesConverter) (local.get $converter-raw)))
                (then (call $raise-argument-error1
@@ -898,11 +901,14 @@
                            (local.get $src-raw))
                      (unreachable)))
            (local.set $src (ref.cast (ref $Bytes) (local.get $src-raw)))
+           (local.set $src-len
+                      (call $i8array-length
+                            (struct.get $Bytes $bs (local.get $src))))
            (local.set $src-start (ref.i31 (i32.const 0)))
            (local.set $src-end
                       (ref.i31
                        (i32.shl
-                        (call $i8array-length (struct.get $Bytes $bs (local.get $src)))
+                        (local.get $src-len)
                         (i32.const 1))))
            (local.set $dest-raw (global.get $false))
            (local.set $dest-start (ref.i31 (i32.const 0)))
@@ -922,15 +928,33 @@
            (if (ref.test (ref $Pair) (local.get $node))
                (then
                 (local.set $dest-start (struct.get $Pair $a (ref.cast (ref $Pair) (local.get $node))))))
-           (local.set $slice
-                      (call $subbytes
-                            (local.get $src-raw)
-                            (local.get $src-start)
+           (local.set $src-start/i
+                      (call $bytes-index/i32
+                            (global.get $symbol:bytes-convert)
+                            (local.get $src-start)))
+           (local.set $src-end/i
+                      (call $bytes-index/i32
+                            (global.get $symbol:bytes-convert)
                             (local.get $src-end)))
+           (if (i32.or (i32.gt_u (local.get $src-start/i) (local.get $src-end/i))
+                       (i32.gt_u (local.get $src-end/i) (local.get $src-len)))
+               (then (call $raise-byte-string-range-error
+                           (global.get $symbol:bytes-convert)
+                           (local.get $src-raw)
+                           (local.get $src-start/i)
+                           (local.get $src-end/i)
+                           (local.get $src-len))
+                     (unreachable)))
            (local.set $read-count
-                      (i32.sub
-                       (i32.shr_u (i31.get_u (ref.cast (ref i31) (local.get $src-end))) (i32.const 1))
-                       (i32.shr_u (i31.get_u (ref.cast (ref i31) (local.get $src-start))) (i32.const 1))))
+                      (i32.sub (local.get $src-end/i) (local.get $src-start/i)))
+           (local.set $slice
+                      (struct.new $Bytes
+                                  (i32.const 0)
+                                  (i32.const 0)
+                                  (call $i8array-copy
+                                        (struct.get $Bytes $bs (local.get $src))
+                                        (local.get $src-start/i)
+                                        (local.get $src-end/i))))
            (if (ref.eq (local.get $dest-raw) (global.get $false))
                (then
                 (return
