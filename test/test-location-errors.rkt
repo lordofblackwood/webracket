@@ -14,6 +14,8 @@
                    (string-contains? message needle))
                  needles))))
 
+(define bignum-source-location-index 536870912)
+
 (list
  (list "srcloc constructor field errors are catchable with who"
        (and
@@ -79,4 +81,14 @@
               (equal? (srcloc-column loc) 0)
               (equal? (srcloc-position loc) 10)
               (equal? (srcloc-span loc) 5)
-              (equal? (srcloc->string loc) "source:3:0")))))
+              (equal? (srcloc->string loc) "source:3:0"))))
+ (list "srcloc accepts bignum source-location fields"
+       (let* ([n bignum-source-location-index]
+              [loc (make-srcloc 'source n n n n)])
+         (and (srcloc? loc)
+              (= (srcloc-line loc) n)
+              (= (srcloc-column loc) n)
+              (= (srcloc-position loc) n)
+              (= (srcloc-span loc) n)
+              (equal? (srcloc->string loc)
+                      "source:536870912:536870912")))))

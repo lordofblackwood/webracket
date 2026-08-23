@@ -17,6 +17,8 @@
 (define (syntax-contract-error? thunk . needles)
   (apply catch-contract/contains? thunk needles))
 
+(define bignum-source-location-index 536870912)
+
 (define id-a (datum->syntax #f 'a))
 (define id-b (datum->syntax #f 'b))
 
@@ -98,6 +100,21 @@
                         (syntax-position from-vector)
                         (syntax-span from-vector))
                   '(src 5 6 7 8)))))
+ (list "datum->syntax preserves bignum source-location fields"
+       (let* ([n bignum-source-location-index]
+              [from-list (datum->syntax #f 'x (list 'src n n n n))]
+              [from-vector (datum->syntax #f 'x (vector 'src n n n n))])
+         (and
+          (equal? (syntax-source from-list) 'src)
+          (= (syntax-line from-list) n)
+          (= (syntax-column from-list) n)
+          (= (syntax-position from-list) n)
+          (= (syntax-span from-list) n)
+          (equal? (syntax-source from-vector) 'src)
+          (= (syntax-line from-vector) n)
+          (= (syntax-column from-vector) n)
+          (= (syntax-position from-vector) n)
+          (= (syntax-span from-vector) n))))
  (list "syntax phase arguments reject non-phase values"
        (and
         (syntax-contract-error?
@@ -125,7 +142,7 @@
          "make-syntax-delta-introducer"
          "phase?"
          "given: 'bad")))
- (list "syntax phase arguments accept #f and exact integers"
+ (list "syntax phase arguments accept false and exact integers"
        (and
         (equal? (identifier-binding id-a #f) #f)
         (equal? (identifier-binding id-a -1) #f)
