@@ -6148,7 +6148,9 @@
            (local $neg      i32)
            (local $cp       i32)
            (local $int      (ref eq))
+           (local $den      (ref eq))
            (local $n        i32)
+           (local $den-len  i32)
            (local $has-int  i32)
            (local $acc      i32)
            (local $frac     f64)
@@ -6245,6 +6247,41 @@
                (else (nop)))
 
            (local.set $i (i32.add (local.get $i) (local.get $n)))
+
+           ;; Rational syntax: numerator/positive-denominator.
+           (if (i32.lt_u (local.get $i) (local.get $len))
+               (then
+                (local.set $cp (call $i32array-ref (local.get $arr) (local.get $i)))
+                (if (i32.eq (local.get $cp) (i32.const 47))
+                    (then
+                     (if (i32.eqz (local.get $has-int))
+                         (then (return (global.get $false))))
+                     (call $string->number:parse-integer
+                           (local.get $s)
+                           (i32.add (local.get $i) (i32.const 1))
+                           (local.get $radix))
+                     (local.set $den-len)
+                     (local.set $den)
+                     (if (ref.eq (local.get $den) (global.get $false))
+                         (then (return (global.get $false))))
+                     (local.set $i
+                                (i32.add
+                                 (i32.add (local.get $i) (i32.const 1))
+                                 (local.get $den-len)))
+                     (if (i32.ne (local.get $i) (local.get $len))
+                         (then (return (global.get $false))))
+                     (if (call $integer-zero?/i32 (local.get $den))
+                         (then (return (global.get $false))))
+                     (if (local.get $neg)
+                         (then
+                          (local.set $int
+                                     (call $integer-sub/2
+                                           (ref.i31 (i32.const 0))
+                                           (local.get $int)))))
+                     (return
+                      (call $rational-normalize
+                            (local.get $int)
+                            (local.get $den)))))))
 
            ;; No fractional part -> return exact integer.
            (if (i32.eq (local.get $i) (local.get $len))

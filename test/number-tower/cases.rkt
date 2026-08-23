@@ -169,6 +169,26 @@
             #:comparison 'ignore-fixnum-width
             #:gate? #t
             #:note "string->number parses exact bignums in explicit radices.")
+   (nt-case 'string->number-rational-canonical
+            'string-number
+            '(string->number "2/4")
+            #:gate? #t
+            #:note "string->number parses and reduces exact rationals.")
+   (nt-case 'string->number-bignum-rational
+            'string-number
+            '(string->number "4294967296/3")
+            #:gate? #t
+            #:note "string->number preserves bignum rational components.")
+   (nt-case 'string->number-radix-rational
+            'string-number
+            '(string->number "10/100" 2)
+            #:gate? #t
+            #:note "string->number applies explicit radix to both rational components.")
+   (nt-case 'string->number-zero-denominator
+            'string-number
+            '(string->number "1/0")
+            #:gate? #t
+            #:note "string->number returns #f for rational syntax with zero denominator.")
    (nt-case 'rational-add
             'rational-arithmetic
             '(+ 1/3 1/6)
