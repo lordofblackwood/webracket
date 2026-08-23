@@ -1464,6 +1464,8 @@
   '($procedure-arity-entry->marker/i32
     $procedure-arity?
     $procedure-arity-value->field
+    $procedure-arity-field-includes?/i32
+    $procedure-arity-field-subset-of-mask?/i32
     $procedure-arity-field->mask/i32
     $procedure-arity-mask-value->field))
 
@@ -3317,24 +3319,25 @@
            (local $struct (ref $Struct))
            (local $fields (ref $Array))
            (local $value  (ref eq))
+           (local $value-i32 i32)
 
            (if (ref.eq (call $exact-nonnegative-integer? (local.get $v)) (global.get $true))
                (then
                 (return
-                 (i32.shr_s
-                  (i31.get_s (ref.cast (ref i31) (local.get $v)))
-                  (i32.const 1)))))
+                 (call $exact-nonnegative-integer->i32/saturating
+                       (local.get $v)))))
            (if (ref.eq (call $arity-at-least? (local.get $v)) (global.get $true))
                (then
                 (local.set $struct (call $arity-at-least-unwrap (local.get $who) (local.get $v)))
                 (local.set $fields (struct.get $Struct $fields (local.get $struct)))
                 (local.set $value  (array.get $Array (local.get $fields) (i32.const 0)))
+                (local.set $value-i32
+                           (call $exact-nonnegative-integer->i32/saturating
+                                 (local.get $value)))
                 (return
                  (i32.sub
                   (i32.const -1)
-                  (i32.shr_s
-                   (i31.get_s (ref.cast (ref i31) (local.get $value)))
-                   (i32.const 1))))))
+                  (local.get $value-i32)))))
            (call $raise-argument-error1
                  (local.get $who)
                  (global.get $string:procedure-arity?)
@@ -3394,14 +3397,26 @@
            (local $node   (ref eq))
            (local $entry  (ref eq))
            (local $marker i32)
+           (local $struct (ref $Struct))
+           (local $fields (ref $Array))
+           (local $value  (ref eq))
+           (local $value-i32 i32)
 
            (if (ref.eq (call $exact-nonnegative-integer? (local.get $arity)) (global.get $true))
                (then (return (local.get $arity))))
            (if (ref.eq (call $arity-at-least? (local.get $arity)) (global.get $true))
                (then
-                (local.set $marker (call $procedure-arity-entry->marker/i32
+                (local.set $struct (call $arity-at-least-unwrap
                                          (local.get $who)
                                          (local.get $arity)))
+                (local.set $fields (struct.get $Struct $fields (local.get $struct)))
+                (local.set $value (array.get $Array (local.get $fields) (i32.const 0)))
+                (local.set $value-i32
+                           (call $exact-nonnegative-integer->i32/saturating
+                                 (local.get $value)))
+                (if (i32.gt_u (local.get $value-i32) (i32.const 536870911))
+                    (then (return (local.get $arity))))
+                (local.set $marker (i32.sub (i32.const -1) (local.get $value-i32)))
                 (return (ref.i31 (i32.shl (local.get $marker) (i32.const 1))))))
            (if (ref.eq (call $list? (local.get $arity)) (global.get $false))
                (then
@@ -3417,13 +3432,65 @@
                                   (array.new_fixed $I32Array 0)))))
            (if (i32.eq (local.get $len) (i32.const 1))
                (then
+                (local.set $entry (call $car (local.get $arity)))
+                (if (i32.or
+                     (ref.eq (call $exact-nonnegative-integer? (local.get $entry))
+                             (global.get $true))
+                     (ref.eq (call $arity-at-least? (local.get $entry))
+                             (global.get $true)))
+                    (then (return (local.get $entry))))
                 (return
                  (ref.i31
                   (i32.shl
                    (call $procedure-arity-entry->marker/i32
                          (local.get $who)
-                         (call $car (local.get $arity)))
+                         (local.get $entry))
                    (i32.const 1))))))
+           (local.set $node (local.get $arity))
+           (block $wide-scan-done
+                  (loop $wide-scan
+                        (br_if $wide-scan-done
+                               (ref.eq (local.get $node)
+                                       (global.get $null)))
+                        (local.set $entry
+                                   (struct.get $Pair $a
+                                               (ref.cast (ref $Pair)
+                                                         (local.get $node))))
+                        (if (ref.eq (call $exact-nonnegative-integer?
+                                          (local.get $entry))
+                                    (global.get $true))
+                            (then
+                             (local.set $value-i32
+                                        (call $exact-nonnegative-integer->i32/saturating
+                                              (local.get $entry)))
+                             (if (i32.gt_u (local.get $value-i32)
+                                           (i32.const 536870911))
+                                 (then (return (local.get $arity))))))
+                        (if (ref.eq (call $arity-at-least? (local.get $entry))
+                                    (global.get $true))
+                            (then
+                             (local.set $struct
+                                        (call $arity-at-least-unwrap
+                                              (local.get $who)
+                                              (local.get $entry)))
+                             (local.set $fields
+                                        (struct.get $Struct $fields
+                                                    (local.get $struct)))
+                             (local.set $value
+                                        (array.get $Array
+                                                   (local.get $fields)
+                                                   (i32.const 0)))
+                             (local.set $value-i32
+                                        (call $exact-nonnegative-integer->i32/saturating
+                                              (local.get $value)))
+                             (if (i32.gt_u (local.get $value-i32)
+                                           (i32.const 536870911))
+                                 (then (return (local.get $arity))))))
+                        (local.set $node
+                                   (struct.get $Pair $d
+                                               (ref.cast (ref $Pair)
+                                                         (local.get $node))))
+                        (br $wide-scan)))
            (local.set $arr (call $i32array-make (local.get $len) (i32.const 0)))
            (local.set $node (local.get $arity))
            (local.set $i    (i32.const 0))
@@ -3441,6 +3508,207 @@
                         (local.set $i (i32.add (local.get $i) (i32.const 1)))
                         (br $fill)))
            (ref.cast (ref eq) (local.get $arr)))
+
+     (func $procedure-arity-field-includes?/i32
+           (param $a     (ref eq))
+           (param $k-i32 i32)
+           (result       i32)
+
+           (local $arr    (ref $I32Array))
+           (local $i      i32)
+           (local $n      i32)
+           (local $m      i32)
+           (local $arity  i32)
+           (local $start  i32)
+           (local $struct (ref $Struct))
+           (local $fields (ref $Array))
+           (local $value  (ref eq))
+           (local $k      (ref eq))
+           (local $node   (ref eq))
+           (local $entry  (ref eq))
+
+           (if (ref.test (ref i31) (local.get $a))
+               (then
+                (local.set $arity (i32.shr_s
+                                   (i31.get_s
+                                    (ref.cast (ref i31) (local.get $a)))
+                                   (i32.const 1)))
+                (if (i32.ge_s (local.get $arity) (i32.const 0))
+                    (then
+                     (return (i32.eq (local.get $arity) (local.get $k-i32)))))
+                (local.set $start (i32.sub (i32.const -1) (local.get $arity)))
+                (return (i32.ge_u (local.get $k-i32) (local.get $start)))))
+
+           (local.set $k
+                      (call $integer-from-i64
+                            (i64.extend_i32_u (local.get $k-i32))))
+           (if (ref.eq (call $exact-nonnegative-integer? (local.get $a))
+                       (global.get $true))
+               (then
+                (return
+                 (i32.eqz (call $integer-compare/i32
+                                (local.get $a)
+                                (local.get $k))))))
+
+           (if (ref.eq (call $arity-at-least? (local.get $a)) (global.get $true))
+               (then
+                (local.set $struct (call $arity-at-least-unwrap
+                                         (global.get $symbol:procedure-arity-includes?)
+                                         (local.get $a)))
+                (local.set $fields (struct.get $Struct $fields (local.get $struct)))
+                (local.set $value  (array.get $Array (local.get $fields) (i32.const 0)))
+                (return
+                 (i32.le_s (call $integer-compare/i32
+                                 (local.get $value)
+                                 (local.get $k))
+                           (i32.const 0)))))
+
+           (if (ref.test (ref $Pair) (local.get $a))
+               (then
+                (local.set $node (local.get $a))
+                (block $list-done
+                       (loop $list-loop
+                             (br_if $list-done
+                                    (ref.eq (local.get $node)
+                                            (global.get $null)))
+                             (local.set $entry
+                                        (struct.get $Pair $a
+                                                    (ref.cast (ref $Pair)
+                                                              (local.get $node))))
+                             (if (call $procedure-arity-field-includes?/i32
+                                       (local.get $entry)
+                                       (local.get $k-i32))
+                                 (then (return (i32.const 1))))
+                             (local.set $node
+                                        (struct.get $Pair $d
+                                                    (ref.cast (ref $Pair)
+                                                              (local.get $node))))
+                             (br $list-loop)))))
+
+           (local.set $arr (ref.cast (ref $I32Array) (local.get $a)))
+           (local.set $n   (array.len (local.get $arr)))
+           (block $done
+                  (loop $loop
+                        (br_if $done (i32.ge_u (local.get $i) (local.get $n)))
+                        (local.set $m
+                                   (array.get $I32Array (local.get $arr) (local.get $i)))
+                        (if (i32.ge_s (local.get $m) (i32.const 0))
+                            (then
+                             (if (i32.eq (local.get $m) (local.get $k-i32))
+                                 (then (return (i32.const 1)))))
+                            (else
+                             (local.set $start
+                                        (i32.sub (i32.const -1) (local.get $m)))
+                             (if (i32.ge_u (local.get $k-i32) (local.get $start))
+                                 (then (return (i32.const 1))))))
+                        (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                        (br $loop)))
+           (i32.const 0))
+
+     (func $procedure-arity-field-subset-of-mask?/i32
+           (param $a        (ref eq))
+           (param $old-mask i32)
+           (result          i32)
+
+           (local $arr       (ref $I32Array))
+           (local $i         i32)
+           (local $n         i32)
+           (local $m         i32)
+           (local $entry     (ref eq))
+           (local $node      (ref eq))
+           (local $start     i32)
+           (local $value     (ref eq))
+           (local $struct    (ref $Struct))
+           (local $fields    (ref $Array))
+           (local $value-i32 i32)
+           (local $new-mask  i32)
+
+           (if (ref.test (ref i31) (local.get $a))
+               (then
+                (local.set $new-mask
+                           (call $procedure-arity-field->mask/i32
+                                 (local.get $a)))
+                (return
+                 (i32.eqz
+                  (i32.and (local.get $new-mask)
+                           (i32.xor (local.get $old-mask)
+                                    (i32.const -1)))))))
+
+           (if (ref.eq (call $exact-nonnegative-integer? (local.get $a))
+                       (global.get $true))
+               (then
+                (local.set $value-i32
+                           (call $exact-nonnegative-integer->i32/saturating
+                                 (local.get $a)))
+                (return
+                 (call $procedure-arity-mask-includes?/i32
+                       (local.get $old-mask)
+                       (local.get $value-i32)))))
+
+           (if (ref.eq (call $arity-at-least? (local.get $a)) (global.get $true))
+               (then
+                (local.set $struct (call $arity-at-least-unwrap
+                                         (global.get $symbol:procedure-reduce-arity)
+                                         (local.get $a)))
+                (local.set $fields (struct.get $Struct $fields (local.get $struct)))
+                (local.set $value  (array.get $Array (local.get $fields) (i32.const 0)))
+                (local.set $value-i32
+                           (call $exact-nonnegative-integer->i32/saturating
+                                 (local.get $value)))
+                (return
+                 (call $procedure-arity-mask-includes?/i32
+                       (local.get $old-mask)
+                       (local.get $value-i32)))))
+
+           (if (ref.test (ref $Pair) (local.get $a))
+               (then
+                (local.set $node (local.get $a))
+                (block $list-done
+                       (loop $list-loop
+                             (br_if $list-done
+                                    (ref.eq (local.get $node)
+                                            (global.get $null)))
+                             (local.set $entry
+                                        (struct.get $Pair $a
+                                                    (ref.cast (ref $Pair)
+                                                              (local.get $node))))
+                             (if (i32.eqz
+                                  (call $procedure-arity-field-subset-of-mask?/i32
+                                        (local.get $entry)
+                                        (local.get $old-mask)))
+                                 (then (return (i32.const 0))))
+                             (local.set $node
+                                        (struct.get $Pair $d
+                                                    (ref.cast (ref $Pair)
+                                                              (local.get $node))))
+                             (br $list-loop)))
+                (return (i32.const 1))))
+
+           (local.set $arr (ref.cast (ref $I32Array) (local.get $a)))
+           (local.set $n   (array.len (local.get $arr)))
+           (block $done
+                  (loop $loop
+                        (br_if $done (i32.ge_u (local.get $i) (local.get $n)))
+                        (local.set $m
+                                   (array.get $I32Array (local.get $arr) (local.get $i)))
+                        (if (i32.ge_s (local.get $m) (i32.const 0))
+                            (then
+                             (if (i32.eqz
+                                  (call $procedure-arity-mask-includes?/i32
+                                        (local.get $old-mask)
+                                        (local.get $m)))
+                                 (then (return (i32.const 0)))))
+                            (else
+                             (local.set $start
+                                        (i32.sub (i32.const -1) (local.get $m)))
+                             (if (i32.eqz
+                                  (call $procedure-arity-mask-includes?/i32
+                                        (local.get $old-mask)
+                                        (local.get $start)))
+                                 (then (return (i32.const 0))))))
+                        (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                        (br $loop)))
+           (i32.const 1))
 
      (func $procedure-arity-field->mask/i32
            (param $a (ref eq))
@@ -3700,7 +3968,6 @@
 
            (local $p          (ref $Procedure))
            (local $new-arity  (ref eq))
-           (local $new-mask   i32)
            (local $old-mask   i32)
            (local $new-name   (ref eq))
            (local $new-realm  (ref eq))
@@ -3718,11 +3985,11 @@
            (local.set $new-arity (call $procedure-arity-value->field
                                        (global.get $symbol:procedure-reduce-arity)
                                        (local.get $arity)))
-           (local.set $new-mask (call $procedure-arity-field->mask/i32 (local.get $new-arity)))
            (local.set $old-mask (call $procedure-arity-mask/checked/i32 (local.get $p)))
-           (if (i32.ne (i32.and (local.get $new-mask)
-                                (i32.xor (local.get $old-mask) (i32.const -1)))
-                       (i32.const 0))
+           (if (i32.eqz
+                (call $procedure-arity-field-subset-of-mask?/i32
+                      (local.get $new-arity)
+                      (local.get $old-mask)))
                (then
                 (call $raise-argument-error1
                       (global.get $symbol:procedure-reduce-arity)
@@ -3779,7 +4046,6 @@
 
            (local $p          (ref $Procedure))
            (local $new-arity  (ref eq))
-           (local $new-mask   i32)
            (local $old-mask   i32)
            (local $new-name   (ref eq))
            (local $new-realm  (ref eq))
@@ -3798,11 +4064,11 @@
                       (call $procedure-arity-mask-value->field
                             (global.get $symbol:procedure-reduce-arity-mask)
                             (local.get $mask)))
-           (local.set $new-mask (call $procedure-arity-field->mask/i32 (local.get $new-arity)))
            (local.set $old-mask (call $procedure-arity-mask/checked/i32 (local.get $p)))
-           (if (i32.ne (i32.and (local.get $new-mask)
-                                (i32.xor (local.get $old-mask) (i32.const -1)))
-                       (i32.const 0))
+           (if (i32.eqz
+                (call $procedure-arity-field-subset-of-mask?/i32
+                      (local.get $new-arity)
+                      (local.get $old-mask)))
                (then
                 (call $raise-argument-error1
                       (global.get $symbol:procedure-reduce-arity-mask)
@@ -3912,6 +4178,14 @@
                          (then (return (local.get $a)))
                          (else (local.set $value (i32.sub (i32.const -1) (local.get $arity-i32)))
                                (return (call $arity-at-least/make (local.get $value)))))))
+           (if (ref.eq (call $exact-nonnegative-integer? (local.get $a))
+                       (global.get $true))
+               (then (return (local.get $a))))
+           (if (ref.eq (call $arity-at-least? (local.get $a))
+                       (global.get $true))
+               (then (return (local.get $a))))
+           (if (ref.test (ref $Pair) (local.get $a))
+               (then (return (local.get $a))))
            ;; 3. Otherwise, cast to $I32Array and build a list of ALL markers (incl. negatives)
            (local.set $arr (ref.cast (ref $I32Array) (local.get $a)))
            (local.set $n   (array.len (local.get $arr)))
@@ -4084,7 +4358,6 @@
            (result         (ref eq))    ;; returns #true or #false
 
            (local $k-i32 i32)
-           (local $mask  i32)
 
            ;; Step 1: validate proc with the public function's `who`. Plain
            ;; structs are procedure-shaped internally and have no accepted
@@ -4103,13 +4376,10 @@
                      (unreachable)))
            (if (ref.eq (call $procedure? (local.get $proc)) (global.get $false))
                (then (return (global.get $false))))
-           ;; Step 3: get the checked arity mask.
-           (local.set $mask
-                      (call $procedure-arity-mask/checked/i32
-                            (ref.cast (ref $Procedure) (local.get $proc))))
-           ;; Step 4: check whether k is included in the mask.
-           (if (call $procedure-arity-mask-includes?/i32
-                     (local.get $mask)
+           ;; Step 3: check whether k is included in the stored arity field.
+           (if (call $procedure-arity-field-includes?/i32
+                     (struct.get $Procedure $arity
+                                 (ref.cast (ref $Procedure) (local.get $proc)))
                      (local.get $k-i32))
                (then (return (global.get $true)))
                (else (return (global.get $false))))
@@ -4121,14 +4391,9 @@
            ; (param $kws-ok? (ref eq))          ;; we don't use this yet
            (result         i32)
 
-           (local $mask i32)
-
-           ;; Step 1: get the arity mask
-           (local.set $mask (call $procedure-arity-mask/checked/i32
-                                  (local.get $proc)))
-           ;; Step 2: check whether k is included in the mask
-           (call $procedure-arity-mask-includes?/i32
-                 (local.get $mask)
+           ;; Step 1: inspect the stored arity representation directly.
+           (call $procedure-arity-field-includes?/i32
+                 (struct.get $Procedure $arity (local.get $proc))
                  (local.get $k-i32)))
 
      (func $raise-argument-error:primitive-procedure-expected/who
@@ -4194,6 +4459,9 @@
     $procedure-arity-entry->marker/i32
     $procedure-arity?
     $procedure-arity-value->field
+    $procedure-arity-mask-includes?/i32
+    $procedure-arity-field-includes?/i32
+    $procedure-arity-field-subset-of-mask?/i32
     $procedure-arity-field->mask/i32
     $procedure-arity-mask-value->field
     $procedure-arity-includes?/checked/i32))

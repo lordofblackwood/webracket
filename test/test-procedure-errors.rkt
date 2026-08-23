@@ -149,6 +149,29 @@
           (equal? (arity-at-least-value arity1) too-large-arity-index)
           (equal? (arity-at-least-value arity2) too-large-arity-index)
           (equal? arity1 arity2))))
+ (list "procedure-reduce-arity preserves bignum arities"
+       (let* ([n too-large-arity-index]
+              [finite (procedure-reduce-arity values n)]
+              [finite-list (procedure-reduce-arity values (list n))]
+              [at-least (procedure-reduce-arity values (arity-at-least n))]
+              [at-least-list (procedure-reduce-arity values (list (arity-at-least n)))]
+              [at-least-arity (procedure-arity at-least)]
+              [at-least-list-arity (procedure-arity at-least-list)])
+         (and
+          (procedure? finite)
+          (procedure? finite-list)
+          (procedure? at-least)
+          (procedure? at-least-list)
+          (equal? (procedure-arity finite) n)
+          (equal? (procedure-arity finite-list) n)
+          (arity-at-least? at-least-arity)
+          (arity-at-least? at-least-list-arity)
+          (equal? (arity-at-least-value at-least-arity) n)
+          (equal? (arity-at-least-value at-least-list-arity) n)
+          (equal? (procedure-arity-includes? finite 0) #f)
+          (equal? (procedure-arity-includes? finite n) #t)
+          (equal? (procedure-arity-includes? at-least 0) #f)
+          (equal? (procedure-arity-includes? at-least n) #t))))
  (list "procedure-arity-includes? procedure errors are catchable"
        (catch-contract/contains?
         (lambda () (procedure-arity-includes? 42 1))
