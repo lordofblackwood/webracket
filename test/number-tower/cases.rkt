@@ -856,7 +856,42 @@
             '(bitwise-not -9007199254740993)
             #:comparison 'ignore-fixnum-width
             #:gate? #t
-            #:note "bitwise-not follows infinite two's-complement for negative bignums.")))
+            #:note "bitwise-not follows infinite two's-complement for negative bignums.")
+   (nt-case 'bitwise-bit-set-positive-bignum-set
+            'integer-bitwise
+            '(bitwise-bit-set? 9007199254740992 53)
+            #:gate? #t
+            #:note "bitwise-bit-set? can inspect set bits in positive bignums.")
+   (nt-case 'bitwise-bit-set-positive-bignum-clear
+            'integer-bitwise
+            '(bitwise-bit-set? 9007199254740992 52)
+            #:gate? #t
+            #:note "bitwise-bit-set? can inspect clear bits in positive bignums.")
+   (nt-case 'bitwise-bit-set-positive-bignum-huge-index
+            'integer-bitwise
+            '(bitwise-bit-set? 9007199254740992 9007199254740993)
+            #:gate? #t
+            #:note "Positive exact integers have high zero bits past their finite length.")
+   (nt-case 'bitwise-bit-set-negative-bignum-huge-index
+            'integer-bitwise
+            '(bitwise-bit-set? -9007199254740992 9007199254740993)
+            #:gate? #t
+            #:note "Negative exact integers have infinitely many high one bits.")
+   (nt-case 'bitwise-bit-set-negative-bignum-low-clear
+            'integer-bitwise
+            '(bitwise-bit-set? -9007199254740992 0)
+            #:gate? #t
+            #:note "Negative bignum bit tests follow infinite two's-complement at low bits.")
+   (nt-case 'bitwise-first-bit-set-positive-bignum
+            'integer-bitwise
+            '(bitwise-first-bit-set 9007199254740992)
+            #:gate? #t
+            #:note "bitwise-first-bit-set finds the lowest set limb bit in positive bignums.")
+   (nt-case 'bitwise-first-bit-set-negative-bignum
+            'integer-bitwise
+            '(bitwise-first-bit-set -9007199254740992)
+            #:gate? #t
+            #:note "bitwise-first-bit-set handles negative bignums via two's-complement.")))
 
 ;; number-tower-groups : -> (listof symbol?)
 ;;   Return the distinct oracle groups in stable display order.

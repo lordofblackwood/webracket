@@ -3793,6 +3793,11 @@
               (local $m/fx i32)   ; raw bits of m
               (local $n/i  i32)   ; unboxed signed n
               (local $m/i  i32)   ; unboxed unsigned m
+              (local $m/big? i32)
+              (local $bn   (ref $Bignum))
+              (local $limbs (ref $I32Array))
+              (local $limb-index i32)
+              (local $bit-index  i32)
 
               ;; --- Validate $n and $m ---
               (if (ref.eq (call $exact-integer? (local.get $n)) (global.get $false))
@@ -3805,21 +3810,69 @@
                               (global.get $symbol:bitwise-bit-set?)
                               (local.get $m))
                         (unreachable)))
-              ;; --- Extract values ---
-              (local.set $n/fx (i31.get_u (ref.cast (ref i31) (local.get $n))))
-              (local.set $m/fx (i31.get_u (ref.cast (ref i31) (local.get $m))))
-              (local.set $n/i  (i32.shr_s (local.get $n/fx) (i32.const 1)))
-              (local.set $m/i  (i32.shr_u (local.get $m/fx) (i32.const 1)))
-              ;; --- Compute ---
-              (if (result (ref eq)) (i32.ge_u (local.get $m/i) (i32.const 30))
-                  (then (if (result (ref eq)) (i32.lt_s (local.get $n/i) (i32.const 0))
-                            (then (global.get $true))
-                            (else (global.get $false))))
-                  (else (if (result (ref eq))
-                            (i32.eqz (i32.and (local.get $n/i)
-                                               (i32.shl (i32.const 1) (local.get $m/i))))
-                            (then (global.get $false))
-                            (else (global.get $true))))))
+
+              ;; --- Decode bit index ---
+              (local.set $m/big? (ref.test (ref $Bignum) (local.get $m)))
+              (if (local.get $m/big?)
+                  (then
+                   (if (i32.eqz (call $integer-single-limb?/i32 (local.get $m)))
+                       (then
+                        (if (i32.lt_s (call $integer-sign/i32 (local.get $n))
+                                      (i32.const 0))
+                            (then (return (global.get $true)))
+                            (else (return (global.get $false))))))
+                   (local.set $m/i (call $integer-abs-u32 (local.get $m))))
+                  (else
+                   (local.set $m/fx (i31.get_u (ref.cast (ref i31) (local.get $m))))
+                   (local.set $m/i  (i32.shr_u (local.get $m/fx) (i32.const 1)))))
+
+              ;; --- Fixnum n case ---
+              (if (ref.test (ref i31) (local.get $n))
+                  (then
+                   (local.set $n/fx (i31.get_u (ref.cast (ref i31) (local.get $n))))
+                   (local.set $n/i  (i32.shr_s (local.get $n/fx) (i32.const 1)))
+                   (return
+                    (if (result (ref eq)) (i32.ge_u (local.get $m/i) (i32.const 30))
+                        (then (if (result (ref eq)) (i32.lt_s (local.get $n/i) (i32.const 0))
+                                  (then (global.get $true))
+                                  (else (global.get $false))))
+                        (else (if (result (ref eq))
+                                  (i32.eqz (i32.and (local.get $n/i)
+                                                     (i32.shl (i32.const 1) (local.get $m/i))))
+                                  (then (global.get $false))
+                                  (else (global.get $true))))))))
+
+              ;; --- Negative bignum n case ---
+              (if (i32.lt_s (call $integer-sign/i32 (local.get $n))
+                            (i32.const 0))
+                  (then
+                   (return
+                    (if (result (ref eq))
+                        (ref.eq
+                         (call $bitwise-bit-set?
+                               (call $bitwise-not (local.get $n))
+                               (local.get $m))
+                         (global.get $true))
+                        (then (global.get $false))
+                        (else (global.get $true))))))
+
+              ;; --- Positive bignum n case ---
+              (local.set $bn (ref.cast (ref $Bignum) (local.get $n)))
+              (local.set $limbs (struct.get $Bignum $limbs (local.get $bn)))
+              (local.set $limb-index (i32.shr_u (local.get $m/i) (i32.const 5)))
+              (if (i32.ge_u (local.get $limb-index)
+                            (array.len (local.get $limbs)))
+                  (then (return (global.get $false))))
+              (local.set $bit-index (i32.and (local.get $m/i) (i32.const 31)))
+              (if (result (ref eq))
+                  (i32.eqz
+                   (i32.and
+                    (array.get $I32Array
+                               (local.get $limbs)
+                               (local.get $limb-index))
+                    (i32.shl (i32.const 1) (local.get $bit-index))))
+                  (then (global.get $false))
+                  (else (global.get $true))))
 
         (func $bitwise-first-bit-set (type $Prim1)
               (param $n (ref eq))
@@ -3827,6 +3880,11 @@
 
               (local $n/fx i32)
               (local $n/i  i32)
+              (local $bn   (ref $Bignum))
+              (local $limbs (ref $I32Array))
+              (local $i    i32)
+              (local $limb i32)
+              (local $pos  i64)
 
               ;; --- Validate $n ---
               (if (ref.eq (call $exact-integer? (local.get $n)) (global.get $false))
@@ -3834,15 +3892,41 @@
                               (global.get $symbol:bitwise-first-bit-set)
                               (local.get $n))
                         (unreachable)))
-              ;; --- Extract $n/i ---
-              (local.set $n/fx (i31.get_u (ref.cast (ref i31) (local.get $n))))
-              (local.set $n/i  (i32.shr_s (local.get $n/fx) (i32.const 1)))
-              ;; --- Compute ---
-              (if (result (ref eq))
-                  (i32.eqz (local.get $n/i))
-                 (then (ref.i31 (i32.const -2)))
-                 (else (ref.i31 (i32.shl (i32.ctz (local.get $n/i))
-                                         (i32.const 1))))))
+
+              ;; --- Fixnum case ---
+              (if (ref.test (ref i31) (local.get $n))
+                  (then
+                   (local.set $n/fx (i31.get_u (ref.cast (ref i31) (local.get $n))))
+                   (local.set $n/i  (i32.shr_s (local.get $n/fx) (i32.const 1)))
+                   (return
+                    (if (result (ref eq))
+                        (i32.eqz (local.get $n/i))
+                        (then (ref.i31 (i32.const -2)))
+                        (else (ref.i31 (i32.shl (i32.ctz (local.get $n/i))
+                                                (i32.const 1))))))))
+
+              ;; --- Bignum case ---
+              (local.set $bn (ref.cast (ref $Bignum) (local.get $n)))
+              (local.set $limbs (struct.get $Bignum $limbs (local.get $bn)))
+              (loop $loop
+                    (local.set $limb
+                               (array.get $I32Array
+                                          (local.get $limbs)
+                                          (local.get $i)))
+                    (if (i32.ne (local.get $limb) (i32.const 0))
+                        (then
+                         (local.set $pos
+                                    (i64.add
+                                     (i64.mul
+                                      (i64.extend_i32_u (local.get $i))
+                                      (i64.const 32))
+                                     (i64.extend_i32_u
+                                      (i32.ctz (local.get $limb)))))
+                         (return (call $integer-from-i64
+                                       (local.get $pos)))))
+                    (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                    (br $loop))
+              (unreachable))
 
 
         ;; NOTE: Only supports fixnum arguments; start/end must be
