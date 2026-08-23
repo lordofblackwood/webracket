@@ -1621,12 +1621,14 @@
                  (local.get $index-label))
            (call $growable-array-add! (local.get $out)
                  (call $format/display
-                       (ref.i31 (i32.shl (local.get $idx) (i32.const 1)))))
+                       (call $integer-from-i64
+                             (i64.extend_i32_u (local.get $idx)))))
            (call $growable-array-add! (local.get $out)
                  (global.get $string:string-ref:valid-range))
            (call $growable-array-add! (local.get $out)
                  (call $format/display
-                       (ref.i31 (i32.shl (local.get $len) (i32.const 1)))))
+                       (call $integer-from-i64
+                             (i64.extend_i32_u (local.get $len)))))
            (call $growable-array-add! (local.get $out)
                  (global.get $string:string-ref:valid-range-close))
            (call $growable-array-add! (local.get $out)
@@ -1661,17 +1663,20 @@
                  (global.get $string:substring:ending-index))
            (call $growable-array-add! (local.get $out)
                  (call $format/display
-                       (ref.i31 (i32.shl (local.get $end) (i32.const 1)))))
+                       (call $integer-from-i64
+                             (i64.extend_i32_u (local.get $end)))))
            (call $growable-array-add! (local.get $out)
                  (global.get $string:substring:starting-index))
            (call $growable-array-add! (local.get $out)
                  (call $format/display
-                       (ref.i31 (i32.shl (local.get $start) (i32.const 1)))))
+                       (call $integer-from-i64
+                             (i64.extend_i32_u (local.get $start)))))
            (call $growable-array-add! (local.get $out)
                  (global.get $string:string-ref:valid-range))
            (call $growable-array-add! (local.get $out)
                  (call $format/display
-                       (ref.i31 (i32.shl (local.get $len) (i32.const 1)))))
+                       (call $integer-from-i64
+                             (i64.extend_i32_u (local.get $len)))))
            (call $growable-array-add! (local.get $out)
                  (global.get $string:string-ref:valid-range-close))
            (call $growable-array-add! (local.get $out)
@@ -1768,8 +1773,6 @@
            (local $acc          i32)
            (local $b2           i32)
            (local $count        i32)
-           (local $raw-start    i32)
-           (local $raw-end      i32)
            (local $raw-err-char i32)
 
            ;; --- Type check for bytes argument ---
@@ -1784,46 +1787,18 @@
            ;; --- Decode optional start ---
            (if (ref.eq (local.get $start-raw) (global.get $missing))
                (then (local.set $start (i32.const 0)))
-               (else (if (ref.test (ref i31) (local.get $start-raw))
-                         (then (local.set $raw-start
-                                          (i31.get_s
-                                           (ref.cast (ref i31) (local.get $start-raw))))
-                               (if (i32.ne (i32.and (local.get $raw-start) (i32.const 1))
-                                           (i32.const 0))
-                                   (then (call $raise-bytes-utf-8-length:bad-argument
-                                               (global.get $string:exact-nonnegative-integer?)
-                                               (local.get $start-raw))))
-                               (local.set $start
-                                          (i32.shr_s (local.get $raw-start) (i32.const 1)))
-                               (if (i32.lt_s (local.get $start) (i32.const 0))
-                                   (then (call $raise-bytes-utf-8-length:bad-argument
-                                               (global.get $string:exact-nonnegative-integer?)
-                                               (local.get $start-raw)))))
-                         (else (call $raise-bytes-utf-8-length:bad-argument
-                                     (global.get $string:exact-nonnegative-integer?)
-                                     (local.get $start-raw))))))
+               (else (local.set $start
+                                (call $bytes-index/i32
+                                      (global.get $symbol:bytes-utf-8-length)
+                                      (local.get $start-raw)))))
 
            ;; --- Decode optional end ---
            (if (ref.eq (local.get $end-raw) (global.get $missing))
                (then (local.set $end (local.get $len)))
-               (else (if (ref.test (ref i31) (local.get $end-raw))
-                         (then (local.set $raw-end
-                                          (i31.get_s
-                                           (ref.cast (ref i31) (local.get $end-raw))))
-                               (if (i32.ne (i32.and (local.get $raw-end) (i32.const 1))
-                                           (i32.const 0))
-                                   (then (call $raise-bytes-utf-8-length:bad-argument
-                                               (global.get $string:exact-nonnegative-integer?)
-                                               (local.get $end-raw))))
-                               (local.set $end
-                                          (i32.shr_s (local.get $raw-end) (i32.const 1)))
-                               (if (i32.lt_s (local.get $end) (i32.const 0))
-                                   (then (call $raise-bytes-utf-8-length:bad-argument
-                                               (global.get $string:exact-nonnegative-integer?)
-                                               (local.get $end-raw)))))
-                         (else (call $raise-bytes-utf-8-length:bad-argument
-                                     (global.get $string:exact-nonnegative-integer?)
-                                     (local.get $end-raw))))))
+               (else (local.set $end
+                                (call $bytes-index/i32
+                                      (global.get $symbol:bytes-utf-8-length)
+                                      (local.get $end-raw)))))
 
            ;; --- Decode optional err-char ---
            (if (ref.eq (local.get $err-char) (global.get $missing))
@@ -1963,8 +1938,6 @@
            (local $i           i32)
            (local $idx         i32)
            (local $byte        i32)
-           (local $raw-start   i32)
-           (local $raw-end     i32)
            (local $raw-err     i32)
 
            ;; --- Validate byte string argument ---
@@ -1979,46 +1952,18 @@
            ;; --- Decode optional start ---
            (if (ref.eq (local.get $start-raw) (global.get $missing))
                (then (local.set $start (i32.const 0)))
-               (else (if (ref.test (ref i31) (local.get $start-raw))
-                         (then (local.set $raw-start
-                                          (i31.get_s
-                                           (ref.cast (ref i31) (local.get $start-raw))))
-                               (if (i32.ne (i32.and (local.get $raw-start) (i32.const 1))
-                                           (i32.const 0))
-                                   (then (call $raise-bytes->string/latin-1
-                                               (global.get $string:exact-nonnegative-integer?)
-                                               (local.get $start-raw))))
-                               (local.set $start
-                                          (i32.shr_s (local.get $raw-start) (i32.const 1)))
-                               (if (i32.lt_s (local.get $start) (i32.const 0))
-                                   (then (call $raise-bytes->string/latin-1
-                                               (global.get $string:exact-nonnegative-integer?)
-                                               (local.get $start-raw)))))
-                         (else (call $raise-bytes->string/latin-1
-                                     (global.get $string:exact-nonnegative-integer?)
-                                     (local.get $start-raw))))))
+               (else (local.set $start
+                                (call $bytes-index/i32
+                                      (global.get $symbol:bytes->string/latin-1)
+                                      (local.get $start-raw)))))
 
            ;; --- Decode optional end ---
            (if (ref.eq (local.get $end-raw) (global.get $missing))
                (then (local.set $end (local.get $len)))
-               (else (if (ref.test (ref i31) (local.get $end-raw))
-                         (then (local.set $raw-end
-                                          (i31.get_s
-                                           (ref.cast (ref i31) (local.get $end-raw))))
-                               (if (i32.ne (i32.and (local.get $raw-end) (i32.const 1))
-                                           (i32.const 0))
-                                   (then (call $raise-bytes->string/latin-1
-                                               (global.get $string:exact-nonnegative-integer?)
-                                               (local.get $end-raw))))
-                               (local.set $end
-                                          (i32.shr_s (local.get $raw-end) (i32.const 1)))
-                               (if (i32.lt_s (local.get $end) (i32.const 0))
-                                   (then (call $raise-bytes->string/latin-1
-                                               (global.get $string:exact-nonnegative-integer?)
-                                               (local.get $end-raw)))))
-                         (else (call $raise-bytes->string/latin-1
-                                     (global.get $string:exact-nonnegative-integer?)
-                                     (local.get $end-raw))))))
+               (else (local.set $end
+                                (call $bytes-index/i32
+                                      (global.get $symbol:bytes->string/latin-1)
+                                      (local.get $end-raw)))))
 
            ;; --- Validate optional err-char (ignored value) ---
            (if (ref.eq (local.get $err-char) (global.get $missing))
@@ -2130,8 +2075,6 @@
            (local $end              i32)
            (local $use-err-char     i32)
            (local $decoded-err-char i32)
-           (local $raw-start        i32)
-           (local $raw-end          i32)
            (local $raw-err-char     i32)
 
            ;; Cast input to $Bytes
@@ -2144,47 +2087,17 @@
            ;; Decode start
            (if (ref.eq (local.get $start-raw) (global.get $missing))
                (then (local.set $start (i32.const 0)))
-               (else
-                (if (ref.test (ref i31) (local.get $start-raw))
-                    (then (local.set $raw-start
-                                     (i31.get_s
-                                      (ref.cast (ref i31) (local.get $start-raw))))
-                          (if (i32.ne (i32.and (local.get $raw-start) (i32.const 1))
-                                      (i32.const 0))
-                              (then (call $raise-bytes->string/utf-8:bad-argument
-                                          (global.get $string:exact-nonnegative-integer?)
-                                          (local.get $start-raw))))
-                          (local.set $start
-                                     (i32.shr_s (local.get $raw-start) (i32.const 1)))
-                          (if (i32.lt_s (local.get $start) (i32.const 0))
-                              (then (call $raise-bytes->string/utf-8:bad-argument
-                                          (global.get $string:exact-nonnegative-integer?)
-                                          (local.get $start-raw)))))
-                    (else (call $raise-bytes->string/utf-8:bad-argument
-                                (global.get $string:exact-nonnegative-integer?)
-                                (local.get $start-raw))))))
+               (else (local.set $start
+                                (call $bytes-index/i32
+                                      (global.get $symbol:bytes->string/utf-8)
+                                      (local.get $start-raw)))))
            ;; Decode end
            (if (ref.eq (local.get $end-raw) (global.get $missing))
                (then (local.set $end (local.get $len)))
-               (else
-                (if (ref.test (ref i31) (local.get $end-raw))
-                    (then (local.set $raw-end
-                                     (i31.get_s
-                                      (ref.cast (ref i31) (local.get $end-raw))))
-                          (if (i32.ne (i32.and (local.get $raw-end) (i32.const 1))
-                                      (i32.const 0))
-                              (then (call $raise-bytes->string/utf-8:bad-argument
-                                          (global.get $string:exact-nonnegative-integer?)
-                                          (local.get $end-raw))))
-                          (local.set $end
-                                     (i32.shr_s (local.get $raw-end) (i32.const 1)))
-                          (if (i32.lt_s (local.get $end) (i32.const 0))
-                              (then (call $raise-bytes->string/utf-8:bad-argument
-                                          (global.get $string:exact-nonnegative-integer?)
-                                          (local.get $end-raw)))))
-                    (else (call $raise-bytes->string/utf-8:bad-argument
-                                (global.get $string:exact-nonnegative-integer?)
-                                (local.get $end-raw))))))
+               (else (local.set $end
+                                (call $bytes-index/i32
+                                      (global.get $symbol:bytes->string/utf-8)
+                                      (local.get $end-raw)))))
            ;; Decode err-char
            (if (ref.eq (local.get $err-char) (global.get $missing))
                ; missing

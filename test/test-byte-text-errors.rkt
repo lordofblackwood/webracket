@@ -14,6 +14,8 @@
                    (string-contains? message needle))
                  needles))))
 
+(define too-large-byte-index 536870912)
+
 (list
  (list "bytes->string/utf-8 errors are catchable with who"
        (let ([catch-contract/who+expected+given?
@@ -68,6 +70,38 @@
            "well-formed UTF-8"
            "byte string:"
            (lambda () (bytes->string/utf-8 (bytes 255) #f))))))
+ (list "byte text bignum range errors are catchable with who"
+       (and
+        (catch-contract/contains?
+         (lambda () (bytes->string/utf-8 #"abc" #f too-large-byte-index))
+         "bytes->string/utf-8"
+         "starting index is out of range"
+         "valid range: [0, 3]")
+        (catch-contract/contains?
+         (lambda () (bytes->string/utf-8 #"abc" #f 0 too-large-byte-index))
+         "bytes->string/utf-8"
+         "ending index is out of range"
+         "valid range: [0, 3]")
+        (catch-contract/contains?
+         (lambda () (bytes-utf-8-length #"abc" #f too-large-byte-index))
+         "bytes-utf-8-length"
+         "starting index is out of range"
+         "valid range: [0, 3]")
+        (catch-contract/contains?
+         (lambda () (bytes-utf-8-length #"abc" #f 0 too-large-byte-index))
+         "bytes-utf-8-length"
+         "ending index is out of range"
+         "valid range: [0, 3]")
+        (catch-contract/contains?
+         (lambda () (bytes->string/latin-1 #"abc" #f too-large-byte-index))
+         "bytes->string/latin-1"
+         "starting index is out of range"
+         "valid range: [0, 3]")
+        (catch-contract/contains?
+         (lambda () (bytes->string/latin-1 #"abc" #f 0 too-large-byte-index))
+         "bytes->string/latin-1"
+         "ending index is out of range"
+         "valid range: [0, 3]")))
  (list "byte text errors use error-value->string-handler for byte-string values"
        (let ([old (error-value->string-handler)])
          (error-value->string-handler
