@@ -761,7 +761,19 @@
             'integer-bitwise
             '(integer-length -18446744073709551617)
             #:gate? #t
-            #:note "integer-length distinguishes the neighbor below a negative power of two.")))
+            #:note "integer-length distinguishes the neighbor below a negative power of two.")
+   (nt-case 'bitwise-not-positive-bignum
+            'integer-bitwise
+            '(bitwise-not 9007199254740993)
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "bitwise-not follows infinite two's-complement for positive bignums.")
+   (nt-case 'bitwise-not-negative-bignum
+            'integer-bitwise
+            '(bitwise-not -9007199254740993)
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "bitwise-not follows infinite two's-complement for negative bignums.")))
 
 ;; number-tower-groups : -> (listof symbol?)
 ;;   Return the distinct oracle groups in stable display order.

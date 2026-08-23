@@ -3725,21 +3725,14 @@
               (param $x (ref eq))
               (result   (ref eq))
 
-              (local $x/fx i32)   ; raw fixnum bits
-              (local $x/i  i32)   ; unboxed signed i32
-
               ;; --- Validate $x ---
               (if (ref.eq (call $exact-integer? (local.get $x)) (global.get $false))
                   (then (call $raise-expected-exact-integer
                               (global.get $symbol:bitwise-not)
                               (local.get $x))
                         (unreachable)))
-              ;; --- Extract $x/i ---
-              (local.set $x/fx (i31.get_u (ref.cast (ref i31) (local.get $x))))
-              (local.set $x/i  (i32.shr_s (local.get $x/fx) (i32.const 1)))
-              ;; --- Compute ---
-              (ref.i31 (i32.shl (i32.xor (local.get $x/i) (i32.const -1))
-                                 (i32.const 1))))
+              ;; Infinite two's-complement identity: (bitwise-not n) = -1 - n.
+              (call $integer-sub/2 ,(Imm -1) (local.get $x)))
 
         (func $bitwise-bit-set? (type $Prim2)
               (param $n (ref eq))
