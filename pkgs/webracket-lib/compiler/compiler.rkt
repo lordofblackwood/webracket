@@ -885,6 +885,25 @@
       (boolean? v)
       (symbol? v)))
 
+;; normalize-folded-constant-value : any/c -> any/c
+;;   Normalize folded constants the same way later quotation conversion does.
+(define (normalize-folded-constant-value v)
+  (cond
+    [(and (number? v)
+          (exact? v))
+     v]
+    [(and (number? v)
+          (inexact? v)
+          (real? v)
+          (not (flonum? v)))
+     (* 1.0 v)]
+    [else v]))
+
+(module+ test
+  (check-equal? (normalize-folded-constant-value 1/2+1/3i)
+                1/2+1/3i)
+  (check-true (exact? (normalize-folded-constant-value 1/2+1/3i))))
+
 (define datum:undefined        the-undefined-value) 
 (define datum:unsafe-undefined the-unsafe-undefined-value)
 (define unsafe-undefined-literal-marker 'webracket-internal-unsafe-undefined-literal)
@@ -5042,19 +5061,6 @@
     ;;   Extract values from quoted constant expressions.
     (define (quoted-values e*)
       (map quoted-constant-value e*))
-    ;; normalize-folded-constant-value : any/c -> any/c
-    ;;   Normalize folded constants the same way later quotation conversion does.
-    (define (normalize-folded-constant-value v)
-      (cond
-        [(and (number? v)
-              (rational? v)
-              (exact? v))
-         v]
-        [(and (number? v)
-              (not (or (wr-fixnum? v)
-                       (flonum? v))))
-         (* 1.0 v)]
-        [else v]))
     ;; begin-expressions : LFE Expr -> (listof LFE Expr)
     ;;   Return the flattened expression sequence for a begin-like expression.
     (define (begin-expressions e)
@@ -8394,8 +8400,10 @@
                   `(quote ,s ,(datum s v))]
                  [(and (rational? v) (exact? v))
                   `(quote ,s ,(datum s v))]
-                 [(not (or (wr-signed-fixnum? v) (flonum? v)))
-                  `(quote ,s ,(datum s (* 1.0 v)))] ; convert to a flonum
+                 [(and (real? v)
+                       (inexact? v)
+                       (not (flonum? v)))
+                  `(quote ,s ,(datum s (* 1.0 v)))] ; coerce inexact reals to flonums
                  [else
                   `(quote ,s ,(datum s v))])        ; fixnum or flonum
                `(quote ,s ,(datum s (if (host-unsafe-undefined? v)
@@ -19335,7 +19343,7 @@
                      [(+inf.0) 'inf] [(-inf.0) '-inf]
                      [else v]))
          `(struct.new $Flonum (i32.const 0) (f64.const ,l))]
-        [(and (number? v) (real? v))
+        [(and (real? v) (inexact? v))
          `(struct.new $Flonum (i32.const 0) (f64.const ,(* 1.0 v)))]
         [else
          (raise-arguments-error 'webify
@@ -19577,11 +19585,11 @@
                                    (rational? v)
                                    (exact? v))
                               (rational-literal->expr v)]
-                             [(and (number? v)
-                                   (not (or (wr-signed-fixnum? v)
-                                            (flonum? v))))
-                                              (define l (* 1.0 v))
-                                              `(struct.new $Flonum (i32.const 0) (f64.const ,l))]
+                             [(and (real? v)
+                                   (inexact? v)
+                                   (not (flonum? v)))
+                              (define l (* 1.0 v))
+                              `(struct.new $Flonum (i32.const 0) (f64.const ,l))]
                              [(flonum? v)     (define l (case v
                                                           [(+nan.0) 'nan] [(-nan.0) '-nan]
                                                           [(+inf.0) 'inf] [(-inf.0) '-inf]

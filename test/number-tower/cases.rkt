@@ -785,6 +785,22 @@
             1+2i
             #:gate? #t
             #:note "Rectangular complex literal with exact components.")
+   (nt-case 'rectangular-rational-literal-exact
+            'complex-basic
+            '(let ([z 1/2+1/3i])
+               (and (exact? z)
+                    (equal? (real-part z) 1/2)
+                    (equal? (imag-part z) 1/3)))
+            #:gate? #t
+            #:note "Exact complex literals preserve rational components.")
+   (nt-case 'quoted-complex-literal-exact
+            'complex-basic
+            '(let ([z (vector-ref '#(1/2+1/3i) 0)])
+               (and (exact? z)
+                    (equal? (real-part z) 1/2)
+                    (equal? (imag-part z) 1/3)))
+            #:gate? #t
+            #:note "Quoted exact complex values preserve rational components.")
    (nt-case 'unit-imaginary
             'complex-basic
             +i
