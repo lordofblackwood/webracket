@@ -2044,9 +2044,13 @@
                   [(fx-abs) `((return (call $integer-abs (local.get $x))))]
                   [else     `((return (local.get $x)))]))
               (define rationalstmts
-                (case kind
-                  [(fx-abs) `((return (call $exact-rational-abs (local.get $x))))]
-                  [else     '()]))
+                (case name
+                  [(abs)      `((return (call $exact-rational-abs (local.get $x))))]
+                  [(round)    `((return (call $exact-rational-round (local.get $x))))]
+                  [(floor)    `((return (call $exact-rational-floor (local.get $x))))]
+                  [(ceiling)  `((return (call $exact-rational-ceiling (local.get $x))))]
+                  [(truncate) `((return (call $exact-rational-truncate (local.get $x))))]
+                  [else       '()]))
               `(func ,(string->symbol (format "$~a" name))
                      (type $Prim1)
                      (param $x (ref eq))
@@ -2162,13 +2166,14 @@
 
         ;; Exact integer rounding functions
         ;; Implements: $exact-round $exact-floor $exact-ceiling $exact-truncate
-        ,@(let ([ops '((exact-round   f64.nearest)
-                       (exact-floor   f64.floor)
-                       (exact-ceiling f64.ceil)
-                       (exact-truncate f64.trunc))])
+        ,@(let ([ops '((exact-round    f64.nearest $exact-rational-round)
+                       (exact-floor    f64.floor   $exact-rational-floor)
+                       (exact-ceiling  f64.ceil    $exact-rational-ceiling)
+                       (exact-truncate f64.trunc   $exact-rational-truncate))])
             (for/list ([p ops])
               (define name (car p))
               (define expr (cadr p))
+              (define rational-helper (caddr p))
               `(func ,(string->symbol (format "$~a" name))
                      (type $Prim1)
                      (param $x (ref eq))
@@ -2188,6 +2193,14 @@
                                           (global.get ,(string->symbol (format "$symbol:~a" name)))
                                           (local.get $x))
                                     (unreachable)))))
+
+                     ;; Bignum exact integer case
+                     (if (ref.test (ref $Bignum) (local.get $x))
+                         (then (return (local.get $x))))
+
+                     ;; Exact rational case
+                     (if (ref.test (ref $Rational) (local.get $x))
+                         (then (return (call ,rational-helper (local.get $x)))))
 
                      ;; Flonum case
                      (if (ref.test (ref $Flonum) (local.get $x))

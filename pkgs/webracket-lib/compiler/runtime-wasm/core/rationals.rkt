@@ -178,6 +178,159 @@
                        (struct.get $Rational $den (local.get $q))))))
            (call $integer-abs (local.get $x)))
 
+     ;; $exact-rational-truncate : exact-rational? -> exact-integer?
+     ;;   Truncate x toward zero.
+     (func $exact-rational-truncate
+           (param $x (ref eq))
+           (result (ref eq))
+
+           (local $q    (ref $Rational))
+           (local $vals (ref $Values))
+
+           (if (ref.test (ref $Rational) (local.get $x))
+               (then
+                (local.set $q (ref.cast (ref $Rational) (local.get $x)))
+                (local.set $vals
+                           (call $integer-divmod
+                                 (struct.get $Rational $num (local.get $q))
+                                 (struct.get $Rational $den (local.get $q))))
+                (return
+                 (array.get $Values
+                            (local.get $vals)
+                            (i32.const 0)))))
+           (local.get $x))
+
+     ;; $exact-rational-floor : exact-rational? -> exact-integer?
+     ;;   Round x toward negative infinity.
+     (func $exact-rational-floor
+           (param $x (ref eq))
+           (result (ref eq))
+
+           (local $rat  (ref $Rational))
+           (local $vals (ref $Values))
+           (local $q    (ref eq))
+           (local $r    (ref eq))
+
+           (if (ref.test (ref $Rational) (local.get $x))
+               (then
+                (local.set $rat (ref.cast (ref $Rational) (local.get $x)))
+                (local.set $vals
+                           (call $integer-divmod
+                                 (struct.get $Rational $num (local.get $rat))
+                                 (struct.get $Rational $den (local.get $rat))))
+                (local.set $q
+                           (array.get $Values
+                                      (local.get $vals)
+                                      (i32.const 0)))
+                (local.set $r
+                           (array.get $Values
+                                      (local.get $vals)
+                                      (i32.const 1)))
+                (if (i32.lt_s (call $integer-sign/i32 (local.get $r))
+                              (i32.const 0))
+                    (then
+                     (return
+                      (call $integer-sub/2
+                            (local.get $q)
+                            (ref.i31 (i32.const 2))))))
+                (return (local.get $q))))
+           (local.get $x))
+
+     ;; $exact-rational-ceiling : exact-rational? -> exact-integer?
+     ;;   Round x toward positive infinity.
+     (func $exact-rational-ceiling
+           (param $x (ref eq))
+           (result (ref eq))
+
+           (local $rat  (ref $Rational))
+           (local $vals (ref $Values))
+           (local $q    (ref eq))
+           (local $r    (ref eq))
+
+           (if (ref.test (ref $Rational) (local.get $x))
+               (then
+                (local.set $rat (ref.cast (ref $Rational) (local.get $x)))
+                (local.set $vals
+                           (call $integer-divmod
+                                 (struct.get $Rational $num (local.get $rat))
+                                 (struct.get $Rational $den (local.get $rat))))
+                (local.set $q
+                           (array.get $Values
+                                      (local.get $vals)
+                                      (i32.const 0)))
+                (local.set $r
+                           (array.get $Values
+                                      (local.get $vals)
+                                      (i32.const 1)))
+                (if (i32.gt_s (call $integer-sign/i32 (local.get $r))
+                              (i32.const 0))
+                    (then
+                     (return
+                      (call $integer-add/2
+                            (local.get $q)
+                            (ref.i31 (i32.const 2))))))
+                (return (local.get $q))))
+           (local.get $x))
+
+     ;; $exact-rational-round : exact-rational? -> exact-integer?
+     ;;   Round x to the nearest integer, choosing even integers on ties.
+     (func $exact-rational-round
+           (param $x (ref eq))
+           (result (ref eq))
+
+           (local $rat   (ref $Rational))
+           (local $vals  (ref $Values))
+           (local $q     (ref eq))
+           (local $r     (ref eq))
+           (local $abs-r (ref eq))
+           (local $step  (ref eq))
+           (local $cmp   i32)
+
+           (if (ref.test (ref $Rational) (local.get $x))
+               (then
+                (local.set $rat (ref.cast (ref $Rational) (local.get $x)))
+                (local.set $vals
+                           (call $integer-divmod
+                                 (struct.get $Rational $num (local.get $rat))
+                                 (struct.get $Rational $den (local.get $rat))))
+                (local.set $q
+                           (array.get $Values
+                                      (local.get $vals)
+                                      (i32.const 0)))
+                (local.set $r
+                           (array.get $Values
+                                      (local.get $vals)
+                                      (i32.const 1)))
+                (if (call $integer-zero?/i32 (local.get $r))
+                    (then (return (local.get $q))))
+                (local.set $abs-r (call $integer-abs (local.get $r)))
+                (local.set $cmp
+                           (call $integer-compare/i32
+                                 (call $integer-add/2
+                                       (local.get $abs-r)
+                                       (local.get $abs-r))
+                                 (struct.get $Rational $den (local.get $rat))))
+                (if (i32.lt_s (local.get $cmp) (i32.const 0))
+                    (then (return (local.get $q))))
+                (local.set $step
+                           (ref.i31
+                            (i32.shl
+                             (call $integer-sign/i32 (local.get $r))
+                             (i32.const 1))))
+                (if (i32.gt_s (local.get $cmp) (i32.const 0))
+                    (then
+                     (return
+                      (call $integer-add/2
+                            (local.get $q)
+                            (local.get $step)))))
+                (if (call $integer-even?/i32 (local.get $q))
+                    (then (return (local.get $q))))
+                (return
+                 (call $integer-add/2
+                       (local.get $q)
+                       (local.get $step)))))
+           (local.get $x))
+
      ;; $exact-rational-numerator : exact-rational? -> exact-integer?
      ;;   Return the numerator, using the integer itself for exact integers.
      (func $exact-rational-numerator

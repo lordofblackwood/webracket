@@ -702,6 +702,32 @@
                   (i31.get_s (ref.cast (ref i31) (local.get $x)))))))
            (i32.const 0))
 
+     ;; $integer-even?/i32 : exact-integer? -> i32
+     ;;   Return 1 when x is even, otherwise 0.
+     (func $integer-even?/i32
+           (param $x (ref eq))
+           (result i32)
+
+           (local $bits i32)
+           (local $bn   (ref $Bignum))
+
+           (if (ref.test (ref i31) (local.get $x))
+               (then
+                (local.set $bits
+                           (i32.shr_s
+                            (i31.get_s (ref.cast (ref i31) (local.get $x)))
+                            (i32.const 1)))
+                (return
+                 (i32.eqz
+                  (i32.and (local.get $bits) (i32.const 1))))))
+           (local.set $bn (ref.cast (ref $Bignum) (local.get $x)))
+           (i32.eqz
+            (i32.and
+             (array.get $I32Array
+                        (struct.get $Bignum $limbs (local.get $bn))
+                        (i32.const 0))
+             (i32.const 1))))
+
      ;; $integer-sign/i32 : exact-integer? -> i32
      ;;   Return -1, 0, or 1 according to the exact integer's sign.
      (func $integer-sign/i32

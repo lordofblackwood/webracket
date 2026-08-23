@@ -379,6 +379,64 @@
             '(sgn -9007199254740993)
             #:gate? #t
             #:note "sgn accepts bignum exact integers.")
+   (nt-case 'floor-positive-rational
+            'rational-rounding
+            '(floor 3/2)
+            #:gate? #t
+            #:note "floor rounds exact rationals toward negative infinity.")
+   (nt-case 'floor-negative-rational
+            'rational-rounding
+            '(floor -3/2)
+            #:gate? #t
+            #:note "floor adjusts negative non-integer rationals below truncate.")
+   (nt-case 'ceiling-positive-rational
+            'rational-rounding
+            '(ceiling 3/2)
+            #:gate? #t
+            #:note "ceiling adjusts positive non-integer rationals above truncate.")
+   (nt-case 'ceiling-negative-rational
+            'rational-rounding
+            '(ceiling -3/2)
+            #:gate? #t
+            #:note "ceiling rounds negative exact rationals toward positive infinity.")
+   (nt-case 'truncate-negative-rational
+            'rational-rounding
+            '(truncate -3/2)
+            #:gate? #t
+            #:note "truncate rounds exact rationals toward zero.")
+   (nt-case 'round-half-even-zero
+            'rational-rounding
+            '(round 1/2)
+            #:gate? #t
+            #:note "round uses ties-to-even for exact rationals.")
+   (nt-case 'round-half-even-two
+            'rational-rounding
+            '(round 3/2)
+            #:gate? #t
+            #:note "round ties 3/2 to the even integer 2.")
+   (nt-case 'round-negative-half-even
+            'rational-rounding
+            '(round -3/2)
+            #:gate? #t
+            #:note "round ties negative exact rationals to even integers.")
+   (nt-case 'exact-floor-bignum-rational
+            'rational-rounding
+            '(exact-floor 9007199254740993/2)
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "exact-floor can return a bignum-sized exact integer.")
+   (nt-case 'exact-ceiling-negative-bignum-rational
+            'rational-rounding
+            '(exact-ceiling -9007199254740993/2)
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "exact-ceiling can return a negative bignum-sized exact integer.")
+   (nt-case 'exact-round-bignum-identity
+            'rational-rounding
+            '(exact-round 9007199254740993)
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "exact-round accepts bignum exact integer inputs.")
    (nt-case 'rectangular-literal
             'complex-basic
             1+2i
