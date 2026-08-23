@@ -5930,7 +5930,11 @@
                          (then
                           (local.set $c (ref.cast (ref $Complex) (local.get $z)))
                           (if (ref.eq (local.get $radix-raw) (global.get $false))
-                              (then (return (call $format/display:complex (local.get $c))))
+                              (then
+                               (return
+                                (call $format/display:complex/radix
+                                      (local.get $c)
+                                      (global.get $false))))
                               (else
                                (if (i32.eqz (ref.test (ref i31) (local.get $radix-raw)))
                                    (then (call $raise-number->string-bad-radix (local.get $radix-raw))
@@ -5941,10 +5945,13 @@
                                    (then (call $raise-number->string-bad-radix (local.get $radix-raw))
                                          (unreachable)))
                                (local.set $radix (i32.shr_u (local.get $bits) (i32.const 1)))
-                               (if (i32.eq (local.get $radix) (i32.const 10))
-                                   (then (return (call $format/display:complex (local.get $c))))
-                                   (else (call $raise-number->string-bad-radix (local.get $radix-raw))
-                                         (unreachable))))))
+                               (if (i32.eqz (call $number->string:check-radix (local.get $radix)))
+                                   (then (call $raise-number->string-bad-radix (local.get $radix-raw))
+                                         (unreachable)))
+                               (return
+                                (call $format/display:complex/radix
+                                      (local.get $c)
+                                      (local.get $radix-raw))))))
                          (else (call $raise-number->string-bad-input (local.get $z))
                                (unreachable)))))))
            ;; Step 2: Handle radix for fixnums

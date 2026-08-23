@@ -503,8 +503,9 @@
                (result     (ref $String))
                (call $flonum->string (local.get $val)))
 
-         (func $format/display:complex
+         (func $format/display:complex/radix
                (param $val (ref $Complex))
+               (param $radix-raw (ref eq))
                (result     (ref $String))
 
                (local $real-str (ref $String))
@@ -517,12 +518,12 @@
                           (ref.cast (ref $String)
                                     (call $number->string
                                           (struct.get $Complex $real (local.get $val))
-                                          (global.get $false))))
+                                          (local.get $radix-raw))))
                (local.set $imag-str
                           (ref.cast (ref $String)
                                     (call $number->string
                                           (struct.get $Complex $imag (local.get $val))
-                                          (global.get $false))))
+                                          (local.get $radix-raw))))
                (local.set $suffix (call $make-string/checked (i32.const 1) (i32.const 105))) ;; "i"
                (local.set $imag-len (call $string-length/checked/i32 (local.get $imag-str)))
                (if (i32.and
@@ -543,6 +544,13 @@
                                                  (local.get $plus))
                            (local.get $imag-str))
                      (local.get $suffix)))
+
+         (func $format/display:complex
+               (param $val (ref $Complex))
+               (result     (ref $String))
+               (call $format/display:complex/radix
+                     (local.get $val)
+                     (global.get $false)))
      )))
 
 ;; numeric-display-formatting-runtime-only-helper-names : (listof symbol?)

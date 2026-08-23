@@ -151,6 +151,31 @@
             '(number->string -1/10 16)
             #:gate? #t
             #:note "Rational number->string preserves signs and radix.")
+   (nt-case 'complex-default-string
+            'number-string
+            '(number->string 1+2i)
+            #:gate? #t
+            #:note "Complex number->string prints rectangular components.")
+   (nt-case 'complex-negative-string
+            'number-string
+            '(number->string -1-2i)
+            #:gate? #t
+            #:note "Complex number->string preserves negative imaginary signs.")
+   (nt-case 'unit-imaginary-string
+            'number-string
+            '(number->string +i)
+            #:gate? #t
+            #:note "Unit imaginary values print with explicit zero real part.")
+   (nt-case 'complex-hex-string
+            'number-string
+            '(number->string 1+10i 16)
+            #:gate? #t
+            #:note "Complex number->string applies radix to exact integer components.")
+   (nt-case 'complex-rational-hex-string
+            'number-string
+            '(number->string 10+11/12i 16)
+            #:gate? #t
+            #:note "Complex number->string applies radix to exact rational components.")
    (nt-case 'string->number-decimal-bignum
             'string-number
             '(string->number "4294967296")

@@ -98,9 +98,9 @@
          "core/wills.rkt"
          "shared-types.rkt")
 
-;; core-runtime-helpers : (listof core-runtime-helper?)
-;;   Enumerate the functions currently shared between monolithic and core runtime trees.
-(define core-runtime-helpers
+;; core-runtime-base-helpers : (listof core-runtime-helper?)
+;;   Enumerate regular helpers shared between monolithic and core runtime trees.
+(define core-runtime-base-helpers
   (append
    array-core-runtime-helpers
    boolean-core-runtime-helpers
@@ -118,7 +118,6 @@
    filesystem-core-runtime-helpers
    fixnum-core-runtime-helpers
    flonum-core-runtime-helpers
-   formatter-error-closure-core-runtime-helpers
    formatting-core-runtime-helpers
    growable-array-core-runtime-helpers
    growable-bytes-core-runtime-helpers
@@ -162,6 +161,14 @@
    unsafe-core-runtime-helpers
    vector-core-runtime-helpers
    will-core-runtime-helpers))
+
+;; core-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate all helpers shared between monolithic and core runtime trees.
+(define core-runtime-helpers
+  (append core-runtime-base-helpers
+          (remove-runtime-helpers
+           formatter-error-closure-core-runtime-helpers
+           (map core-runtime-helper-name core-runtime-base-helpers))))
 
 ;; core-runtime-helper-index : hasheq?
 ;;   Index core runtime helpers by Wasm function name.

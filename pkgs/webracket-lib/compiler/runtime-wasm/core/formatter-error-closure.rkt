@@ -5,42 +5,47 @@
 
 (require "../core-helper.rkt"
          (only-in "bytes.rkt"
-                  bytes-runtime-only-helpers)
+                  bytes-core-runtime-helpers)
          (only-in "characters.rkt"
                   character-runtime-only-helpers)
          (only-in "equality.rkt"
                   equality-runtime-only-helpers)
          (only-in "exceptions.rkt"
+                  exception-core-runtime-helpers
                   exception-contract-runtime-only-helpers
                   exception-runtime-only-helpers)
          (only-in "fasl.rkt"
                   fasl-runtime-only-helpers)
          (only-in "ffi.rkt"
+                  ffi-core-runtime-helpers
                   ffi-runtime-only-helpers)
          (only-in "fixnums.rkt"
+                  fixnum-core-runtime-helpers
                   fixnum-runtime-only-helpers)
          (only-in "formatting.rkt"
-                  formatting-runtime-only-helpers)
+                  formatting-core-runtime-helpers)
          (only-in "hashes.rkt"
+                  hash-core-runtime-helpers
                   hash-runtime-only-helpers)
          (only-in "immutable-hashes.rkt"
                   immutable-hash-runtime-only-helpers)
          (only-in "keywords.rkt"
                   keyword-runtime-only-helpers)
          (only-in "lists.rkt"
-                  list-runtime-only-helpers)
+                  list-core-runtime-helpers)
          (only-in "locations.rkt"
                   location-runtime-only-helpers)
          (only-in "mutable-hashes.rkt"
                   mutable-hash-runtime-only-helpers)
          (only-in "numbers.rkt"
-                  number-runtime-only-helpers)
+                  number-core-runtime-helpers)
          (only-in "ports.rkt"
                   port-runtime-only-helpers)
          (only-in "procedures.rkt"
+                  procedure-core-runtime-helpers
                   procedure-runtime-only-helpers)
          (only-in "strings.rkt"
-                  string-runtime-only-helpers)
+                  string-core-runtime-helpers)
          (only-in "structs.rkt"
                   struct-runtime-only-helpers)
          (only-in "symbols.rkt"
@@ -48,7 +53,7 @@
          (only-in "syntax.rkt"
                   syntax-runtime-only-helpers)
          (only-in "vectors.rkt"
-                  vector-runtime-only-helpers))
+                  vector-core-runtime-helpers))
 
 ;; formatter-error-closure-core-runtime-helper-names : (listof symbol?)
 ;;   Name the dependency-clean formatter and argument-error helper closure.
@@ -119,8 +124,9 @@
     $copy-bytes-to-callback-buffer
     $raise-not-fixnum
     $fixnum->i32
-    $format/display:struct/custom-write
+    $format/struct/custom-write
     $format/display:flonum
+    $format/display:complex/radix
     $format/display:complex
     $raise-format/display:unknown-datatype
     $format/display
@@ -341,29 +347,37 @@
 ;; formatter-error-closure-source-runtime-helpers : (listof core-runtime-helper?)
 ;;   Enumerate source helper groups in monolithic runtime order.
 (define formatter-error-closure-source-runtime-helpers
-  (append bytes-runtime-only-helpers
-          character-runtime-only-helpers
-          equality-runtime-only-helpers
-          exception-contract-runtime-only-helpers
-          exception-runtime-only-helpers
-          fasl-runtime-only-helpers
-          ffi-runtime-only-helpers
-          fixnum-runtime-only-helpers
-          formatting-runtime-only-helpers
-          hash-runtime-only-helpers
-          immutable-hash-runtime-only-helpers
-          keyword-runtime-only-helpers
-          list-runtime-only-helpers
-          location-runtime-only-helpers
-          mutable-hash-runtime-only-helpers
-          number-runtime-only-helpers
-          port-runtime-only-helpers
-          procedure-runtime-only-helpers
-          string-runtime-only-helpers
-          struct-runtime-only-helpers
-          symbol-runtime-only-helpers
-          syntax-runtime-only-helpers
-          vector-runtime-only-helpers))
+  (remove-duplicates
+   (append bytes-core-runtime-helpers
+           character-runtime-only-helpers
+           equality-runtime-only-helpers
+           exception-core-runtime-helpers
+           exception-contract-runtime-only-helpers
+           exception-runtime-only-helpers
+           fasl-runtime-only-helpers
+           ffi-core-runtime-helpers
+           ffi-runtime-only-helpers
+           fixnum-core-runtime-helpers
+           fixnum-runtime-only-helpers
+           formatting-core-runtime-helpers
+           hash-core-runtime-helpers
+           hash-runtime-only-helpers
+           immutable-hash-runtime-only-helpers
+           keyword-runtime-only-helpers
+           list-core-runtime-helpers
+           location-runtime-only-helpers
+           mutable-hash-runtime-only-helpers
+           number-core-runtime-helpers
+           port-runtime-only-helpers
+           procedure-core-runtime-helpers
+           procedure-runtime-only-helpers
+           string-core-runtime-helpers
+           struct-runtime-only-helpers
+           symbol-runtime-only-helpers
+           syntax-runtime-only-helpers
+           vector-core-runtime-helpers)
+   eq?
+   #:key core-runtime-helper-name))
 
 ;; formatter-error-closure-core-runtime-helpers : (listof core-runtime-helper?)
 ;;   Select formatter/error closure helpers while preserving runtime order.
@@ -377,11 +391,11 @@
   (define selected-names
     (map core-runtime-helper-name formatter-error-closure-core-runtime-helpers))
 
-  (check-equal? (length formatter-error-closure-core-runtime-helper-names) 284)
+  (check-equal? (length formatter-error-closure-core-runtime-helper-names) 285)
   (check-equal? (length (remove-duplicates
                          formatter-error-closure-core-runtime-helper-names
                          eq?))
-                284)
+                285)
   (check-equal? (sort selected-names symbol<?)
                 (sort formatter-error-closure-core-runtime-helper-names symbol<?))
   (check-not-false (member '$raise-argument-error1 selected-names))
