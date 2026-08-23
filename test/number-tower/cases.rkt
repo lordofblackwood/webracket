@@ -243,6 +243,16 @@
             '(exact->inexact 9007199254740993)
             #:gate? #t
             #:note "exact->inexact converts bignums using f64 rounding.")
+   (nt-case 'exact->inexact-rational-double-round
+            'rational-conversion
+            '(exact->inexact 2106270354592/12789239550964971)
+            #:gate? #t
+            #:note "exact->inexact rounds exact rationals directly, avoiding numerator/denominator double rounding.")
+   (nt-case 'exact->inexact-negative-rational-underflow
+            'rational-conversion
+            '(exact->inexact (/ -1 (expt 2 1075)))
+            #:gate? #t
+            #:note "Tiny negative exact rationals underflow to -0.0.")
    (nt-case 'numerator-integer
             'rational-components
             '(numerator 5)

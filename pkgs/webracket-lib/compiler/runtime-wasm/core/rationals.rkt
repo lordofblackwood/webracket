@@ -543,24 +543,249 @@
                              (ref.cast (ref $Rational) (local.get $x))))))
            (ref.i31 (i32.const 2)))
 
+     ;; $integer-shl/nonnegative : exact-nonnegative-integer? i32 -> exact-nonnegative-integer?
+     ;;   Shift x left by shift bits; shift must be nonnegative.
+     (func $integer-shl/nonnegative
+           (param $x     (ref eq))
+           (param $shift i32)
+           (result (ref eq))
+
+           (if (i32.eqz (local.get $shift))
+               (then (return (local.get $x))))
+           (call $integer-mul/2
+                 (local.get $x)
+                 (call $u64-shl->integer
+                       (i64.const 1)
+                       (local.get $shift))))
+
+     ;; $integer-nonnegative->u64 : exact-nonnegative-integer? -> i64
+     ;;   Convert a known-small nonnegative integer to an unsigned i64 payload.
+     (func $integer-nonnegative->u64
+           (param $x (ref eq))
+           (result i64)
+
+           (i64.or
+            (i64.extend_i32_u
+             (call $integer-nonnegative-limb/u32
+                   (local.get $x)
+                   (i32.const 0)))
+            (i64.shl
+             (i64.extend_i32_u
+              (call $integer-nonnegative-limb/u32
+                    (local.get $x)
+                    (i32.const 1)))
+             (i64.const 32))))
+
+     ;; $positive-rational-power2-compare/i32 : exact-positive-integer? exact-positive-integer? i32 -> integer?
+     ;;   Compare num/den with 2^e, returning -1, 0, or 1.
+     (func $positive-rational-power2-compare/i32
+           (param $num (ref eq))
+           (param $den (ref eq))
+           (param $e   i32)
+           (result i32)
+
+           (if (i32.ge_s (local.get $e) (i32.const 0))
+               (then
+                (return
+                 (call $integer-compare/i32
+                       (local.get $num)
+                       (call $integer-shl/nonnegative
+                             (local.get $den)
+                             (local.get $e))))))
+           (call $integer-compare/i32
+                 (call $integer-shl/nonnegative
+                       (local.get $num)
+                       (i32.sub (i32.const 0) (local.get $e)))
+                 (local.get $den)))
+
+     ;; $exact-rational-scaled-round : exact-nonnegative-integer? exact-positive-integer? i32 -> exact-nonnegative-integer?
+     ;;   Return round-to-even(num * 2^shift / den).
+     (func $exact-rational-scaled-round
+           (param $num   (ref eq))
+           (param $den   (ref eq))
+           (param $shift i32)
+           (result (ref eq))
+
+           (local $n       (ref eq))
+           (local $d       (ref eq))
+           (local $vals    (ref $Values))
+           (local $q       (ref eq))
+           (local $r       (ref eq))
+           (local $twice-r (ref eq))
+           (local $cmp     i32)
+
+           (local.set $n (local.get $num))
+           (local.set $d (local.get $den))
+           (if (i32.gt_s (local.get $shift) (i32.const 0))
+               (then
+                (local.set $n
+                           (call $integer-shl/nonnegative
+                                 (local.get $n)
+                                 (local.get $shift)))))
+           (if (i32.lt_s (local.get $shift) (i32.const 0))
+               (then
+                (local.set $d
+                           (call $integer-shl/nonnegative
+                                 (local.get $d)
+                                 (i32.sub (i32.const 0)
+                                          (local.get $shift))))))
+           (local.set $vals
+                      (call $integer-divmod
+                            (local.get $n)
+                            (local.get $d)))
+           (local.set $q
+                      (array.get $Values
+                                 (local.get $vals)
+                                 (i32.const 0)))
+           (local.set $r
+                      (array.get $Values
+                                 (local.get $vals)
+                                 (i32.const 1)))
+           (if (call $integer-zero?/i32 (local.get $r))
+               (then (return (local.get $q))))
+           (local.set $twice-r
+                      (call $integer-add/2
+                            (local.get $r)
+                            (local.get $r)))
+           (local.set $cmp
+                      (call $integer-compare/i32
+                            (local.get $twice-r)
+                            (local.get $d)))
+           (if (i32.lt_s (local.get $cmp) (i32.const 0))
+               (then (return (local.get $q))))
+           (if (i32.gt_s (local.get $cmp) (i32.const 0))
+               (then
+                (return
+                 (call $integer-add/2
+                       (local.get $q)
+                       (ref.i31 (i32.const 2))))))
+           (if (call $integer-even?/i32 (local.get $q))
+               (then (return (local.get $q))))
+           (call $integer-add/2
+                 (local.get $q)
+                 (ref.i31 (i32.const 2))))
+
+     ;; $positive-rational->f64 : exact-positive-integer? exact-positive-integer? -> f64
+     ;;   Convert a positive exact rational to a correctly rounded f64.
+     (func $positive-rational->f64
+           (param $num (ref eq))
+           (param $den (ref eq))
+           (result f64)
+
+           (local $e        i32)
+           (local $q        (ref eq))
+           (local $mantissa i64)
+           (local $bits     i64)
+
+           (if (call $integer-zero?/i32 (local.get $num))
+               (then (return (f64.const 0.0))))
+
+           (local.set $e
+                      (i32.sub
+                       (call $integer-nonnegative-bit-length/i32
+                             (local.get $num))
+                       (call $integer-nonnegative-bit-length/i32
+                             (local.get $den))))
+           (if (i32.lt_s
+                (call $positive-rational-power2-compare/i32
+                      (local.get $num)
+                      (local.get $den)
+                      (local.get $e))
+                (i32.const 0))
+               (then
+                (local.set $e
+                           (i32.sub (local.get $e) (i32.const 1)))))
+
+           (if (i32.gt_s (local.get $e) (i32.const 1023))
+               (then (return (f64.const +inf))))
+
+           ;; Subnormal numbers and the rounded transition to the minimum normal.
+           (if (i32.lt_s (local.get $e) (i32.const -1022))
+               (then
+                (local.set $q
+                           (call $exact-rational-scaled-round
+                                 (local.get $num)
+                                 (local.get $den)
+                                 (i32.const 1074)))
+                (local.set $mantissa
+                           (call $integer-nonnegative->u64
+                                 (local.get $q)))
+                (if (i64.eqz (local.get $mantissa))
+                    (then (return (f64.const 0.0))))
+                (if (i64.ge_u (local.get $mantissa)
+                              (i64.const 4503599627370496))
+                    (then
+                     (local.set $bits
+                                (i64.or
+                                 (i64.const 4503599627370496)
+                                 (i64.sub
+                                  (local.get $mantissa)
+                                  (i64.const 4503599627370496)))))
+                    (else (local.set $bits (local.get $mantissa))))
+                (return (f64.reinterpret_i64 (local.get $bits)))))
+
+           (local.set $q
+                      (call $exact-rational-scaled-round
+                            (local.get $num)
+                            (local.get $den)
+                            (i32.sub (i32.const 52) (local.get $e))))
+           (local.set $mantissa
+                      (call $integer-nonnegative->u64
+                            (local.get $q)))
+           (if (i64.eq (local.get $mantissa)
+                       (i64.const 9007199254740992))
+               (then
+                (local.set $mantissa (i64.const 4503599627370496))
+                (local.set $e (i32.add (local.get $e) (i32.const 1)))
+                (if (i32.gt_s (local.get $e) (i32.const 1023))
+                    (then (return (f64.const +inf))))))
+           (local.set $bits
+                      (i64.or
+                       (i64.shl
+                        (i64.extend_i32_u
+                         (i32.add (local.get $e) (i32.const 1023)))
+                        (i64.const 52))
+                       (i64.sub
+                        (local.get $mantissa)
+                        (i64.const 4503599627370496))))
+           (f64.reinterpret_i64 (local.get $bits)))
+
      ;; $exact-rational->f64 : exact-rational? -> f64
-     ;;   Convert an exact rational to f64 for mixed inexact arithmetic.
+     ;;   Convert an exact rational to a correctly rounded f64.
      (func $exact-rational->f64
            (param $x (ref eq))
            (result f64)
 
-           (local $q (ref $Rational))
+           (local $q    (ref $Rational))
+           (local $num  (ref eq))
+           (local $den  (ref eq))
+           (local $sign i32)
+           (local $out  f64)
 
            (if (ref.test (ref $Rational) (local.get $x))
                (then
                 (local.set $q (ref.cast (ref $Rational) (local.get $x)))
-                (return
-                 (f64.div
-                  (call $integer->f64
-                        (struct.get $Rational $num (local.get $q)))
-                  (call $integer->f64
-                        (struct.get $Rational $den (local.get $q)))))))
-           (call $integer->f64 (local.get $x)))
+                (local.set $num (struct.get $Rational $num (local.get $q)))
+                (local.set $den (struct.get $Rational $den (local.get $q)))
+                (local.set $sign (call $integer-sign/i32 (local.get $num)))
+                (local.set $out
+                           (call $positive-rational->f64
+                                 (call $integer-abs (local.get $num))
+                                 (local.get $den)))
+                (if (i32.lt_s (local.get $sign) (i32.const 0))
+                    (then (return (f64.neg (local.get $out)))))
+                (return (local.get $out))))
+
+           (local.set $sign (call $integer-sign/i32 (local.get $x)))
+           (if (i32.eqz (local.get $sign))
+               (then (return (f64.const 0.0))))
+           (local.set $out
+                      (call $positive-rational->f64
+                            (call $integer-abs (local.get $x))
+                            (ref.i31 (i32.const 2))))
+           (if (i32.lt_s (local.get $sign) (i32.const 0))
+               (then (return (f64.neg (local.get $out)))))
+           (local.get $out))
 
      ;; $f64->exact-rational : finite-flonum? -> exact-rational?
      ;;   Convert a finite f64 to its exact binary rational value.

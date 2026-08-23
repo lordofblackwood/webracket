@@ -582,7 +582,7 @@
                    (return
                     (struct.new $Flonum
                                 (i32.const 0)
-                                (call $integer->f64 (local.get $z))))))
+                                (call $exact-rational->f64 (local.get $z))))))
               (if (ref.test (ref $Rational) (local.get $z))
                   (then
                    (return
