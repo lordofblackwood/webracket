@@ -792,6 +792,30 @@
             '(expt 2 1+i)
             #:gate? #t
             #:note "Complex exponents on real bases use exp/log composition.")
+   (nt-case 'fasl-bignum-roundtrip
+            'numeric-fasl
+            '(let ([x (expt 2 40)])
+               (equal? (fasl->s-exp (s-exp->fasl x)) x))
+            #:gate? #t
+            #:note "FASL preserves exact bignums.")
+   (nt-case 'fasl-rational-roundtrip
+            'numeric-fasl
+            '(let ([x (/ (expt 2 40) 3)])
+               (equal? (fasl->s-exp (s-exp->fasl x)) x))
+            #:gate? #t
+            #:note "FASL preserves exact rational components.")
+   (nt-case 'fasl-complex-roundtrip
+            'numeric-fasl
+            '(let ([z (make-rectangular (/ (expt 2 40) 3) 5/7)])
+               (equal? (fasl->s-exp (s-exp->fasl z)) z))
+            #:gate? #t
+            #:note "FASL preserves exact complex components.")
+   (nt-case 'fasl-numeric-vector-roundtrip
+            'numeric-fasl
+            '(let ([v (vector (expt 2 40) 2/3 1+2i)])
+               (equal? (fasl->s-exp (s-exp->fasl v)) v))
+            #:gate? #t
+            #:note "FASL preserves numeric values nested in compound data.")
    (nt-case 'positive-nan
             'real-special-values
             +nan.0

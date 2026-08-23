@@ -42,7 +42,10 @@
     ($fasl-void      10)
     ($fasl-eof       11)
     ($fasl-external  12)
-    ($fasl-keyword   13)))
+    ($fasl-keyword   13)
+    ($fasl-bignum    14)
+    ($fasl-rational  15)
+    ($fasl-complex   16)))
 
 ;; fasl-tag-global-names : (listof symbol?)
 ;;   Preserve the runtime emission order for FASL tag globals.
@@ -84,6 +87,7 @@
     $fasl:s-exp->fasl
     $s-exp->fasl/immediate
     $fasl:write-u32
+    $fasl:write-bignum
     $fasl:write-bytes
     $fasl:write-string
     $fasl:write-symbol
@@ -170,9 +174,40 @@
                          (call $s-exp->fasl/immediate
                                (local.get $i)
                                (local.get $v)
-                               (local.get $out)))))
-                   (else
-                    (if (ref.test (ref $String) (local.get $v))
+                               (local.get $out))))
+                    (return)))
+               (if (ref.test (ref $Bignum) (local.get $v))
+                   (then
+                    (drop (call $write-byte (global.get $fasl-bignum) (local.get $out)))
+                    (call $fasl:write-bignum
+                          (ref.cast (ref $Bignum) (local.get $v))
+                          (local.get $out))
+                    (return)))
+               (if (ref.test (ref $Rational) (local.get $v))
+                   (then
+                    (drop (call $write-byte (global.get $fasl-rational) (local.get $out)))
+                    (call $fasl:s-exp->fasl
+                          (struct.get $Rational $num
+                                      (ref.cast (ref $Rational) (local.get $v)))
+                          (local.get $out))
+                    (call $fasl:s-exp->fasl
+                          (struct.get $Rational $den
+                                      (ref.cast (ref $Rational) (local.get $v)))
+                          (local.get $out))
+                    (return)))
+               (if (ref.test (ref $Complex) (local.get $v))
+                   (then
+                    (drop (call $write-byte (global.get $fasl-complex) (local.get $out)))
+                    (call $fasl:s-exp->fasl
+                          (struct.get $Complex $real
+                                      (ref.cast (ref $Complex) (local.get $v)))
+                          (local.get $out))
+                    (call $fasl:s-exp->fasl
+                          (struct.get $Complex $imag
+                                      (ref.cast (ref $Complex) (local.get $v)))
+                          (local.get $out))
+                    (return)))
+               (if (ref.test (ref $String) (local.get $v))
                         (then
                          (drop (call $write-byte (global.get $fasl-string) (local.get $out)))
                          (call $fasl:write-string
@@ -266,7 +301,7 @@
                                                                 (else
                                                                  (call $raise-s-exp->fasl:unsupported-value
                                                                        (local.get $v))
-                                                                 (unreachable))))))))))))))))))))))
+                                                                 (unreachable))))))))))))))))))))
 
          (func $s-exp->fasl/immediate
                (param $i   i32)
@@ -323,6 +358,33 @@
                (call $write-byte
                      (ref.i31 (i32.shl (i32.and (local.get $v) (i32.const 255)) (i32.const 1)))
                      (local.get $out))))
+
+        ;; fasl:write-bignum : bignum? output-port? -> void?
+        ;;   Encode a canonical bignum as sign, limb count, and little-endian limbs.
+        (func $fasl:write-bignum
+              (param $b   (ref $Bignum))
+              (param $out (ref eq))
+
+              (local $limbs (ref $I32Array))
+              (local $len   i32)
+              (local $i     i32)
+
+              (local.set $limbs (struct.get $Bignum $limbs (local.get $b)))
+              (local.set $len (array.len (local.get $limbs)))
+              (call $fasl:write-u32
+                    (struct.get $Bignum $sign (local.get $b))
+                    (local.get $out))
+              (call $fasl:write-u32 (local.get $len) (local.get $out))
+              (block $done
+                     (loop $loop
+                           (br_if $done (i32.ge_u (local.get $i) (local.get $len)))
+                           (call $fasl:write-u32
+                                 (array.get $I32Array
+                                            (local.get $limbs)
+                                            (local.get $i))
+                                 (local.get $out))
+                           (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                           (br $loop))))
 
         (func $fasl:write-bytes
               (param $b   (ref $Bytes))
@@ -398,12 +460,18 @@
     $fasl:read-string
     $fasl:read-symbol
     $fasl:read-f64
+    $fasl:read-bignum
+    $fasl:read-rational
+    $fasl:read-complex
     $fasl:read-s-exp
     $fasl-memory:read-u32
     $fasl-memory:read-bytes
     $fasl-memory:read-string
     $fasl-memory:read-symbol
     $fasl-memory:read-f64
+    $fasl-memory:read-bignum
+    $fasl-memory:read-rational
+    $fasl-memory:read-complex
     $fasl-memory:read-s-exp
     $fasl-memory->s-exp
     $copy-memory-to-i8array
@@ -418,6 +486,9 @@
     $fasl:read-string
     $fasl:read-symbol
     $fasl:read-f64
+    $fasl:read-bignum
+    $fasl:read-rational
+    $fasl:read-complex
     $fasl:read-s-exp))
 
 ;; fasl-runtime-only-forms : (listof datum?)
@@ -558,6 +629,92 @@
                        (f64.reinterpret_i64 (local.get $bits)))
            (local.get $next)))
 
+    ;; fasl:read-bignum : i8-array? i32 -> exact-integer? i32
+    ;;   Decode a sign plus little-endian limb payload.
+    (func $fasl:read-bignum
+          (param $arr (ref $I8Array))
+          (param $i   i32)
+          (result (ref eq) i32)
+
+          (local $sign  i32)
+          (local $len   i32)
+          (local $limbs (ref $I32Array))
+          (local $j     i32)
+          (local $limb  i32)
+
+          (call $fasl:read-u32 (local.get $arr) (local.get $i))
+          (local.set $i) (local.set $sign)
+          (call $fasl:read-u32 (local.get $arr) (local.get $i))
+          (local.set $i) (local.set $len)
+          (local.set $limbs (array.new_default $I32Array (local.get $len)))
+          (block $done
+                 (loop $loop
+                       (br_if $done (i32.ge_u (local.get $j) (local.get $len)))
+                       (call $fasl:read-u32 (local.get $arr) (local.get $i))
+                       (local.set $i) (local.set $limb)
+                       (array.set $I32Array
+                                  (local.get $limbs)
+                                  (local.get $j)
+                                  (local.get $limb))
+                       (local.set $j (i32.add (local.get $j) (i32.const 1)))
+                       (br $loop)))
+          (return (call $bignum-normalize
+                        (local.get $sign)
+                        (local.get $limbs))
+                  (local.get $i)))
+
+    ;; fasl:read-rational : i8-array? i32 i32 -> exact-rational? i32
+    ;;   Decode numerator and denominator recursively.
+    (func $fasl:read-rational
+          (param $arr (ref $I8Array))
+          (param $len i32)
+          (param $i   i32)
+          (result (ref eq) i32)
+
+          (local $num (ref eq))
+          (local $den (ref eq))
+
+          (call $fasl:read-s-exp
+                (local.get $arr)
+                (local.get $len)
+                (local.get $i))
+          (local.set $i) (local.set $num)
+          (call $fasl:read-s-exp
+                (local.get $arr)
+                (local.get $len)
+                (local.get $i))
+          (local.set $i) (local.set $den)
+          (return (call $rational-normalize
+                        (local.get $num)
+                        (local.get $den))
+                  (local.get $i)))
+
+    ;; fasl:read-complex : i8-array? i32 i32 -> number? i32
+    ;;   Decode real and imaginary components recursively.
+    (func $fasl:read-complex
+          (param $arr (ref $I8Array))
+          (param $len i32)
+          (param $i   i32)
+          (result (ref eq) i32)
+
+          (local $real (ref eq))
+          (local $imag (ref eq))
+
+          (call $fasl:read-s-exp
+                (local.get $arr)
+                (local.get $len)
+                (local.get $i))
+          (local.set $i) (local.set $real)
+          (call $fasl:read-s-exp
+                (local.get $arr)
+                (local.get $len)
+                (local.get $i))
+          (local.set $i) (local.set $imag)
+          (return (call $make-rectangular/canonical
+                        (local.get $real)
+                        (local.get $imag))
+                  (local.get $i)))
+
     (func $fasl:read-s-exp
           ;; decode one FASL value by tag
           (param $arr (ref $I8Array))
@@ -581,10 +738,33 @@
           (local $elem (ref eq))
           (local $fl   (ref $Flonum))
           (local $idx  i32)
+          (local $obj  (ref eq))
 
           (local.set $tag (array.get_u $I8Array (local.get $arr) (local.get $i)))
           (local.set $tag (i32.shl (local.get $tag) (i32.const 1))) ; as fixnum
           (local.set $i   (i32.add (local.get $i) (i32.const 1)))
+
+          (if (i32.eq (local.get $tag) (i31.get_u (global.get $fasl-bignum)))
+              (then
+               (call $fasl:read-bignum (local.get $arr) (local.get $i))
+               (local.set $i) (local.set $obj)
+               (return (local.get $obj) (local.get $i))))
+          (if (i32.eq (local.get $tag) (i31.get_u (global.get $fasl-rational)))
+              (then
+               (call $fasl:read-rational
+                     (local.get $arr)
+                     (local.get $len)
+                     (local.get $i))
+               (local.set $i) (local.set $obj)
+               (return (local.get $obj) (local.get $i))))
+          (if (i32.eq (local.get $tag) (i31.get_u (global.get $fasl-complex)))
+              (then
+               (call $fasl:read-complex
+                     (local.get $arr)
+                     (local.get $len)
+                     (local.get $i))
+               (local.set $i) (local.set $obj)
+               (return (local.get $obj) (local.get $i))))
 
           (if (result (ref eq) i32)
               (i32.eq (local.get $tag) (i31.get_u (global.get $fasl-fixnum)))
@@ -842,6 +1022,75 @@
                               (f64.reinterpret_i64 (local.get $bits)))
                   (local.get $next)))
 
+    ;; fasl-memory:read-bignum : i32 -> exact-integer? i32
+    ;;   Decode a sign plus little-endian limb payload from linear memory.
+    (func $fasl-memory:read-bignum
+          (param $i i32)
+          (result (ref eq) i32)
+
+          (local $sign  i32)
+          (local $len   i32)
+          (local $limbs (ref $I32Array))
+          (local $j     i32)
+          (local $limb  i32)
+
+          (call $fasl-memory:read-u32 (local.get $i))
+          (local.set $i) (local.set $sign)
+          (call $fasl-memory:read-u32 (local.get $i))
+          (local.set $i) (local.set $len)
+          (local.set $limbs (array.new_default $I32Array (local.get $len)))
+          (block $done
+                 (loop $loop
+                       (br_if $done (i32.ge_u (local.get $j) (local.get $len)))
+                       (call $fasl-memory:read-u32 (local.get $i))
+                       (local.set $i) (local.set $limb)
+                       (array.set $I32Array
+                                  (local.get $limbs)
+                                  (local.get $j)
+                                  (local.get $limb))
+                       (local.set $j (i32.add (local.get $j) (i32.const 1)))
+                       (br $loop)))
+          (return (call $bignum-normalize
+                        (local.get $sign)
+                        (local.get $limbs))
+                  (local.get $i)))
+
+    ;; fasl-memory:read-rational : i32 -> exact-rational? i32
+    ;;   Decode numerator and denominator recursively from linear memory.
+    (func $fasl-memory:read-rational
+          (param $i i32)
+          (result (ref eq) i32)
+
+          (local $num (ref eq))
+          (local $den (ref eq))
+
+          (call $fasl-memory:read-s-exp (local.get $i))
+          (local.set $i) (local.set $num)
+          (call $fasl-memory:read-s-exp (local.get $i))
+          (local.set $i) (local.set $den)
+          (return (call $rational-normalize
+                        (local.get $num)
+                        (local.get $den))
+                  (local.get $i)))
+
+    ;; fasl-memory:read-complex : i32 -> number? i32
+    ;;   Decode real and imaginary components recursively from linear memory.
+    (func $fasl-memory:read-complex
+          (param $i i32)
+          (result (ref eq) i32)
+
+          (local $real (ref eq))
+          (local $imag (ref eq))
+
+          (call $fasl-memory:read-s-exp (local.get $i))
+          (local.set $i) (local.set $real)
+          (call $fasl-memory:read-s-exp (local.get $i))
+          (local.set $i) (local.set $imag)
+          (return (call $make-rectangular/canonical
+                        (local.get $real)
+                        (local.get $imag))
+                  (local.get $i)))
+
     (func $fasl-memory:read-s-exp
           (param $i i32)
           (result (ref eq) i32)
@@ -862,10 +1111,27 @@
           (local $elem (ref eq))
           (local $fl   (ref $Flonum))
           (local $idx  i32)
+          (local $obj  (ref eq))
 
           (local.set $tag (i32.load8_u (local.get $i)))
           (local.set $tag (i32.shl (local.get $tag) (i32.const 1)))
           (local.set $i   (i32.add (local.get $i) (i32.const 1)))
+
+          (if (i32.eq (local.get $tag) (i31.get_u (global.get $fasl-bignum)))
+              (then
+               (call $fasl-memory:read-bignum (local.get $i))
+               (local.set $i) (local.set $obj)
+               (return (local.get $obj) (local.get $i))))
+          (if (i32.eq (local.get $tag) (i31.get_u (global.get $fasl-rational)))
+              (then
+               (call $fasl-memory:read-rational (local.get $i))
+               (local.set $i) (local.set $obj)
+               (return (local.get $obj) (local.get $i))))
+          (if (i32.eq (local.get $tag) (i31.get_u (global.get $fasl-complex)))
+              (then
+               (call $fasl-memory:read-complex (local.get $i))
+               (local.set $i) (local.set $obj)
+               (return (local.get $obj) (local.get $i))))
 
           (if (result (ref eq) i32)
               (i32.eq (local.get $tag) (i31.get_u (global.get $fasl-fixnum)))

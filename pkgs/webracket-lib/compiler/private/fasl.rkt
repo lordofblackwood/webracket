@@ -20,7 +20,10 @@
          fasl-void
          fasl-eof
          fasl-external
-         fasl-keyword)
+         fasl-keyword
+         fasl-bignum
+         fasl-rational
+         fasl-complex)
 
 (define fasl-fixnum     0)
 (define fasl-character  1)
@@ -36,3 +39,6 @@
 (define fasl-eof       11)
 (define fasl-external  12)
 (define fasl-keyword   13)
+(define fasl-bignum    14)
+(define fasl-rational  15)
+(define fasl-complex   16)

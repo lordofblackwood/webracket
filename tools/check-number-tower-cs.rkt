@@ -252,6 +252,7 @@
     (lambda (out)
       (display "#lang racket/base\n" out)
       (display "(require racket/math)\n" out)
+      (display "(require racket/fasl)\n" out)
       (write
        '(begin
           (define (number-tower-float-complex? x)
