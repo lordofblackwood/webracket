@@ -14,6 +14,18 @@
                    (string-contains? message needle))
                  needles))))
 
+(define (catch-fail/contains? thunk . needles)
+  (let ([message
+         (with-handlers ([exn:fail?
+                          (lambda (exn)
+                            (exn-message exn))])
+           (thunk)
+           #f)])
+    (and message
+         (andmap (lambda (needle)
+                   (string-contains? message needle))
+                 needles))))
+
 (struct vector-plain ())
 
 (define vector-plain-given "given: #(struct vector-plain)")
@@ -30,7 +42,11 @@
          (lambda () (make-vector -1))
          "make-vector"
          "valid-vector-length?"
-         "given: -1")))
+         "given: -1")
+        (catch-fail/contains?
+         (lambda () (make-vector 536870912))
+         "make-vector"
+         "requested length is too large for WebRacket")))
  (list "vector-extend length errors match public contracts"
        (and
         (catch-contract/contains?
@@ -60,7 +76,11 @@
          (lambda () (build-vector -1 values))
          "build-vector"
          "exact-nonnegative-integer?"
-         "given: -1")))
+         "given: -1")
+        (catch-fail/contains?
+         (lambda () (build-vector 536870912 values))
+         "build-vector"
+         "requested length is too large for WebRacket")))
  (list "build-vector procedure errors are catchable with who"
        (and
         (catch-contract/contains?

@@ -52,6 +52,7 @@
     (vector-vector              "\n  vector: ")
     (vector-target-length       "\n  target length: ")
     (vector-needed-length       "\n  needed length: ")
+    (vector-length-too-large    ": requested length is too large for WebRacket")
     (build-vector-procedure     "(exact-nonnegative-integer? . -> . any/c)")
     (vector-unary-any-procedure "(any/c . -> . any/c)")
     (vector-unary-real-procedure "(any/c . -> . real?)")
@@ -504,21 +505,48 @@
                      (local.get $len)))
 
 
-         (func $raise-make-vector:bad-length
-               (param $x (ref eq))
-               (call $raise-argument-error1
-                     (global.get $symbol:make-vector)
-                     (global.get $string:valid-vector-length)
-                     (local.get $x)))
-         (func $raise-build-vector:bad-length
-               (param $x (ref eq))
-               (call $raise-argument-error1
-                     (global.get $symbol:build-vector)
-                     (global.get $string:exact-nonnegative-integer?)
-                     (local.get $x)))
-         (func $raise-build-vector:procedure-expected
-               (param $x (ref eq))
-               (call $raise-argument-error1
+        (func $raise-vector-length-too-large/who
+              (param $who (ref eq))
+
+              (local $message (ref $String))
+
+              (local.set $message
+                         (call $string-append/2
+                               (call $format/display (local.get $who))
+                               (global.get $string:vector-length-too-large)))
+              (call $raise
+                    (call $exn:fail/make
+                          (local.get $message)
+                          (call $current-continuation-marks
+                                (global.get $missing)))
+                    (global.get $true))
+              (unreachable))
+        (func $vector-length/i32/who
+              (param $who      (ref eq))
+              (param $len-raw  (ref eq))
+              (param $expected (ref eq))
+              (result i32)
+
+              (local $len i32)
+
+              (local.set $len
+                         (call $exact-nonnegative-integer->i32/saturating
+                               (local.get $len-raw)))
+              (if (i32.lt_s (local.get $len) (i32.const 0))
+                  (then
+                   (call $raise-argument-error1
+                         (local.get $who)
+                         (local.get $expected)
+                         (local.get $len-raw))
+                   (unreachable)))
+              (if (i32.gt_s (local.get $len) (i32.const 536870911))
+                  (then
+                   (call $raise-vector-length-too-large/who (local.get $who))
+                   (unreachable)))
+              (local.get $len))
+        (func $raise-build-vector:procedure-expected
+              (param $x (ref eq))
+              (call $raise-argument-error1
                      (global.get $symbol:build-vector)
                      (global.get $string:build-vector-procedure)
                      (local.get $x)))
@@ -576,27 +604,12 @@
                (result        (ref eq))
 
                (local $k         i32)
-               (local $k-encoded i32)
-               (local $k/s       i32)
                (local $v         (ref eq))  ;; possibly rewritten value
-               ;; --- Type check for fixnum ---
-               (if (i32.eqz (ref.test (ref i31) (local.get $k-fx)))
-                   (then (call $raise-make-vector:bad-length (local.get $k-fx))
-                         (unreachable)))
-               (local.set $k-encoded
-                          (i31.get_s (ref.cast (ref i31) (local.get $k-fx))))
-               (if (i32.ne (i32.and (local.get $k-encoded) (i32.const 1)) (i32.const 0))
-                   (then (call $raise-make-vector:bad-length (local.get $k-fx))
-                         (unreachable)))
-               ;; --- Decode fixnum to i32 ---
-               (local.set $k/s
-                          (i32.shr_s
-                           (local.get $k-encoded)
-                           (i32.const 1)))
-               (if (i32.lt_s (local.get $k/s) (i32.const 0))
-                   (then (call $raise-make-vector:bad-length (local.get $k-fx))
-                         (unreachable)))
-               (local.set $k (local.get $k/s))
+               (local.set $k
+                          (call $vector-length/i32/who
+                                (global.get $symbol:make-vector)
+                                (local.get $k-fx)
+                                (global.get $string:valid-vector-length)))
                ;; --- Substitute default value if missing ---
                (local.set $v (if (result (ref eq))
                                  (ref.eq (local.get $val) (global.get $missing))
@@ -812,26 +825,14 @@
               (result       (ref eq))
 
               (local $n    i32)
-              (local $n-encoded i32)
               (local $f    (ref $Procedure))
               (local $finv (ref $ProcedureInvoker))
 
-              ;; --- Check and unwrap n ---
-              (if (i32.eqz (ref.test (ref i31) (local.get $n-raw)))
-                  (then (call $raise-build-vector:bad-length (local.get $n-raw))
-                        (unreachable)))
-              (local.set $n-encoded
-                         (i31.get_s (ref.cast (ref i31) (local.get $n-raw))))
-              (if (i32.ne (i32.and (local.get $n-encoded) (i32.const 1)) (i32.const 0))
-                  (then (call $raise-build-vector:bad-length (local.get $n-raw))
-                        (unreachable)))
               (local.set $n
-                         (i32.shr_s
-                          (local.get $n-encoded)
-                          (i32.const 1)))
-              (if (i32.lt_s (local.get $n) (i32.const 0))
-                  (then (call $raise-build-vector:bad-length (local.get $n-raw))
-                        (unreachable)))
+                         (call $vector-length/i32/who
+                               (global.get $symbol:build-vector)
+                               (local.get $n-raw)
+                               (global.get $string:exact-nonnegative-integer?)))
 
               ;; --- Check procedure ---
               (if (ref.eq (call $procedure? (local.get $proc))
