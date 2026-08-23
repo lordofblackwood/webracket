@@ -689,6 +689,203 @@
                  (ref.cast (ref $Bignum) (local.get $x))
                  (ref.cast (ref $Bignum) (local.get $y))))
 
+     ;; $integer-zero?/i32 : exact-integer? -> i32
+     ;;   Return 1 when x is exact zero, otherwise 0.
+     (func $integer-zero?/i32
+           (param $x (ref eq))
+           (result i32)
+
+           (if (ref.test (ref i31) (local.get $x))
+               (then
+                (return
+                 (i32.eqz
+                  (i31.get_s (ref.cast (ref i31) (local.get $x)))))))
+           (i32.const 0))
+
+     ;; $integer-sign/i32 : exact-integer? -> i32
+     ;;   Return -1, 0, or 1 according to the exact integer's sign.
+     (func $integer-sign/i32
+           (param $x (ref eq))
+           (result i32)
+
+           (local $v i32)
+
+           (if (ref.test (ref i31) (local.get $x))
+               (then
+                (local.set $v
+                           (i32.shr_s
+                            (i31.get_s (ref.cast (ref i31) (local.get $x)))
+                            (i32.const 1)))
+                (if (i32.eqz (local.get $v))
+                    (then (return (i32.const 0))))
+                (return
+                 (select (i32.const 1)
+                         (i32.const -1)
+                         (i32.gt_s (local.get $v) (i32.const 0))))))
+           (struct.get $Bignum $sign (ref.cast (ref $Bignum) (local.get $x))))
+
+     ;; $integer-abs-u32 : exact-integer? -> i32
+     ;;   Return the absolute magnitude when it fits one unsigned 32-bit limb.
+     (func $integer-abs-u32
+           (param $x (ref eq))
+           (result i32)
+
+           (local $v i32)
+
+           (if (ref.test (ref i31) (local.get $x))
+               (then
+                (local.set $v
+                           (i32.shr_s
+                            (i31.get_s (ref.cast (ref i31) (local.get $x)))
+                            (i32.const 1)))
+                (return
+                 (select (i32.sub (i32.const 0) (local.get $v))
+                         (local.get $v)
+                         (i32.lt_s (local.get $v) (i32.const 0))))))
+           (array.get $I32Array
+                      (struct.get $Bignum $limbs
+                                  (ref.cast (ref $Bignum) (local.get $x)))
+                      (i32.const 0)))
+
+     ;; $integer-single-limb?/i32 : exact-integer? -> i32
+     ;;   Return 1 when the exact integer's magnitude fits one 32-bit limb.
+     (func $integer-single-limb?/i32
+           (param $x (ref eq))
+           (result i32)
+
+           (if (ref.test (ref i31) (local.get $x))
+               (then (return (i32.const 1))))
+           (i32.eq
+            (array.len
+             (struct.get $Bignum $limbs
+                         (ref.cast (ref $Bignum) (local.get $x))))
+            (i32.const 1)))
+
+     ;; $integer-apply-sign : exact-integer? i32 -> exact-integer?
+     ;;   Apply sign to a nonnegative exact integer magnitude.
+     (func $integer-apply-sign
+           (param $mag  (ref eq))
+           (param $sign i32)
+           (result (ref eq))
+
+           (if (i32.lt_s (local.get $sign) (i32.const 0))
+               (then (return (call $integer-negate (local.get $mag)))))
+           (local.get $mag))
+
+     ;; $bignum-divmod-u32 : bignum? i32 -> values exact-integer? exact-integer?
+     ;;   Divide a positive bignum magnitude by a nonzero unsigned 32-bit limb.
+     (func $bignum-divmod-u32
+           (param $n (ref $Bignum))
+           (param $d i32)
+           (result (ref $Values))
+
+           (local $limbs (ref $I32Array))
+           (local $q-limbs (ref $I32Array))
+           (local $i i32)
+           (local $cur i64)
+           (local $rem i64)
+           (local $d64 i64)
+
+           (local.set $limbs (struct.get $Bignum $limbs (local.get $n)))
+           (local.set $i (array.len (local.get $limbs)))
+           (local.set $q-limbs (array.new_default $I32Array (local.get $i)))
+           (local.set $d64 (i64.extend_i32_u (local.get $d)))
+           (block $done
+                  (loop $loop
+                        (br_if $done (i32.eqz (local.get $i)))
+                        (local.set $i (i32.sub (local.get $i) (i32.const 1)))
+                        (local.set $cur
+                                   (i64.add
+                                    (i64.shl (local.get $rem) (i64.const 32))
+                                    (i64.extend_i32_u
+                                     (array.get $I32Array
+                                                (local.get $limbs)
+                                                (local.get $i)))))
+                        (array.set $I32Array
+                                   (local.get $q-limbs)
+                                   (local.get $i)
+                                   (i32.wrap_i64
+                                    (i64.div_u (local.get $cur)
+                                               (local.get $d64))))
+                        (local.set $rem
+                                   (i64.rem_u (local.get $cur)
+                                              (local.get $d64)))
+                        (br $loop)))
+           (array.new_fixed $Values 2
+                            (call $bignum-normalize
+                                  (i32.const 1)
+                                  (local.get $q-limbs))
+                            (call $integer-from-i64 (local.get $rem))))
+
+     ;; $integer-divmod/single-limb : exact-integer? exact-integer? -> values
+     ;;   Divide exact integers when the divisor magnitude fits one 32-bit limb.
+     (func $integer-divmod/single-limb
+           (param $n (ref eq))
+           (param $m (ref eq))
+           (result (ref $Values))
+
+           (local $n-sign i32)
+           (local $m-sign i32)
+           (local $q-sign i32)
+           (local $d i32)
+           (local $nv i64)
+           (local $q (ref eq))
+           (local $r (ref eq))
+           (local $vals (ref $Values))
+
+           (if (call $integer-zero?/i32 (local.get $n))
+               (then
+                (return
+                 (array.new_fixed $Values 2
+                                  (ref.i31 (i32.const 0))
+                                  (ref.i31 (i32.const 0))))))
+           (local.set $n-sign (call $integer-sign/i32 (local.get $n)))
+           (local.set $m-sign (call $integer-sign/i32 (local.get $m)))
+           (local.set $q-sign
+                      (select (i32.const 1)
+                              (i32.const -1)
+                              (i32.eq (local.get $n-sign)
+                                      (local.get $m-sign))))
+           (local.set $d (call $integer-abs-u32 (local.get $m)))
+
+           (if (ref.test (ref i31) (local.get $n))
+               (then
+                (local.set $nv
+                           (i64.extend_i32_u
+                            (call $integer-abs-u32 (local.get $n))))
+                (local.set $q
+                           (call $integer-from-i64
+                                 (i64.div_u
+                                  (local.get $nv)
+                                  (i64.extend_i32_u (local.get $d)))))
+                (local.set $r
+                           (call $integer-from-i64
+                                 (i64.rem_u
+                                  (local.get $nv)
+                                  (i64.extend_i32_u (local.get $d)))))
+                (return
+                 (array.new_fixed $Values 2
+                                  (call $integer-apply-sign
+                                        (local.get $q)
+                                        (local.get $q-sign))
+                                  (call $integer-apply-sign
+                                        (local.get $r)
+                                        (local.get $n-sign))))))
+
+           (local.set $vals
+                      (call $bignum-divmod-u32
+                            (ref.cast (ref $Bignum) (local.get $n))
+                            (local.get $d)))
+           (local.set $q (array.get $Values (local.get $vals) (i32.const 0)))
+           (local.set $r (array.get $Values (local.get $vals) (i32.const 1)))
+           (array.new_fixed $Values 2
+                            (call $integer-apply-sign
+                                  (local.get $q)
+                                  (local.get $q-sign))
+                            (call $integer-apply-sign
+                                  (local.get $r)
+                                  (local.get $n-sign))))
+
      ;; $integer-compare/i32 : exact-integer? exact-integer? -> integer?
      ;;   Compare exact integers, returning -1, 0, or 1.
      (func $integer-compare/i32

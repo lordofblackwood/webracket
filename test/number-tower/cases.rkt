@@ -344,7 +344,57 @@
             'integer-ordering
             '(eqv? (max 9007199254740993 +nan.0) +nan.0)
             #:gate? #t
-            #:note "Generic max propagates NaN with bignum inputs.")))
+            #:note "Generic max propagates NaN with bignum inputs.")
+   (nt-case 'bignum-quotient-small-divisor
+            'integer-division
+            '(quotient 9007199254740993 3)
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "Exact quotient divides a bignum dividend by a one-limb divisor.")
+   (nt-case 'bignum-remainder-small-divisor
+            'integer-division
+            '(remainder 9007199254740993 7)
+            #:gate? #t
+            #:note "Exact remainder divides a bignum dividend by a one-limb divisor.")
+   (nt-case 'negative-bignum-modulo-small-divisor
+            'integer-division
+            '(modulo -9007199254740993 7)
+            #:gate? #t
+            #:note "Exact modulo adjusts the truncating remainder to the divisor sign.")
+   (nt-case 'bignum-quotient-remainder-small-divisor
+            'integer-division
+            '(let-values ([(q r) (quotient/remainder -9007199254740993 7)])
+               (and (= q -1286742750677284)
+                    (= r -5)))
+            #:gate? #t
+            #:note "quotient/remainder returns the truncating exact pair for a bignum dividend.")
+   (nt-case 'bignum-quotient-smaller-dividend
+            'integer-division
+            '(quotient 3 9007199254740993)
+            #:gate? #t
+            #:note "Exact quotient handles the trivial zero quotient with a multi-limb divisor.")
+   (nt-case 'bignum-remainder-smaller-dividend
+            'integer-division
+            '(remainder 3 9007199254740993)
+            #:gate? #t
+            #:note "Exact remainder handles the trivial dividend remainder with a multi-limb divisor.")
+   (nt-case 'bignum-gcd-small-divisor
+            'integer-gcd
+            '(gcd 9007199254740993 3)
+            #:gate? #t
+            #:note "gcd can reduce a bignum by a one-limb divisor.")
+   (nt-case 'bignum-lcm-small-divisor
+            'integer-gcd
+            '(lcm 9007199254740993 3)
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "lcm routes exact bignum division through quotient before multiplying.")
+   (nt-case 'bignum-gcd-zero-left
+            'integer-gcd
+            '(gcd 0 9007199254740993)
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "gcd handles the zero-left case with a multi-limb divisor.")))
 
 ;; number-tower-groups : -> (listof symbol?)
 ;;   Return the distinct oracle groups in stable display order.
