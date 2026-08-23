@@ -6200,18 +6200,53 @@
                (then (return (global.get $false)))
                (else (nop)))
 
+           ;; Source radix prefixes override the optional radix argument.
+           (local.set $i (i32.const 0))
+           (if (i32.ge_u (local.get $len) (i32.const 2))
+               (then
+                (local.set $cp (call $i32array-ref (local.get $arr) (i32.const 0)))
+                (if (i32.eq (local.get $cp) (i32.const 35))
+                    (then
+                     (local.set $cp (call $i32array-ref (local.get $arr) (i32.const 1)))
+                     (if (i32.or
+                          (i32.eq (local.get $cp) (i32.const 98))
+                          (i32.eq (local.get $cp) (i32.const 66)))
+                         (then
+                          (local.set $radix (i32.const 2))
+                          (local.set $i (i32.const 2))))
+                     (if (i32.or
+                          (i32.eq (local.get $cp) (i32.const 111))
+                          (i32.eq (local.get $cp) (i32.const 79)))
+                         (then
+                          (local.set $radix (i32.const 8))
+                          (local.set $i (i32.const 2))))
+                     (if (i32.or
+                          (i32.eq (local.get $cp) (i32.const 100))
+                          (i32.eq (local.get $cp) (i32.const 68)))
+                         (then
+                          (local.set $radix (i32.const 10))
+                          (local.set $i (i32.const 2))))
+                     (if (i32.or
+                          (i32.eq (local.get $cp) (i32.const 120))
+                          (i32.eq (local.get $cp) (i32.const 88)))
+                         (then
+                          (local.set $radix (i32.const 16))
+                          (local.set $i (i32.const 2))))))))
+
+           (if (i32.eq (local.get $i) (local.get $len))
+               (then (return (global.get $false))))
+
            ;; Sign
-           (local.set $i   (i32.const 0))
            (local.set $neg (i32.const 0))
 
-           (local.set $cp (call $i32array-ref (local.get $arr) (i32.const 0)))
+           (local.set $cp (call $i32array-ref (local.get $arr) (local.get $i)))
            (if (i32.eq (local.get $cp) (i32.const 45))
                (then
                 (local.set $neg (i32.const 1))
-                (local.set $i   (i32.const 1)))
+                (local.set $i   (i32.add (local.get $i) (i32.const 1))))
                (else
                 (if (i32.eq (local.get $cp) (i32.const 43))
-                    (then (local.set $i (i32.const 1)))
+                    (then (local.set $i (i32.add (local.get $i) (i32.const 1))))
                     (else (nop)))))
 
            ;; Cannot be only sign

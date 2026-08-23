@@ -184,6 +184,32 @@
             '(string->number "10/100" 2)
             #:gate? #t
             #:note "string->number applies explicit radix to both rational components.")
+   (nt-case 'string->number-hex-prefix-bignum
+            'string-number
+            '(string->number "#x100000000")
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "string->number parses source radix prefixes beyond the WebRacket fixnum range.")
+   (nt-case 'string->number-prefix-negative
+            'string-number
+            '(string->number "#x-10")
+            #:gate? #t
+            #:note "string->number accepts signs after source radix prefixes.")
+   (nt-case 'string->number-prefix-overrides-argument
+            'string-number
+            '(string->number "#b10" 16)
+            #:gate? #t
+            #:note "Source radix prefixes override the optional radix argument.")
+   (nt-case 'string->number-prefix-rational
+            'string-number
+            '(string->number "#x1/10")
+            #:gate? #t
+            #:note "string->number applies source radix prefixes to rational components.")
+   (nt-case 'string->number-prefix-only
+            'string-number
+            '(string->number "#x")
+            #:gate? #t
+            #:note "Bare radix prefixes parse as #f.")
    (nt-case 'string->number-zero-denominator
             'string-number
             '(string->number "1/0")
