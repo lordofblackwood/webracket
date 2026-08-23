@@ -493,6 +493,187 @@
                  (local.get $sign)
                  (local.get $out)))
 
+     ;; $bignum-square : bignum? -> exact-integer?
+     ;;   Square a bignum magnitude using one multiply for each off-diagonal pair.
+     (func $bignum-square
+           (param $b (ref $Bignum))
+           (result (ref eq))
+
+           (local $limbs  (ref $I32Array))
+           (local $len    i32)
+           (local $out    (ref $I32Array))
+           (local $i      i32)
+           (local $j      i32)
+           (local $ai     i32)
+           (local $aj     i32)
+           (local $pos    i32)
+           (local $prod   i64)
+           (local $acc    i64)
+           (local $carry  i64)
+
+           (local.set $limbs (struct.get $Bignum $limbs (local.get $b)))
+           (local.set $len (array.len (local.get $limbs)))
+           (local.set $out
+                      (array.new_default
+                       $I32Array
+                       (i32.mul (local.get $len) (i32.const 2))))
+           (block $outer-done
+                  (loop $outer
+                        (br_if $outer-done
+                               (i32.ge_u (local.get $i) (local.get $len)))
+                        (local.set $ai
+                                   (array.get $I32Array
+                                              (local.get $limbs)
+                                              (local.get $i)))
+                        (if (i32.eqz (local.get $ai))
+                            (then
+                             (local.set $i
+                                        (i32.add (local.get $i)
+                                                 (i32.const 1)))
+                             (br $outer)))
+                        (local.set $prod
+                                   (i64.mul
+                                    (i64.extend_i32_u (local.get $ai))
+                                    (i64.extend_i32_u (local.get $ai))))
+                        (local.set $pos
+                                   (i32.mul (local.get $i) (i32.const 2)))
+                        (local.set $acc
+                                   (i64.add
+                                    (i64.extend_i32_u
+                                     (array.get $I32Array
+                                                (local.get $out)
+                                                (local.get $pos)))
+                                    (i64.and (local.get $prod)
+                                             (i64.const 4294967295))))
+                        (array.set $I32Array
+                                   (local.get $out)
+                                   (local.get $pos)
+                                   (i32.wrap_i64 (local.get $acc)))
+                        (local.set $carry
+                                   (i64.add
+                                    (i64.shr_u (local.get $prod) (i64.const 32))
+                                    (i64.shr_u (local.get $acc) (i64.const 32))))
+                        (local.set $pos
+                                   (i32.add (local.get $pos) (i32.const 1)))
+                        (block $diag-carry-done
+                               (loop $diag-carry-loop
+                                     (br_if $diag-carry-done
+                                            (i64.eqz (local.get $carry)))
+                                     (local.set $acc
+                                                (i64.add
+                                                 (i64.extend_i32_u
+                                                  (array.get $I32Array
+                                                             (local.get $out)
+                                                             (local.get $pos)))
+                                                 (local.get $carry)))
+                                     (array.set $I32Array
+                                                (local.get $out)
+                                                (local.get $pos)
+                                                (i32.wrap_i64 (local.get $acc)))
+                                     (local.set $carry
+                                                (i64.shr_u (local.get $acc)
+                                                           (i64.const 32)))
+                                     (local.set $pos
+                                                (i32.add (local.get $pos)
+                                                         (i32.const 1)))
+                                     (br $diag-carry-loop)))
+                        (local.set $j
+                                   (i32.add (local.get $i) (i32.const 1)))
+                        (local.set $carry (i64.const 0))
+                        (block $inner-done
+                               (loop $inner
+                                     (br_if $inner-done
+                                            (i32.ge_u (local.get $j)
+                                                      (local.get $len)))
+                                     (local.set $pos
+                                                (i32.add (local.get $i)
+                                                         (local.get $j)))
+                                     (local.set $aj
+                                                (array.get $I32Array
+                                                           (local.get $limbs)
+                                                           (local.get $j)))
+                                     (if (i32.and
+                                          (i32.eqz (local.get $aj))
+                                          (i64.eqz (local.get $carry)))
+                                         (then
+                                          (local.set $j
+                                                     (i32.add (local.get $j)
+                                                              (i32.const 1)))
+                                          (br $inner)))
+                                     (local.set $prod
+                                                (select
+                                                 (i64.const 0)
+                                                 (i64.mul
+                                                  (i64.extend_i32_u (local.get $ai))
+                                                  (i64.extend_i32_u (local.get $aj)))
+                                                 (i32.eqz (local.get $aj))))
+                                     (local.set $acc
+                                                (i64.add
+                                                 (i64.add
+                                                  (i64.extend_i32_u
+                                                   (array.get $I32Array
+                                                              (local.get $out)
+                                                              (local.get $pos)))
+                                                  (i64.and
+                                                   (i64.shl (local.get $prod)
+                                                            (i64.const 1))
+                                                   (i64.const 4294967295)))
+                                                 (i64.and
+                                                  (local.get $carry)
+                                                  (i64.const 4294967295))))
+                                     (array.set $I32Array
+                                                (local.get $out)
+                                                (local.get $pos)
+                                                (i32.wrap_i64 (local.get $acc)))
+                                     (local.set $carry
+                                                (i64.add
+                                                 (i64.add
+                                                  (i64.shr_u (local.get $prod)
+                                                             (i64.const 31))
+                                                  (i64.shr_u (local.get $carry)
+                                                             (i64.const 32)))
+                                                 (i64.shr_u (local.get $acc)
+                                                            (i64.const 32))))
+                                     (local.set $j
+                                                (i32.add (local.get $j)
+                                                         (i32.const 1)))
+                                     (br $inner)))
+                        (local.set $pos
+                                   (i32.add (local.get $i)
+                                            (local.get $len)))
+                        (block $cross-carry-done
+                               (loop $cross-carry-loop
+                                     (br_if $cross-carry-done
+                                            (i64.eqz (local.get $carry)))
+                                     (local.set $acc
+                                                (i64.add
+                                                 (i64.extend_i32_u
+                                                  (array.get $I32Array
+                                                             (local.get $out)
+                                                             (local.get $pos)))
+                                                 (i64.and (local.get $carry)
+                                                          (i64.const 4294967295))))
+                                     (array.set $I32Array
+                                                (local.get $out)
+                                                (local.get $pos)
+                                                (i32.wrap_i64 (local.get $acc)))
+                                     (local.set $carry
+                                                (i64.add
+                                                 (i64.shr_u (local.get $carry)
+                                                            (i64.const 32))
+                                                 (i64.shr_u (local.get $acc)
+                                                            (i64.const 32))))
+                                     (local.set $pos
+                                                (i32.add (local.get $pos)
+                                                         (i32.const 1)))
+                                     (br $cross-carry-loop)))
+                        (local.set $i
+                                   (i32.add (local.get $i) (i32.const 1)))
+                        (br $outer)))
+           (call $bignum-normalize
+                 (i32.const 1)
+                 (local.get $out)))
+
      ;; $bignum-power-of-two-shift/i32 : bignum? -> integer?
      ;;   Return k for a magnitude of 2^k, or -1 when the magnitude is not a power of two.
      (func $bignum-power-of-two-shift/i32
@@ -695,6 +876,19 @@
                        (local.get $a)
                        (local.get $shift)
                        (local.get $sign)))))
+           ;; Smaller equal operands are not consistently faster with the
+           ;; square-specific carry bookkeeping.
+           (if (i32.and
+                (i32.ge_u (local.get $a-len) (i32.const 64))
+                (i32.and
+                 (i32.gt_s (local.get $sign) (i32.const 0))
+                 (i32.eqz
+                  (call $bignum-magnitude-compare/i32
+                        (local.get $a-limbs)
+                        (local.get $b-limbs)))))
+               (then
+                (return
+                 (call $bignum-square (local.get $a)))))
            (local.set $small-limbs (local.get $a-limbs))
            (local.set $small-len   (local.get $a-len))
            (local.set $large-limbs (local.get $b-limbs))

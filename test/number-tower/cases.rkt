@@ -1372,6 +1372,34 @@
             #:comparison 'ignore-fixnum-width
             #:gate? #t
             #:note "Bignum multiplication handles signs for dense multi-limb operands.")
+   (nt-case 'bignum-mul-dense-square
+            'integer-arithmetic
+            '(let ([x (- (arithmetic-shift 1 192) 987654321)])
+               (* x x))
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "Bignum multiplication handles dense equal operands.")
+   (nt-case 'bignum-mul-dense-square-negative
+            'integer-arithmetic
+            '(let ([x (- (- (arithmetic-shift 1 160) 12345))])
+               (* x x))
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "Bignum multiplication squares negative equal operands to a positive result.")
+   (nt-case 'bignum-mul-dense-square-carry
+            'integer-arithmetic
+            '(let ([x (- (arithmetic-shift 1 128) 1)])
+               (* x x))
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "Bignum multiplication squares dense all-one limbs with carry propagation.")
+   (nt-case 'bignum-mul-wide-square
+            'integer-arithmetic
+            '(let ([x (- (arithmetic-shift 1 4096) 987654321)])
+               (* x x))
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "Bignum multiplication uses the large-operand square path correctly.")
    (nt-case 'bignum-mul-sparse-power-left
             'integer-arithmetic
             '(* (arithmetic-shift 1 130) 123456789)

@@ -77,7 +77,27 @@
    (bench-case 'dense-square-shape
                '(- (arithmetic-shift 1 192) 987654321)
                '(- (arithmetic-shift 1 192) 987654321)
-               "Dense equal operands, useful for future squaring work.")))
+               "Dense equal operands for squaring work.")
+   (bench-case 'dense-square-neighbor
+               '(- (arithmetic-shift 1 192) 987654321)
+               '(- (arithmetic-shift 1 192) 987654322)
+               "Dense same-width neighboring operands for square comparisons.")
+   (bench-case 'wide-dense-square-shape
+               '(- (arithmetic-shift 1 1024) 987654321)
+               '(- (arithmetic-shift 1 1024) 987654321)
+               "Wider dense equal operands for squaring work.")
+   (bench-case 'wide-dense-square-neighbor
+               '(- (arithmetic-shift 1 1024) 987654321)
+               '(- (arithmetic-shift 1 1024) 987654322)
+               "Wider same-width neighboring operands for square comparisons.")
+   (bench-case 'huge-dense-square-shape
+               '(- (arithmetic-shift 1 4096) 987654321)
+               '(- (arithmetic-shift 1 4096) 987654321)
+               "Large dense equal operands for squaring work.")
+   (bench-case 'huge-dense-square-neighbor
+               '(- (arithmetic-shift 1 4096) 987654321)
+               '(- (arithmetic-shift 1 4096) 987654322)
+               "Large same-width neighboring operands for square comparisons.")))
 
 
 ;;; Repository Paths
@@ -108,24 +128,26 @@
 
 ;;; Source Generation
 
-;; benchmark-expression : exact-positive-integer? (listof bench-case?) -> any/c
+;; benchmark-expression : exact-positive-integer? exact-nonnegative-integer? (listof bench-case?) -> any/c
 ;;   Build the expression run by WebRacket and Racket CS.
-(define (benchmark-expression reps cases)
+(define (benchmark-expression reps warmup-reps cases)
   `(letrec ([bench
              (lambda (name reps lhs rhs)
-               (let ([t0 (current-inexact-milliseconds)])
-                 (letrec ([loop
-                           (lambda (i checksum)
-                             (if (= i 0)
-                                 (list name
-                                       reps
-                                       (- (current-inexact-milliseconds) t0)
-                                       checksum)
-                                 (let ([product (* lhs rhs)])
-                                   (loop (- i 1)
-                                         (+ checksum
-                                            (integer-length product))))))])
-                   (loop reps 0))))])
+               (letrec ([loop
+                         (lambda (i checksum)
+                           (if (= i 0)
+                               checksum
+                               (let ([product (* lhs rhs)])
+                                 (loop (- i 1)
+                                       (+ checksum
+                                          (integer-length product))))))])
+                 (loop ,warmup-reps 0)
+                 (let ([t0 (current-inexact-milliseconds)])
+                   (let ([checksum (loop reps 0)])
+                     (list name
+                           reps
+                           (- (current-inexact-milliseconds) t0)
+                           checksum)))))])
      (list
       ,@(for/list ([c (in-list cases)])
           `(bench ',(bench-case-id c)
@@ -363,6 +385,7 @@
 ;;   Run the bignum multiplication benchmark.
 (define (main)
   (define reps 100000)
+  (define warmup-reps 10000)
   (define timeout-seconds 300)
   (define include-cs? #t)
   (define keep-temp? #f)
@@ -375,6 +398,8 @@
    #:once-each
    [("--reps") n "Repetitions per case; defaults to 100000"
                (set! reps (string->number n))]
+   [("--warmup") n "Warmup repetitions per case before timing; defaults to 10000"
+                 (set! warmup-reps (string->number n))]
    [("--timeout") n "Timeout in seconds for each subprocess; defaults to 300"
                   (set! timeout-seconds (string->number n))]
    [("--webracket-racket") path "Racket executable for WebRacket compilation"
@@ -391,16 +416,17 @@
    [("--case") id "Run one case id or comma-separated case ids"
               (set! case-ids (append case-ids (parse-symbol-list id)))])
   (unless (and (exact-positive-integer? reps)
+               (exact-nonnegative-integer? warmup-reps)
                (exact-positive-integer? timeout-seconds))
     (error 'measure-bignum-mul
-           "--reps and --timeout must be positive integers"))
+           "--reps and --timeout must be positive integers; --warmup must be a nonnegative integer"))
   (cond
     [list-cases?
      (for ([c (in-list bignum-mul-cases)])
        (printf "~a\t~a\n" (bench-case-id c) (bench-case-note c)))]
     [else
      (define cases (selected-bignum-mul-cases case-ids))
-     (define expr (benchmark-expression reps cases))
+     (define expr (benchmark-expression reps warmup-reps cases))
      (define work-dir (make-benchmark-directory))
      (with-handlers ([exn:fail?
                       (lambda (exn)
@@ -425,7 +451,10 @@
        (printf "benchmark-temp-dir=~a (~a)\n"
                work-dir
                (if keep-temp? "kept" "deleted on success"))
-       (printf "reps=~a cases=~a\n\n" reps (length cases))
+       (printf "reps=~a warmup=~a cases=~a\n\n"
+               reps
+               warmup-reps
+               (length cases))
        (print-result-table 'webracket wr-result wr-rows)
        (when include-cs?
          (print-result-table 'racket-cs cs-result cs-rows))
