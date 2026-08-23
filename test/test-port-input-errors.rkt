@@ -370,6 +370,52 @@
                          too-large-port-index))
          "read-string!"
          "ending index is out of range")))
+ (list "peek byte/string bignum ranges are catchable with who"
+       (and
+        (catch-contract/contains?
+         (lambda ()
+           (peek-bytes! (make-bytes 3 0)
+                        0
+                        (open-input-bytes #"abc")
+                        too-large-port-index))
+         "peek-bytes!"
+         "starting index is out of range")
+        (catch-contract/contains?
+         (lambda ()
+           (peek-bytes! (make-bytes 3 0)
+                        0
+                        (open-input-bytes #"abc")
+                        0
+                        too-large-port-index))
+         "peek-bytes!"
+         "ending index is out of range")
+        (catch-contract/contains?
+         (lambda ()
+           (peek-string! (make-string 3 #\_)
+                         0
+                         (open-input-string "abc")
+                         too-large-port-index))
+         "peek-string!"
+         "starting index is out of range")
+        (catch-contract/contains?
+         (lambda ()
+           (peek-string! (make-string 3 #\_)
+                         0
+                         (open-input-string "abc")
+                         0
+                         too-large-port-index))
+         "peek-string!"
+         "ending index is out of range")))
+ (list "peek byte/string bignum skips reach eof"
+       (and
+        (eof-object?
+         (peek-bytes! (make-bytes 1 0)
+                      too-large-port-index
+                      (open-input-bytes #"abc")))
+        (eof-object?
+         (peek-string! (make-string 1 #\_)
+                       too-large-port-index
+                       (open-input-string "abc")))))
  (list "input byte/string bignum counts fail catchably"
        (and
         (catch-fail/contains?
