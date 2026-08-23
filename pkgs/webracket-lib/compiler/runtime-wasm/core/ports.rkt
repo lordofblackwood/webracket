@@ -1267,17 +1267,20 @@
                  (local.get $index-label))
            (call $growable-array-add! (local.get $out)
                  (call $format/display
-                       (ref.i31 (i32.shl (local.get $idx) (i32.const 1)))))
+                       (call $integer-from-i64
+                             (i64.extend_i32_u (local.get $idx)))))
            (call $growable-array-add! (local.get $out)
                  (global.get $string:get-output-bytes:valid-range-open))
            (call $growable-array-add! (local.get $out)
                  (call $format/display
-                       (ref.i31 (i32.shl (local.get $range-start) (i32.const 1)))))
+                       (call $integer-from-i64
+                             (i64.extend_i32_u (local.get $range-start)))))
            (call $growable-array-add! (local.get $out)
                  (global.get $string:get-output-bytes:valid-range-separator))
            (call $growable-array-add! (local.get $out)
                  (call $format/display
-                       (ref.i31 (i32.shl (local.get $range-end) (i32.const 1)))))
+                       (call $integer-from-i64
+                             (i64.extend_i32_u (local.get $range-end)))))
            (call $growable-array-add! (local.get $out)
                  (global.get $string:string-ref:valid-range-close))
            (call $growable-array-add! (local.get $out)
@@ -1305,7 +1308,6 @@
            (local $idx  i32)
            (local $from i32)
            (local $to   i32)
-           (local $raw  i32)
            (local $src  (ref $I8Array))
            (local $dest (ref $I8Array))
            (local $res  (ref $Bytes))
@@ -1322,35 +1324,23 @@
            ;;    the written prefix [0, idx), not the backing capacity.
            (if (ref.eq (local.get $start) (global.get $missing))
                (then (local.set $from (i32.const 0)))
-               (else (if (ref.test (ref i31) (local.get $start))
-                         (then
-                          (local.set $raw (i31.get_s (ref.cast (ref i31) (local.get $start))))
-                          (if (i32.eqz (i32.and (local.get $raw) (i32.const 1)))
-                              (then
-                               (local.set $from (i32.shr_s (local.get $raw) (i32.const 1)))
-                               (if (i32.lt_s (local.get $from) (i32.const 0))
-                                   (then (call $raise-get-output-bytes:start-expected
-                                               (local.get $start)))))
-                              (else (call $raise-get-output-bytes:start-expected
-                                          (local.get $start)))))
-                         (else (call $raise-get-output-bytes:start-expected
-                                     (local.get $start))))))
+               (else
+                (local.set $from
+                           (call $exact-nonnegative-integer->i32/saturating
+                                 (local.get $start)))
+                (if (i32.lt_s (local.get $from) (i32.const 0))
+                    (then (call $raise-get-output-bytes:start-expected
+                                (local.get $start))))))
            (if (i32.or (ref.eq (local.get $end) (global.get $missing))
                        (ref.eq (local.get $end) (global.get $false)))
                (then (local.set $to (local.get $idx)))
-               (else (if (ref.test (ref i31) (local.get $end))
-                         (then
-                          (local.set $raw (i31.get_s (ref.cast (ref i31) (local.get $end))))
-                          (if (i32.eqz (i32.and (local.get $raw) (i32.const 1)))
-                              (then
-                               (local.set $to (i32.shr_s (local.get $raw) (i32.const 1)))
-                               (if (i32.lt_s (local.get $to) (i32.const 0))
-                                   (then (call $raise-get-output-bytes:end-expected
-                                               (local.get $end)))))
-                              (else (call $raise-get-output-bytes:end-expected
-                                          (local.get $end)))))
-                         (else (call $raise-get-output-bytes:end-expected
-                                     (local.get $end))))))
+               (else
+                (local.set $to
+                           (call $exact-nonnegative-integer->i32/saturating
+                                 (local.get $end)))
+                (if (i32.lt_s (local.get $to) (i32.const 0))
+                    (then (call $raise-get-output-bytes:end-expected
+                                (local.get $end))))))
            (if (i32.gt_u (local.get $from) (local.get $idx))
                (then (call $raise-get-output-bytes:range
                            (global.get $string:substring:starting-index-out-of-range)

@@ -31,6 +31,7 @@
 
 (define port-handler-plain-given
   "given: #(struct port-handler-plain)")
+(define too-large-port-index 536870912)
 
 (list
  (list "basic output port contracts are catchable"
@@ -308,7 +309,21 @@
          (lambda ()
            (let ([port (open-output-bytes)])
              (write-bytes #"abc" port)
+             (get-output-bytes port #f too-large-port-index)))
+         "get-output-bytes"
+         "starting index is out of range")
+        (catch-contract/contains?
+         (lambda ()
+           (let ([port (open-output-bytes)])
+             (write-bytes #"abc" port)
              (get-output-bytes port #f 1 4)))
+         "get-output-bytes"
+         "ending index is out of range")
+        (catch-contract/contains?
+         (lambda ()
+           (let ([port (open-output-bytes)])
+             (write-bytes #"abc" port)
+             (get-output-bytes port #f 1 too-large-port-index)))
          "get-output-bytes"
          "ending index is out of range")))
  (list "write-bytes discards unusable prop:output-port wrappers"
