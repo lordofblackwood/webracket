@@ -845,6 +845,33 @@
                     (= r 12345)))
             #:gate? #t
             #:note "integer-sqrt/remainder preserves s^2+r=n for bignums.")
+   (nt-case 'exact-expt-promotes-bignum
+            'exact-expt
+            '(expt 2 40)
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "Exact expt promotes beyond the WebRacket fixnum range.")
+   (nt-case 'exact-expt-negative-base-odd
+            'exact-expt
+            '(expt -3 21)
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "Exact expt preserves the sign for odd exponents.")
+   (nt-case 'exact-expt-negative-exponent
+            'exact-expt
+            '(expt 2 -40)
+            #:gate? #t
+            #:note "Exact integer negative exponents produce rationals.")
+   (nt-case 'exact-rational-expt-negative
+            'exact-expt
+            '(expt 2/3 -4)
+            #:gate? #t
+            #:note "Exact rational bases support negative integer exponents.")
+   (nt-case 'exact-expt-bignum-exponent-parity
+            'exact-expt
+            '(expt -1 536870913)
+            #:gate? #t
+            #:note "Exact bignum exponents are reduced by squaring.")
    (nt-case 'integer-length-bignum-two-to-53-plus-one
             'integer-bitwise
             '(integer-length 9007199254740993)

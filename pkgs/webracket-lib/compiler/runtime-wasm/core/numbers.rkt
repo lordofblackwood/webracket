@@ -151,6 +151,7 @@
     $integer-sqrt
     $integer-sqrt/remainder
     $pow-special
+    $exact-rational-expt/integer
     $expt
     $exp
     $log
@@ -825,6 +826,75 @@
 
               (call $js-raw-math-pow (local.get $base) (local.get $exp)))
 
+        ;; $exact-rational-expt/integer : exact-rational? exact-integer? -> exact-rational?
+        ;;   Compute exact powers by exponentiation by squaring.
+        (func $exact-rational-expt/integer
+              (param $base (ref eq))
+              (param $exp  (ref eq))
+              (result      (ref eq))
+
+              (local $negative-exp? i32)
+              (local $e             (ref eq))
+              (local $factor        (ref eq))
+              (local $result        (ref eq))
+              (local $vals          (ref $Values))
+
+              (local.set $e      (ref.i31 (i32.const 0)))
+              (local.set $factor (ref.i31 (i32.const 2)))
+              (local.set $result (ref.i31 (i32.const 2)))
+              (local.set $vals
+                         (array.new_fixed $Values 2
+                                          (ref.i31 (i32.const 0))
+                                          (ref.i31 (i32.const 0))))
+              (local.set $negative-exp?
+                         (i32.lt_s (call $integer-sign/i32 (local.get $exp))
+                                   (i32.const 0)))
+              (if (local.get $negative-exp?)
+                  (then
+                   (if (call $exact-rational-zero?/i32 (local.get $base))
+                       (then (call $raise-division-by-zero)
+                             (unreachable)))
+                   (local.set $e (call $integer-negate (local.get $exp))))
+                  (else
+                   (local.set $e (local.get $exp))))
+              (local.set $factor (local.get $base))
+              (local.set $result (ref.i31 (i32.const 2)))
+              (block $done
+                     (loop $loop
+                           (br_if $done
+                                  (call $integer-zero?/i32 (local.get $e)))
+                           (if (i32.eqz
+                                (call $integer-even?/i32 (local.get $e)))
+                               (then
+                                (local.set $result
+                                           (call $exact-rational-mul/2
+                                                 (local.get $result)
+                                                 (local.get $factor)))))
+                           (local.set $vals
+                                      (call $integer-divmod
+                                            (local.get $e)
+                                            (ref.i31 (i32.const 4))))
+                           (local.set $e
+                                      (array.get $Values
+                                                 (local.get $vals)
+                                                 (i32.const 0)))
+                           (br_if $done
+                                  (call $integer-zero?/i32 (local.get $e)))
+                           (local.set $factor
+                                      (call $exact-rational-mul/2
+                                            (local.get $factor)
+                                            (local.get $factor)))
+                           (br $loop)))
+              (if (local.get $negative-exp?)
+                  (then
+                   (return
+                    (call $rational-normalize
+                          (call $exact-rational-denominator
+                                (local.get $result))
+                          (call $exact-rational-numerator
+                                (local.get $result))))))
+              (local.get $result))
+
         (func $expt (type $Prim2)
               (param $z (ref eq))
               (param $w (ref eq))
@@ -837,6 +907,17 @@
               (local $res    f64)
               (local $exactz i32)
               (local $exactw i32)
+
+              ;; Exact rational base with exact integer exponent.
+              (if (i32.and
+                   (call $exact-rational?/i32 (local.get $z))
+                   (i32.or (call $fx?/i32 (local.get $w))
+                           (ref.test (ref $Bignum) (local.get $w))))
+                  (then
+                   (return
+                    (call $exact-rational-expt/integer
+                          (local.get $z)
+                          (local.get $w)))))
 
               ;; Decode z
               (if (ref.test (ref i31) (local.get $z))
