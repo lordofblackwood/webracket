@@ -519,6 +519,11 @@
                    (local.set $bits (i31.get_u (ref.cast (ref i31) (local.get $z))))
                    (if (i32.eqz (i32.and (local.get $bits) (i32.const 1)))
                        (then (return (local.get $z))))))
+              ;; Exact heap numbers are already exact.
+              (if (ref.test (ref $Bignum) (local.get $z))
+                  (then (return (local.get $z))))
+              (if (ref.test (ref $Rational) (local.get $z))
+                  (then (return (local.get $z))))
 
               ;; If z is a flonum, convert to fixnum if finite and integral
               (if (ref.test (ref $Flonum) (local.get $z))
@@ -572,6 +577,19 @@
                                                  (f64.convert_i32_s
                                                   (i32.shr_s (local.get $bits)
                                                              (i32.const 1)))))))))
+              ;; Convert exact heap numbers.
+              (if (ref.test (ref $Bignum) (local.get $z))
+                  (then
+                   (return
+                    (struct.new $Flonum
+                                (i32.const 0)
+                                (call $integer->f64 (local.get $z))))))
+              (if (ref.test (ref $Rational) (local.get $z))
+                  (then
+                   (return
+                    (struct.new $Flonum
+                                (i32.const 0)
+                                (call $exact-rational->f64 (local.get $z))))))
 
               ;; Convert the components of a complex number.
               (if (ref.test (ref $Complex) (local.get $z))

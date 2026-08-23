@@ -212,6 +212,27 @@
             '(negative? -1/2)
             #:gate? #t
             #:note "Rational negativity follows the numerator sign.")
+   (nt-case 'inexact->exact-rational-identity
+            'rational-conversion
+            '(inexact->exact 1/2)
+            #:gate? #t
+            #:note "inexact->exact returns exact rationals unchanged.")
+   (nt-case 'inexact->exact-bignum-identity
+            'rational-conversion
+            '(inexact->exact 9007199254740993)
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "inexact->exact returns exact bignums unchanged.")
+   (nt-case 'exact->inexact-rational
+            'rational-conversion
+            '(exact->inexact 1/2)
+            #:gate? #t
+            #:note "exact->inexact converts exact rationals to flonums.")
+   (nt-case 'exact->inexact-bignum
+            'rational-conversion
+            '(exact->inexact 9007199254740993)
+            #:gate? #t
+            #:note "exact->inexact converts bignums using f64 rounding.")
    (nt-case 'rectangular-literal
             'complex-basic
             1+2i
