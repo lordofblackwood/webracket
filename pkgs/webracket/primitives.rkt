@@ -555,6 +555,8 @@
  floor
  ceiling
  truncate
+ numerator
+ denominator
  ;; 4.3.2.2 Number Comparison
  =
  <

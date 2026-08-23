@@ -177,6 +177,70 @@
                         (struct.get $Rational $den (local.get $q)))))))
            (call $integer->f64 (local.get $x)))
 
+     ;; $f64->exact-rational : finite-flonum? -> exact-rational?
+     ;;   Convert a finite f64 to its exact binary rational value.
+     (func $f64->exact-rational
+           (param $x f64)
+           (result (ref eq))
+
+           (local $bits     i64)
+           (local $exp      i32)
+           (local $shift    i32)
+           (local $mantissa i64)
+           (local $num      (ref eq))
+           (local $den      (ref eq))
+
+           (local.set $bits (i64.reinterpret_f64 (local.get $x)))
+           (local.set $exp
+                      (i32.wrap_i64
+                       (i64.and
+                        (i64.shr_u (local.get $bits) (i64.const 52))
+                        (i64.const 2047))))
+           (if (i32.eqz (local.get $exp))
+               (then
+                (local.set $mantissa
+                           (i64.and
+                            (local.get $bits)
+                            (i64.const 4503599627370495)))
+                (if (i64.eqz (local.get $mantissa))
+                    (then (return (ref.i31 (i32.const 0)))))
+                (local.set $shift (i32.const -1074)))
+               (else
+                (local.set $mantissa
+                           (i64.or
+                            (i64.and
+                             (local.get $bits)
+                             (i64.const 4503599627370495))
+                            (i64.const 4503599627370496)))
+                (local.set $shift
+                           (i32.sub (local.get $exp) (i32.const 1075)))))
+
+           (if (i32.ge_s (local.get $shift) (i32.const 0))
+               (then
+                (local.set $num
+                           (call $u64-shl->integer
+                                 (local.get $mantissa)
+                                 (local.get $shift)))
+                (if (i64.ne (i64.shr_u (local.get $bits) (i64.const 63))
+                            (i64.const 0))
+                    (then (return (call $integer-negate (local.get $num)))))
+                (return (local.get $num))))
+
+           (local.set $num (call $u64-shl->integer
+                                 (local.get $mantissa)
+                                 (i32.const 0)))
+           (if (i64.ne (i64.shr_u (local.get $bits) (i64.const 63))
+                       (i64.const 0))
+               (then
+                (local.set $num (call $integer-negate (local.get $num)))))
+           (local.set $den
+                      (call $u64-shl->integer
+                            (i64.const 1)
+                            (i32.sub (i32.const 0) (local.get $shift))))
+           (call $rational-normalize
+                 (local.get $num)
+                 (local.get $den)))
+
      ;; $exact-rational-add/2 : exact-rational? exact-rational? -> exact-rational?
      ;;   Add exact rational values and normalize the result.
      (func $exact-rational-add/2

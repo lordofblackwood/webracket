@@ -223,6 +223,16 @@
             #:comparison 'ignore-fixnum-width
             #:gate? #t
             #:note "inexact->exact returns exact bignums unchanged.")
+   (nt-case 'inexact->exact-finite-flonum
+            'rational-conversion
+            '(inexact->exact 1.5)
+            #:gate? #t
+            #:note "Finite non-integral flonums convert to exact rationals.")
+   (nt-case 'inexact->exact-binary-flonum
+            'rational-conversion
+            '(inexact->exact 2.3)
+            #:gate? #t
+            #:note "Finite flonums convert to their exact binary rational value.")
    (nt-case 'exact->inexact-rational
             'rational-conversion
             '(exact->inexact 1/2)
@@ -233,6 +243,57 @@
             '(exact->inexact 9007199254740993)
             #:gate? #t
             #:note "exact->inexact converts bignums using f64 rounding.")
+   (nt-case 'numerator-integer
+            'rational-components
+            '(numerator 5)
+            #:gate? #t
+            #:note "The numerator of an exact integer is the integer itself.")
+   (nt-case 'denominator-integer
+            'rational-components
+            '(denominator 5)
+            #:gate? #t
+            #:note "The denominator of an exact integer is 1.")
+   (nt-case 'numerator-rational
+            'rational-components
+            '(numerator 34/8)
+            #:gate? #t
+            #:note "Rational numerator uses the canonical reduced form.")
+   (nt-case 'denominator-rational
+            'rational-components
+            '(denominator 34/8)
+            #:gate? #t
+            #:note "Rational denominator uses the canonical reduced form.")
+   (nt-case 'numerator-bignum-rational
+            'rational-components
+            '(numerator 9007199254740993/2)
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "Numerators can be exact bignums.")
+   (nt-case 'denominator-bignum-rational
+            'rational-components
+            '(denominator 9007199254740993/2)
+            #:gate? #t
+            #:note "Denominators remain exact positive integers.")
+   (nt-case 'numerator-flonum
+            'rational-components
+            '(numerator 2.3)
+            #:gate? #t
+            #:note "Inexact rational numerator is coerced back to inexact.")
+   (nt-case 'denominator-flonum
+            'rational-components
+            '(denominator 2.3)
+            #:gate? #t
+            #:note "Inexact rational denominator is coerced back to inexact.")
+   (nt-case 'numerator-negative-zero
+            'rational-components
+            '(numerator -0.0)
+            #:gate? #t
+            #:note "Inexact negative zero preserves its sign in numerator.")
+   (nt-case 'denominator-negative-zero
+            'rational-components
+            '(denominator -0.0)
+            #:gate? #t
+            #:note "Inexact negative zero has inexact denominator 1.0.")
    (nt-case 'rectangular-literal
             'complex-basic
             1+2i

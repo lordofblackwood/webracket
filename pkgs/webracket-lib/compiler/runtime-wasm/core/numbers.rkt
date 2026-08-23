@@ -89,6 +89,8 @@
     exact-floor
     exact-ceiling
     exact-truncate
+    numerator
+    denominator
     sin
     cos
     tan
@@ -511,7 +513,6 @@
               (local $bits i32)
               (local $fl (ref $Flonum))
               (local $f64 f64)
-              (local $i32 i32)
 
               ;; If z is a fixnum, ensure LSB = 0 and return it
               (if (ref.test (ref i31) (local.get $z))
@@ -542,13 +543,7 @@
                        (then (call $raise-inexact->exact:no-exact-representation
                                    (local.get $z))
                              (unreachable)))
-                   (if (f64.eq (f64.floor (local.get $f64)) (local.get $f64))
-                       (then
-                        (local.set $i32 (i32.trunc_f64_s (local.get $f64)))
-                        (return (ref.i31 (i32.shl (local.get $i32) (i32.const 1)))))
-                       (else (call $raise-expected-number/who
-                                   (global.get $symbol:inexact->exact)
-                                   (local.get $z)) (unreachable)))))
+                   (return (call $f64->exact-rational (local.get $f64)))))
 
               ;; Not a number
               (call $raise-expected-number/who
@@ -1388,6 +1383,8 @@
     $exact-floor
     $exact-ceiling
     $exact-truncate
+    $numerator
+    $denominator
     $sin
     $cos
     $tan
@@ -2187,6 +2184,100 @@
                            (global.get ,(string->symbol (format "$symbol:~a" name)))
                            (local.get $x))
                      (unreachable))))
+
+        (func $numerator (type $Prim1)
+              (param $q (ref eq))
+              (result (ref eq))
+
+              (local $fl    (ref $Flonum))
+              (local $f64   f64)
+              (local $exact (ref eq))
+
+              (if (call $exact-rational?/i32 (local.get $q))
+                  (then (return (call $exact-rational-numerator
+                                      (local.get $q)))))
+
+              (if (ref.test (ref $Flonum) (local.get $q))
+                  (then
+                   (local.set $fl (ref.cast (ref $Flonum) (local.get $q)))
+                   (local.set $f64 (struct.get $Flonum $v (local.get $fl)))
+                   (if (f64.ne (local.get $f64) (local.get $f64))
+                       (then (call $raise-expected-rational
+                                   (global.get $symbol:numerator)
+                                   (local.get $q))
+                             (unreachable)))
+                   (if (f64.eq (local.get $f64) (f64.const +inf))
+                       (then (call $raise-expected-rational
+                                   (global.get $symbol:numerator)
+                                   (local.get $q))
+                             (unreachable)))
+                   (if (f64.eq (local.get $f64) (f64.const -inf))
+                       (then (call $raise-expected-rational
+                                   (global.get $symbol:numerator)
+                                   (local.get $q))
+                             (unreachable)))
+                   (if (f64.eq (local.get $f64) (f64.const 0.0))
+                       (then (return (struct.new $Flonum
+                                                 (i32.const 0)
+                                                 (local.get $f64)))))
+                   (local.set $exact (call $f64->exact-rational
+                                           (local.get $f64)))
+                   (return
+                    (struct.new $Flonum
+                                (i32.const 0)
+                                (call $integer->f64
+                                      (call $exact-rational-numerator
+                                            (local.get $exact)))))))
+
+              (call $raise-expected-rational
+                    (global.get $symbol:numerator)
+                    (local.get $q))
+              (unreachable))
+
+        (func $denominator (type $Prim1)
+              (param $q (ref eq))
+              (result (ref eq))
+
+              (local $fl    (ref $Flonum))
+              (local $f64   f64)
+              (local $exact (ref eq))
+
+              (if (call $exact-rational?/i32 (local.get $q))
+                  (then (return (call $exact-rational-denominator
+                                      (local.get $q)))))
+
+              (if (ref.test (ref $Flonum) (local.get $q))
+                  (then
+                   (local.set $fl (ref.cast (ref $Flonum) (local.get $q)))
+                   (local.set $f64 (struct.get $Flonum $v (local.get $fl)))
+                   (if (f64.ne (local.get $f64) (local.get $f64))
+                       (then (call $raise-expected-rational
+                                   (global.get $symbol:denominator)
+                                   (local.get $q))
+                             (unreachable)))
+                   (if (f64.eq (local.get $f64) (f64.const +inf))
+                       (then (call $raise-expected-rational
+                                   (global.get $symbol:denominator)
+                                   (local.get $q))
+                             (unreachable)))
+                   (if (f64.eq (local.get $f64) (f64.const -inf))
+                       (then (call $raise-expected-rational
+                                   (global.get $symbol:denominator)
+                                   (local.get $q))
+                             (unreachable)))
+                   (local.set $exact (call $f64->exact-rational
+                                           (local.get $f64)))
+                   (return
+                    (struct.new $Flonum
+                                (i32.const 0)
+                                (call $integer->f64
+                                      (call $exact-rational-denominator
+                                            (local.get $exact)))))))
+
+              (call $raise-expected-rational
+                    (global.get $symbol:denominator)
+                    (local.get $q))
+              (unreachable))
 
         ;; Trigonometric functions
         ;               name js            inbits outbits
