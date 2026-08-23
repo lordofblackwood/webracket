@@ -111,6 +111,21 @@
             '(equal? 9007199254740993 9007199254740993)
             #:gate? #t
             #:note "Bignum equal? falls through to value-based eqv?.")
+   (nt-case 'natural-predicate-positive-bignum
+            'integer-representation
+            '(natural? 9007199254740993)
+            #:gate? #t
+            #:note "natural? accepts exact nonnegative bignums.")
+   (nt-case 'natural-predicate-negative-bignum
+            'integer-representation
+            '(natural? -9007199254740993)
+            #:gate? #t
+            #:note "natural? rejects negative exact bignums.")
+   (nt-case 'exact-nonnegative-integer-predicate-bignum
+            'integer-representation
+            '(exact-nonnegative-integer? 9007199254740993)
+            #:gate? #t
+            #:note "exact-nonnegative-integer? accepts exact nonnegative bignums.")
    (nt-case 'two-fourths
             'rational-representation
             2/4
@@ -1036,72 +1051,144 @@
                (and (number? z) (complex? z) (not (real? z)) (inexact? z)))
             #:gate? #t
             #:note "Complex sin uses the rectangular formula.")
+   (nt-case 'complex-sin-value
+            'complex-transcendental
+            '(sin 1+2i)
+            #:comparison '(complex-ulps 4)
+            #:gate? #t
+            #:note "Complex sin value matches CS within a small ULP budget.")
    (nt-case 'complex-cos-shape
             'complex-transcendental
             '(let ([z (cos 1+2i)])
                (and (number? z) (complex? z) (not (real? z)) (inexact? z)))
             #:gate? #t
             #:note "Complex cos uses the rectangular formula.")
+   (nt-case 'complex-cos-value
+            'complex-transcendental
+            '(cos 1+2i)
+            #:comparison '(complex-ulps 4)
+            #:gate? #t
+            #:note "Complex cos value matches CS within a small ULP budget.")
    (nt-case 'complex-tan-shape
             'complex-transcendental
             '(let ([z (tan +i)])
                (and (number? z) (complex? z) (not (real? z)) (inexact? z)))
             #:gate? #t
             #:note "Complex tan uses sin/cos division.")
+   (nt-case 'complex-tan-value
+            'complex-transcendental
+            '(tan +i)
+            #:comparison '(complex-ulps 4)
+            #:gate? #t
+            #:note "Complex tan value matches CS within a small ULP budget.")
    (nt-case 'complex-sinh-shape
             'complex-transcendental
             '(let ([z (sinh 1+i)])
                (and (number? z) (complex? z) (not (real? z)) (inexact? z)))
             #:gate? #t
             #:note "Complex sinh uses the rectangular formula.")
+   (nt-case 'complex-sinh-value
+            'complex-transcendental
+            '(sinh 1+i)
+            #:comparison '(complex-ulps 4)
+            #:gate? #t
+            #:note "Complex sinh value matches CS within a small ULP budget.")
    (nt-case 'complex-cosh-shape
             'complex-transcendental
             '(let ([z (cosh 1+i)])
                (and (number? z) (complex? z) (not (real? z)) (inexact? z)))
             #:gate? #t
             #:note "Complex cosh uses the rectangular formula.")
+   (nt-case 'complex-cosh-value
+            'complex-transcendental
+            '(cosh 1+i)
+            #:comparison '(complex-ulps 4)
+            #:gate? #t
+            #:note "Complex cosh value matches CS within a small ULP budget.")
    (nt-case 'complex-tanh-shape
             'complex-transcendental
             '(let ([z (tanh 1+i)])
                (and (number? z) (complex? z) (not (real? z)) (inexact? z)))
             #:gate? #t
             #:note "Complex tanh uses sinh/cosh division.")
+   (nt-case 'complex-tanh-value
+            'complex-transcendental
+            '(tanh 1+i)
+            #:comparison '(complex-ulps 4)
+            #:gate? #t
+            #:note "Complex tanh value matches CS within a small ULP budget.")
    (nt-case 'complex-asin-shape
             'complex-transcendental
             '(let ([z (asin 1+2i)])
                (and (number? z) (complex? z) (not (real? z)) (inexact? z)))
             #:gate? #t
             #:note "Complex asin uses the logarithmic branch formula.")
+   (nt-case 'complex-asin-value
+            'complex-transcendental
+            '(asin 1+2i)
+            #:comparison '(complex-ulps 12)
+            #:gate? #t
+            #:note "Complex asin value matches CS within its operation-specific ULP budget.")
    (nt-case 'complex-acos-shape
             'complex-transcendental
             '(let ([z (acos 1+2i)])
                (and (number? z) (complex? z) (not (real? z)) (inexact? z)))
             #:gate? #t
             #:note "Complex acos uses pi/2 minus complex asin.")
+   (nt-case 'complex-acos-value
+            'complex-transcendental
+            '(acos 1+2i)
+            #:comparison '(complex-ulps 4)
+            #:gate? #t
+            #:note "Complex acos value matches CS within a small ULP budget.")
    (nt-case 'complex-atan-shape
             'complex-transcendental
             '(let ([z (atan 1+2i)])
                (and (number? z) (complex? z) (not (real? z)) (inexact? z)))
             #:gate? #t
             #:note "Unary complex atan uses the logarithmic branch formula.")
+   (nt-case 'complex-atan-value
+            'complex-transcendental
+            '(atan 1+2i)
+            #:comparison '(complex-ulps 4)
+            #:gate? #t
+            #:note "Complex atan value matches CS within a small ULP budget.")
    (nt-case 'complex-asinh-shape
             'complex-transcendental
             '(let ([z (asinh 1+2i)])
                (and (number? z) (complex? z) (not (real? z)) (inexact? z)))
             #:gate? #t
             #:note "Complex asinh uses the logarithmic branch formula.")
+   (nt-case 'complex-asinh-value
+            'complex-transcendental
+            '(asinh 1+2i)
+            #:comparison '(complex-ulps 4)
+            #:gate? #t
+            #:note "Complex asinh value matches CS within a small ULP budget.")
    (nt-case 'complex-acosh-shape
             'complex-transcendental
             '(let ([z (acosh 1+2i)])
                (and (number? z) (complex? z) (not (real? z)) (inexact? z)))
             #:gate? #t
             #:note "Complex acosh uses the documented logarithmic formula.")
+   (nt-case 'complex-acosh-value
+            'complex-transcendental
+            '(acosh 1+2i)
+            #:comparison '(complex-ulps 4)
+            #:gate? #t
+            #:note "Complex acosh value matches CS within a small ULP budget.")
    (nt-case 'complex-atanh-shape
             'complex-transcendental
             '(let ([z (atanh 1+2i)])
                (and (number? z) (complex? z) (not (real? z)) (inexact? z)))
             #:gate? #t
             #:note "Complex atanh uses the logarithmic branch formula.")
+   (nt-case 'complex-atanh-value
+            'complex-transcendental
+            '(atanh 1+2i)
+            #:comparison '(complex-ulps 4)
+            #:gate? #t
+            #:note "Complex atanh value matches CS within a small ULP budget.")
    (nt-case 'asin-real-out-of-domain-exact
             'complex-transcendental
             '(let ([z (asin 2)])

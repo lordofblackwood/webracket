@@ -16,6 +16,8 @@
          validate-number-tower-cs-info!
          run-number-tower-cases
          run-number-tower-oracle
+         flonum-ulp-distance
+         records-match?
          number-tower-self-check-mismatch-detected?
          print-number-tower-summary
          summary-failure-count
@@ -35,6 +37,10 @@
 (struct number-tower-summary
   (cs-info outcomes)
   #:transparent)
+
+(define default-flonum-ulps 4)
+(define sign-bit-mask #x8000000000000000)
+(define all-bits-mask #xffffffffffffffff)
 
 (define default-cs-executable
   "/Users/soegaard/Dropbox/GitHub/racket/racket/bin/racket")
@@ -436,14 +442,144 @@
     [_
      record]))
 
+;; codepoints->string : (listof exact-integer?) -> string?
+;;   Rebuild a string from the normalizer's character-code representation.
+(define (codepoints->string codepoints)
+  (list->string (map integer->char codepoints)))
+
+;; normalized-text->string : any/c -> (or/c string? #f)
+;;   Extract the string payload from a normalized numeric text record.
+(define (normalized-text->string text)
+  (match text
+    [(list 'text codepoints)
+     (codepoints->string codepoints)]
+    [_ #f]))
+
+;; normalized-real->number : any/c -> (or/c number? #f)
+;;   Parse a normalized real number record back into a host Racket number.
+(define (normalized-real->number record)
+  (match record
+    [(list 'number text _number? _complex? #t _rational? _integer?
+           _exact-integer? _exact? _inexact? _fixnum? _real-category _parts)
+     (define s (normalized-text->string text))
+     (and s (string->number s))]
+    [_ #f]))
+
+;; flonum->ordered-integer : flonum? -> exact-nonnegative-integer?
+;;   Map an IEEE double to an integer ordered by numeric value.
+(define (flonum->ordered-integer x)
+  (define bits
+    (integer-bytes->integer (real->floating-point-bytes x 8 #t) #f #t))
+  (if (zero? (bitwise-and bits sign-bit-mask))
+      (+ bits sign-bit-mask)
+      (- all-bits-mask bits)))
+
+;; flonum-ulp-distance : flonum? flonum? -> exact-nonnegative-integer?
+;;   Compute the distance in representable doubles between two finite flonums.
+(define (flonum-ulp-distance x y)
+  (abs (- (flonum->ordered-integer x)
+          (flonum->ordered-integer y))))
+
+;; comparison-spec : any/c -> (values symbol? exact-nonnegative-integer?)
+;;   Decode a comparison mode and its ULP tolerance.
+(define (comparison-spec comparison)
+  (match comparison
+    ['exact
+     (values 'exact 0)]
+    ['ignore-fixnum-width
+     (values 'ignore-fixnum-width 0)]
+    ['flonum-ulps
+     (values 'flonum-ulps default-flonum-ulps)]
+    ['complex-ulps
+     (values 'complex-ulps default-flonum-ulps)]
+    [`(flonum-ulps ,(? exact-nonnegative-integer? ulps))
+     (values 'flonum-ulps ulps)]
+    [`(complex-ulps ,(? exact-nonnegative-integer? ulps))
+     (values 'complex-ulps ulps)]
+    [_
+     (error 'comparison-spec
+            "unsupported comparison mode: ~s"
+            comparison)]))
+
+;; normalized-real-ulps-match? : exact-nonnegative-integer? any/c any/c -> boolean?
+;;   Compare two normalized real number records with a ULP tolerance.
+(define (normalized-real-ulps-match? max-ulps cs-record wr-record)
+  (match* (cs-record wr-record)
+    [((list 'number _ctext _cnumber? _ccomplex? #t _crational? _cinteger?
+            _cexact-integer? _cexact? #t _cfixnum? ccategory _cparts)
+      (list 'number _wtext _wnumber? _wcomplex? #t _wrational? _winteger?
+            _wexact-integer? _wexact? #t _wfixnum? wcategory _wparts))
+     (and (eq? ccategory wcategory)
+          (case ccategory
+            [(ordinary)
+             (define cs-value (normalized-real->number cs-record))
+             (define wr-value (normalized-real->number wr-record))
+             (and (flonum? cs-value)
+                  (flonum? wr-value)
+                  (<= (flonum-ulp-distance cs-value wr-value) max-ulps))]
+            [(nan positive-infinity negative-infinity positive-zero negative-zero)
+             #t]
+            [else
+             #f]))]
+    [(_ _) #f]))
+
+;; normalized-number-ulps-match? : exact-nonnegative-integer? any/c any/c -> boolean?
+;;   Compare normalized number records, using ULP tolerance for inexact reals.
+(define (normalized-number-ulps-match? max-ulps cs-record wr-record)
+  (match* (cs-record wr-record)
+    [((list 'number ctext cnumber? ccomplex? creal? crational? cinteger?
+            cexact-integer? cexact? cinexact? _cfixnum? ccategory cparts)
+      (list 'number wtext wnumber? wcomplex? wreal? wrational? winteger?
+            wexact-integer? wexact? winexact? _wfixnum? wcategory wparts))
+     (and (equal? (list cnumber? ccomplex? creal? crational? cinteger?
+                        cexact-integer? cexact? cinexact? ccategory)
+                  (list wnumber? wcomplex? wreal? wrational? winteger?
+                        wexact-integer? wexact? winexact? wcategory))
+          (cond
+            [(and ccomplex? (not creal?))
+             (and (= (length cparts) 2)
+                  (= (length wparts) 2)
+                  (record-ulps-match? max-ulps (car cparts) (car wparts))
+                  (record-ulps-match? max-ulps (cadr cparts) (cadr wparts)))]
+            [(and creal? cinexact?)
+             (normalized-real-ulps-match? max-ulps cs-record wr-record)]
+            [else
+             (equal? ctext wtext)]))]
+    [(_ _) #f]))
+
+;; record-ulps-match? : exact-nonnegative-integer? any/c any/c -> boolean?
+;;   Compare normalized records recursively with tolerant inexact-number leaves.
+(define (record-ulps-match? max-ulps cs-record wr-record)
+  (match* (cs-record wr-record)
+    [((list 'value cs-value)
+      (list 'value wr-value))
+     (record-ulps-match? max-ulps cs-value wr-value)]
+    [((list 'number _ ...)
+      (list 'number _ ...))
+     (normalized-number-ulps-match? max-ulps cs-record wr-record)]
+    [((? list? cs-list)
+      (? list? wr-list))
+     (and (= (length cs-list) (length wr-list))
+          (for/and ([cs-part (in-list cs-list)]
+                    [wr-part (in-list wr-list)])
+            (record-ulps-match? max-ulps cs-part wr-part)))]
+    [(_ _)
+     (equal? cs-record wr-record)]))
+
 ;; records-match? : symbol? any/c any/c -> boolean?
 ;;   Compare two normalized records according to the case comparison mode.
 (define (records-match? comparison cs-record wr-record)
-  (case comparison
-    [(exact) (equal? cs-record wr-record)]
+  (define-values (mode max-ulps) (comparison-spec comparison))
+  (case mode
+    [(exact)
+     (equal? cs-record wr-record)]
     [(ignore-fixnum-width)
      (equal? (record-ignore-fixnum-width cs-record)
              (record-ignore-fixnum-width wr-record))]
+    [(flonum-ulps complex-ulps)
+     (record-ulps-match? max-ulps
+                         (record-ignore-fixnum-width cs-record)
+                         (record-ignore-fixnum-width wr-record))]
     [else
      (error 'records-match?
             "unsupported comparison mode: ~s"
