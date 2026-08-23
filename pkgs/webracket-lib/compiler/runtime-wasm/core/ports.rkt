@@ -269,6 +269,7 @@
     $check-port-init-position/who
     $check-port-buffer-mode/who
     $check-output-write-special/who
+    $make-port-initial-location
     $make-input-port
     $make-output-port))
 
@@ -1534,6 +1535,32 @@
                  (local.get $v))
            (unreachable))
 
+     ;; make-port-initial-location : init-position -> location
+     ;;   Initialize custom-port locations from exact-positive integers and #f.
+     (func $make-port-initial-location
+           (param $init-position (ref eq))
+           (result (ref $Location))
+
+           (if (ref.eq (local.get $init-position) (global.get $false))
+               (then (return
+                      (struct.new $Location
+                                  (i32.const 0)
+                                  (global.get $false)
+                                  (global.get $false)
+                                  (global.get $false)))))
+           (if (ref.eq (call $exact-positive-integer? (local.get $init-position))
+                       (global.get $true))
+               (then (return
+                      (struct.new $Location
+                                  (i32.const 0)
+                                  (global.get $false)
+                                  (global.get $false)
+                                  (local.get $init-position)))))
+           ;; Port and procedure init-position cases are accepted by the
+           ;; constructor contract, but dynamic position tracking is not
+           ;; modeled yet.
+           (ref.cast (ref $Location) (call $make-initial-location)))
+
      ;; NOTE: Procedure-based custom ports currently support only immediate
      ;;       byte operations without events or special results.
      (func $make-input-port (type $Prim>=4)
@@ -1673,8 +1700,8 @@
                            (global.get $symbol:make-input-port)
                            (local.get $buffer-mode))))
 
-           (local.set $bytes (ref.cast (ref $Bytes)    (global.get $bytes:empty)))
-           (local.set $loc   (ref.cast (ref $Location) (call $make-initial-location)))
+           (local.set $bytes (ref.cast (ref $Bytes) (global.get $bytes:empty)))
+           (local.set $loc   (call $make-port-initial-location (local.get $init-position)))
 
            (struct.new $CustomInputPort
                        (i32.const 0)              ;; $hash
@@ -1830,8 +1857,8 @@
                            (global.get $symbol:make-output-port)
                            (local.get $buffer-mode))))
 
-           (local.set $bytes (ref.cast (ref $Bytes)    (global.get $bytes:empty)))
-           (local.set $loc   (ref.cast (ref $Location) (call $make-initial-location)))
+           (local.set $bytes (ref.cast (ref $Bytes) (global.get $bytes:empty)))
+           (local.set $loc   (call $make-port-initial-location (local.get $init-position)))
            (struct.new $CustomOutputPort
                        (i32.const 0)                  ;; $hash
                        (local.get $name)              ;; $name

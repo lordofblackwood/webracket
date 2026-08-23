@@ -181,6 +181,21 @@
          "(procedure-arity-includes/c 0)"
          "(procedure-arity-includes/c 1)"
          "given:")))
+ (list "make-output-port preserves bignum init position"
+       (let ([port (make-output-port 'custom
+                                     always-evt
+                                     (lambda (bs start end nonblock? breakable?) 0)
+                                     (lambda () (void))
+                                     #f
+                                     #f
+                                     #f
+                                     #f
+                                     (lambda () (void))
+                                     too-large-port-index)])
+         (let-values ([(line col pos) (port-next-location port)])
+           (and (not line)
+                (not col)
+                (= pos too-large-port-index)))))
  (list "default output handlers validate output ports with who"
        (and
         (catch-contract/contains?

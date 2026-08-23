@@ -225,6 +225,20 @@
          "(procedure-arity-includes/c 0)"
          "(procedure-arity-includes/c 1)"
          "given:")))
+ (list "make-input-port preserves bignum init position"
+       (let ([port (make-input-port 'custom
+                                    (lambda (bs) eof)
+                                    #f
+                                    (lambda () (void))
+                                    #f
+                                    #f
+                                    #f
+                                    (lambda () (void))
+                                    too-large-port-index)])
+         (let-values ([(line col pos) (port-next-location port)])
+           (and (not line)
+                (not col)
+                (= pos too-large-port-index)))))
  (list "single byte and char readers reject non-input ports with who"
        (and
         (catch-contract/contains?
