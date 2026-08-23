@@ -795,6 +795,25 @@
                     (unreachable)))
                (call $exact-nonnegative-integer->i32/saturating
                      (local.get $n-raw)))
+         (func $list-index/i32/who
+               (param $who   (ref eq))
+               (param $i-raw (ref eq))
+               (result i32)
+
+               (local $idx i32)
+
+               (local.set $idx
+                          (call $exact-nonnegative-integer->i32/saturating
+                                (local.get $i-raw)))
+               (if (i32.lt_s (local.get $idx) (i32.const 0))
+                   (then
+                    (call $raise-exact-nonnegative-integer-expected/who
+                          (local.get $who)
+                          (local.get $i-raw))
+                    (unreachable)))
+               (if (i32.gt_s (local.get $idx) (i32.const 536870911))
+                   (then (return (i32.const 536870911))))
+               (local.get $idx))
          (func $raise-bad-list-ref-index/who
                (param $who (ref eq))
                (param $xs  (ref eq))
@@ -1044,25 +1063,11 @@
      (lambda ()
        `(func $list-ref (type $Prim2) (param $xs (ref eq)) (param $i (ref eq)) (result (ref eq))
               (local $idx i32)
-              ;; Decode & check exact-nonnegative-integer index
-              (if (ref.test (ref i31) (local.get $i))
-                  (then (local.set $idx
-                                   (i31.get_s (ref.cast (ref i31) (local.get $i))))
-                        (if (i32.ne (i32.and (local.get $idx) (i32.const 1)) (i32.const 0))
-                            (then (call $raise-exact-nonnegative-integer-expected/who
-                                        (global.get $symbol:list-ref)
-                                        (local.get $i))
-                                  (unreachable)))
-                        (local.set $idx (i32.shr_s (local.get $idx) (i32.const 1))))
-                  (else (call $raise-exact-nonnegative-integer-expected/who
-                              (global.get $symbol:list-ref)
-                              (local.get $i))
-                        (unreachable)))
-              (if (i32.lt_s (local.get $idx) (i32.const 0))
-                  (then (call $raise-exact-nonnegative-integer-expected/who
-                              (global.get $symbol:list-ref)
-                              (local.get $i))
-                        (unreachable)))
+
+              (local.set $idx
+                         (call $list-index/i32/who
+                               (global.get $symbol:list-ref)
+                               (local.get $i)))
               ;; Check & dispatch on Pair
               (if (result (ref eq))
                   (ref.test (ref $Pair) (local.get $xs))
@@ -1204,25 +1209,10 @@
               (local $idx  i32)
               ;; Initialize non-defaultable local to a safe value.
               (local.set $pair (global.get $dummy-pair))
-              ;; Decode and check exact-nonnegative-integer index.
-              (if (ref.test (ref i31) (local.get $i))
-                  (then
-                   (local.set $idx (i31.get_s (ref.cast (ref i31) (local.get $i))))
-                   (if (i32.ne (i32.and (local.get $idx) (i32.const 1)) (i32.const 0))
-                       (then (call $raise-exact-nonnegative-integer-expected/who
-                                   (global.get $symbol:list-tail)
-                                   (local.get $i))
-                             (unreachable)))
-                   (local.set $idx (i32.shr_s (local.get $idx) (i32.const 1))))
-                  (else (call $raise-exact-nonnegative-integer-expected/who
-                              (global.get $symbol:list-tail)
-                              (local.get $i))
-                        (unreachable)))
-              (if (i32.lt_s (local.get $idx) (i32.const 0))
-                  (then (call $raise-exact-nonnegative-integer-expected/who
-                              (global.get $symbol:list-tail)
-                              (local.get $i))
-                        (unreachable)))
+              (local.set $idx
+                         (call $list-index/i32/who
+                               (global.get $symbol:list-tail)
+                               (local.get $i)))
               ;; (list-tail xs 0) => xs
               (if (i32.eqz (local.get $idx))
                   (then (return (local.get $xs))))
@@ -1324,27 +1314,10 @@
               (local $idx  i32)
               (local $pair (ref $Pair))
 
-              ;; Decode & check exact-nonnegative-integer index
-              (if (ref.test (ref i31) (local.get $i))
-                  (then (local.set $idx (i31.get_s (ref.cast (ref i31) (local.get $i))))
-                        (if (i32.ne (i32.and (local.get $idx) (i32.const 1)) (i32.const 0))
-                            (then (call $raise-argument-error1
-                                        (global.get $symbol:list-set)
-                                        (global.get $string:exact-nonnegative-integer?)
-                                        (local.get $i))
-                                  (unreachable)))
-                        (local.set $idx (i32.shr_s (local.get $idx) (i32.const 1))))
-                  (else (call $raise-argument-error1
-                              (global.get $symbol:list-set)
-                              (global.get $string:exact-nonnegative-integer?)
-                              (local.get $i))
-                        (unreachable)))
-              (if (i32.lt_s (local.get $idx) (i32.const 0))
-                  (then (call $raise-argument-error1
-                              (global.get $symbol:list-set)
-                              (global.get $string:exact-nonnegative-integer?)
-                              (local.get $i))
-                        (unreachable)))
+              (local.set $idx
+                         (call $list-index/i32/who
+                               (global.get $symbol:list-set)
+                               (local.get $i)))
 
               ;; Ensure non-empty proper list
               (if (ref.eq (local.get $xs) (global.get $null))
@@ -5942,27 +5915,10 @@
              (local $finv (ref $ProcedureInvoker))
              (local $args (ref $Args))
 
-             (if (ref.test (ref i31) (local.get $i))
-                 (then
-                  (local.set $idx (i31.get_s (ref.cast (ref i31) (local.get $i))))
-                  (if (i32.ne (i32.and (local.get $idx) (i32.const 1)) (i32.const 0))
-                      (then (call $raise-argument-error1
-                                  (global.get $symbol:list-update)
-                                  (global.get $string:exact-nonnegative-integer?)
-                                  (local.get $i))
-                            (unreachable)))
-                  (local.set $idx (i32.shr_s (local.get $idx) (i32.const 1))))
-                 (else (call $raise-argument-error1
-                             (global.get $symbol:list-update)
-                             (global.get $string:exact-nonnegative-integer?)
-                             (local.get $i))
-                       (unreachable)))
-             (if (i32.lt_s (local.get $idx) (i32.const 0))
-                 (then (call $raise-argument-error1
-                             (global.get $symbol:list-update)
-                             (global.get $string:exact-nonnegative-integer?)
-                             (local.get $i))
-                       (unreachable)))
+             (local.set $idx
+                        (call $list-index/i32/who
+                              (global.get $symbol:list-update)
+                              (local.get $i)))
 
             (if (ref.eq (call $procedure? (local.get $proc))
                         (global.get $false))

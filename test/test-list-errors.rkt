@@ -627,6 +627,16 @@
          "list-tail"
          "index reaches a non-pair"
          "index: 1"
+         "in: 'bad")
+        (catch-contract/contains?
+         (lambda () (list-ref '(a b) 536870912))
+         "list-ref"
+         "index too large for list"
+         "in: '(a b)")
+        (catch-contract/contains?
+         (lambda () (list-tail 'bad 536870912))
+         "list-tail"
+         "index reaches a non-pair"
          "in: 'bad")))
  (list "list index errors use error-value->string-handler for rendered values"
        (let ([old (error-value->string-handler)])
@@ -664,6 +674,16 @@
          "list-update"
          "index too large for list"
          "index: 2"
+         "in: '(a b)")
+        (catch-contract/contains?
+         (lambda () (list-set '(a b) 536870912 'x))
+         "list-set"
+         "index too large for list"
+         "in: '(a b)")
+        (catch-contract/contains?
+         (lambda () (list-update '(a b) 536870912 values))
+         "list-update"
+         "index too large for list"
          "in: '(a b)")))
  (list "take/drop length errors report required list size"
        (and
