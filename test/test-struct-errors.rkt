@@ -128,6 +128,12 @@
          "index: 1"
          "initialized-field count: 1")
         (catch-contract/contains?
+         (lambda () (make-struct-type 'bad #f 1 0 #f null #f #f (list too-large-struct-index)))
+         "make-struct-type"
+         "index for immutable field"
+         "index: 536870912"
+         "initialized-field count: 1")
+        (catch-contract/contains?
          (lambda () (make-struct-type 'bad #f 1 0 #f null #f #f null #f 42))
          "make-struct-type"
          "(or/c #f symbol?)"
@@ -167,6 +173,12 @@
          "make-struct-type"
          "index for procedure"
          "index: 1"
+         "field count: 1")
+        (catch-contract/contains?
+         (lambda () (make-struct-type 'bad #f 1 0 #f null #f too-large-struct-index))
+         "make-struct-type"
+         "index for procedure"
+         "index: 536870912"
          "field count: 1")))
  (list "make-struct-type-property argument errors are catchable with who"
        (and
@@ -334,6 +346,14 @@
         (catch-contract/contains?
          (lambda ()
            (make-struct-type 'bad #f 0 0 #f
+                             (list (cons prop:object-name too-large-struct-index))))
+         "guard-for-prop:object-name"
+         "field index >= initialized-field count"
+         "field index: 536870912"
+         "initialized-field count: 0")
+        (catch-contract/contains?
+         (lambda ()
+           (make-struct-type 'bad #f 0 0 #f
                              (list (cons prop:procedure
                                          (struct-plain-given)))))
          "make-struct-type"
@@ -346,6 +366,14 @@
          "make-struct-type"
          "index for procedure"
          "index: 1"
+         "field count: 0")
+        (catch-contract/contains?
+         (lambda ()
+           (make-struct-type 'bad #f 0 0 #f
+                             (list (cons prop:procedure too-large-struct-index))))
+         "make-struct-type"
+         "index for procedure"
+         "index: 536870912"
          "field count: 0")
         (catch-contract/contains?
          (lambda ()

@@ -4506,10 +4506,8 @@
                                         (local.get $immutables-list))
                                   (unreachable)))
                         (local.set $immutable-index
-                                   (i32.shr_s
-                                    (i31.get_s
-                                     (ref.cast (ref i31) (local.get $immutable-raw)))
-                                    (i32.const 1)))
+                                   (call $exact-nonnegative-integer->i32/saturating
+                                         (local.get $immutable-raw)))
                         (if (i32.ge_u (local.get $immutable-index) (local.get $init))
                             (then (call $raise-make-struct-type:immutable-index
                                         (local.get $immutable-raw)
@@ -4548,10 +4546,8 @@
                        (global.get $true))
                (then
                 (local.set $proc-spec-index
-                           (i32.shr_s
-                            (i31.get_s
-                             (ref.cast (ref i31) (local.get $proc-spec)))
-                            (i32.const 1)))
+                           (call $exact-nonnegative-integer->i32/saturating
+                                 (local.get $proc-spec)))
                 (if (i32.ge_u (local.get $proc-spec-index) (local.get $init))
                     (then (call $raise-make-struct-type:proc-spec-index
                                 (local.get $proc-spec)
@@ -6949,10 +6945,8 @@
                             (global.get $true))
                     (then
                      (local.set $object-name-index
-                                (i32.shr_u
-                                 (i31.get_u
-                                  (ref.cast (ref i31) (local.get $processed)))
-                                 (i32.const 1)))
+                                (call $exact-nonnegative-integer->i32/saturating
+                                      (local.get $processed)))
                      ;; `sti` is the internal guard-info list:
                      ;; (name init-count auto-count accessor mutator immutables super #f).
                      (local.set $object-name-sti-tail
@@ -6972,7 +6966,7 @@
                      (if (i32.ge_u (local.get $object-name-index)
                                    (local.get $object-name-init-count))
                          (then (call $raise-guard-for-prop:object-name-field-index
-                                     (local.get $object-name-index)
+                                     (local.get $processed)
                                      (local.get $object-name-init-count))
                                (unreachable))))
                     (else
@@ -7003,10 +6997,8 @@
                             (global.get $true))
                     (then
                      (local.set $procedure-index
-                                (i32.shr_u
-                                 (i31.get_u
-                                  (ref.cast (ref i31) (local.get $processed)))
-                                 (i32.const 1)))
+                                (call $exact-nonnegative-integer->i32/saturating
+                                      (local.get $processed)))
                      (local.set $procedure-sti-tail
                                 (struct.get $Pair $d
                                             (ref.cast (ref $Pair)
@@ -7415,7 +7407,7 @@
            (unreachable))
 
      (func $raise-guard-for-prop:object-name-field-index
-           (param $field-index i32)
+           (param $field-index (ref eq))
            (param $init-count  i32)
 
            (local $out     (ref $GrowableArray))
@@ -7428,8 +7420,7 @@
            (call $growable-array-add! (local.get $out)
                  (global.get $string:guard-for-prop:object-name-field-index))
            (call $growable-array-add! (local.get $out)
-                 (call $format/display
-                       (ref.i31 (i32.shl (local.get $field-index) (i32.const 1)))))
+                 (call $format/display (local.get $field-index)))
            (call $growable-array-add! (local.get $out)
                  (global.get $string:make-struct-type-initialized-field-count))
            (call $growable-array-add! (local.get $out)
