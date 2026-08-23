@@ -440,6 +440,60 @@
                (then (local.get $cmp))
                (else (i32.sub (i32.const 0) (local.get $cmp)))))
 
+     ;; $bignum-mul-u32 : bignum? i32 i32 -> exact-integer?
+     ;;   Multiply a bignum magnitude by an unsigned 32-bit limb and apply sign.
+     (func $bignum-mul-u32
+           (param $b    (ref $Bignum))
+           (param $m    i32)
+           (param $sign i32)
+           (result (ref eq))
+
+           (local $limbs (ref $I32Array))
+           (local $len   i32)
+           (local $out   (ref $I32Array))
+           (local $i     i32)
+           (local $acc   i64)
+           (local $carry i64)
+
+           (if (i32.eqz (local.get $m))
+               (then (return (ref.i31 (i32.const 0)))))
+           (local.set $limbs (struct.get $Bignum $limbs (local.get $b)))
+           (local.set $len (array.len (local.get $limbs)))
+           (local.set $out
+                      (array.new_default
+                       $I32Array
+                       (i32.add (local.get $len) (i32.const 1))))
+           (block $done
+                  (loop $loop
+                        (br_if $done
+                               (i32.ge_u (local.get $i) (local.get $len)))
+                        (local.set $acc
+                                   (i64.add
+                                    (i64.mul
+                                     (i64.extend_i32_u
+                                      (array.get $I32Array
+                                                 (local.get $limbs)
+                                                 (local.get $i)))
+                                     (i64.extend_i32_u (local.get $m)))
+                                    (local.get $carry)))
+                        (array.set $I32Array
+                                   (local.get $out)
+                                   (local.get $i)
+                                   (i32.wrap_i64 (local.get $acc)))
+                        (local.set $carry
+                                   (i64.shr_u (local.get $acc)
+                                              (i64.const 32)))
+                        (local.set $i
+                                   (i32.add (local.get $i) (i32.const 1)))
+                        (br $loop)))
+           (array.set $I32Array
+                      (local.get $out)
+                      (local.get $len)
+                      (i32.wrap_i64 (local.get $carry)))
+           (call $bignum-normalize
+                 (local.get $sign)
+                 (local.get $out)))
+
      ;; $bignum-mul : bignum? bignum? -> exact-integer?
      ;;   Multiply two signed canonical bignums with schoolbook limbs.
      (func $bignum-mul
@@ -464,13 +518,31 @@
            (local.set $b-limbs (struct.get $Bignum $limbs (local.get $b)))
            (local.set $a-len (array.len (local.get $a-limbs)))
            (local.set $b-len (array.len (local.get $b-limbs)))
-           (local.set $out-len (i32.add (local.get $a-len) (local.get $b-len)))
-           (local.set $out (array.new_default $I32Array (local.get $out-len)))
            (local.set $sign
                       (select (i32.const 1)
                               (i32.const -1)
                               (i32.eq (struct.get $Bignum $sign (local.get $a))
                                       (struct.get $Bignum $sign (local.get $b)))))
+           (if (i32.eq (local.get $a-len) (i32.const 1))
+               (then
+                (return
+                 (call $bignum-mul-u32
+                       (local.get $b)
+                       (array.get $I32Array
+                                  (local.get $a-limbs)
+                                  (i32.const 0))
+                       (local.get $sign)))))
+           (if (i32.eq (local.get $b-len) (i32.const 1))
+               (then
+                (return
+                 (call $bignum-mul-u32
+                       (local.get $a)
+                       (array.get $I32Array
+                                  (local.get $b-limbs)
+                                  (i32.const 0))
+                       (local.get $sign)))))
+           (local.set $out-len (i32.add (local.get $a-len) (local.get $b-len)))
+           (local.set $out (array.new_default $I32Array (local.get $out-len)))
            (block $outer-done
                   (loop $outer
                         (br_if $outer-done
@@ -673,18 +745,30 @@
                       (call $integer-from-i64
                             (i64.mul (local.get $xv) (local.get $yv))))))
                 (return
-                       (call $bignum-mul
-                             (call $nonzero-fixnum->bignum (local.get $x))
-                             (ref.cast (ref $Bignum) (local.get $y))))))
+                 (call $bignum-mul-u32
+                       (ref.cast (ref $Bignum) (local.get $y))
+                       (call $integer-abs-u32 (local.get $x))
+                       (select (i32.const 1)
+                               (i32.const -1)
+                               (i32.eq (call $integer-sign/i32
+                                             (local.get $x))
+                                       (call $integer-sign/i32
+                                             (local.get $y))))))))
            (if (ref.test (ref i31) (local.get $y))
                (then
                 (if (i32.eqz
                      (i31.get_s (ref.cast (ref i31) (local.get $y))))
                     (then (return (ref.i31 (i32.const 0)))))
                 (return
-                 (call $bignum-mul
+                 (call $bignum-mul-u32
                        (ref.cast (ref $Bignum) (local.get $x))
-                       (call $nonzero-fixnum->bignum (local.get $y))))))
+                       (call $integer-abs-u32 (local.get $y))
+                       (select (i32.const 1)
+                               (i32.const -1)
+                               (i32.eq (call $integer-sign/i32
+                                             (local.get $x))
+                                       (call $integer-sign/i32
+                                             (local.get $y))))))))
            (call $bignum-mul
                  (ref.cast (ref $Bignum) (local.get $x))
                  (ref.cast (ref $Bignum) (local.get $y))))

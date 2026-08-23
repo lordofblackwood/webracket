@@ -1346,6 +1346,57 @@
             #:comparison 'ignore-fixnum-width
             #:gate? #t
             #:note "Bignum multiplication handles two-limb products.")
+   (nt-case 'bignum-mul-max-limb-carry
+            'integer-arithmetic
+            '(* 4294967295 4294967295)
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "Bignum multiplication handles the largest single-limb product.")
+   (nt-case 'bignum-mul-max-limb-negative
+            'integer-arithmetic
+            '(* -4294967295 4294967295)
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "Bignum multiplication preserves signs for largest single-limb products.")
+   (nt-case 'bignum-mul-dense-96-bit-carry
+            'integer-arithmetic
+            '(* (- (arithmetic-shift 1 96) 1)
+                (- (arithmetic-shift 1 96) 1))
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "Bignum multiplication propagates carries across dense multi-limb operands.")
+   (nt-case 'bignum-mul-dense-96-bit-negative
+            'integer-arithmetic
+            '(* (- (- (arithmetic-shift 1 96) 1))
+                (- (arithmetic-shift 1 96) 1))
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "Bignum multiplication handles signs for dense multi-limb operands.")
+   (nt-case 'bignum-mul-sparse-power-left
+            'integer-arithmetic
+            '(* (arithmetic-shift 1 130) 123456789)
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "Bignum multiplication handles sparse power-of-two operands.")
+   (nt-case 'bignum-mul-sparse-power-right
+            'integer-arithmetic
+            '(* 123456789 (arithmetic-shift 1 130))
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "Bignum multiplication is order-independent for sparse operands.")
+   (nt-case 'bignum-mul-sparse-alternating
+            'integer-arithmetic
+            '(* (+ (arithmetic-shift 1 96) (arithmetic-shift 1 32) 1)
+                (+ (arithmetic-shift 1 128) 7))
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "Bignum multiplication handles internal zero limbs.")
+   (nt-case 'bignum-mul-normalizes-to-fixnum
+            'integer-arithmetic
+            '(* 536870912 -1)
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "Bignum multiplication canonicalizes results in the WebRacket fixnum range.")
    (nt-case 'add1-overflow
             'integer-arithmetic
             '(add1 536870911)
