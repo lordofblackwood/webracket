@@ -522,6 +522,36 @@
             '(conjugate (make-rectangular 1 0.0))
             #:gate? #t
             #:note "Conjugate flips the sign of an inexact zero imaginary part.")
+   (nt-case 'complex-add-exact
+            'complex-basic
+            '(+ 1+2i 3+4i)
+            #:gate? #t
+            #:note "Complex addition combines rectangular components.")
+   (nt-case 'complex-sub-unary-exact
+            'complex-basic
+            '(- 1+2i)
+            #:gate? #t
+            #:note "Unary negation works for complex values.")
+   (nt-case 'complex-mul-exact
+            'complex-basic
+            '(* 1+2i 3+4i)
+            #:gate? #t
+            #:note "Complex multiplication uses the rectangular formula.")
+   (nt-case 'complex-div-exact
+            'complex-basic
+            '(/ 1+2i 3+4i)
+            #:gate? #t
+            #:note "Exact complex division keeps rational components.")
+   (nt-case 'complex-equal-same
+            'complex-basic
+            '(= 1+2i 1+2i)
+            #:gate? #t
+            #:note "Numeric equality compares complex components.")
+   (nt-case 'complex-equal-different-imag
+            'complex-basic
+            '(= 1+2i 1+3i)
+            #:gate? #t
+            #:note "Numeric equality rejects different imaginary components.")
    (nt-case 'positive-nan
             'real-special-values
             +nan.0

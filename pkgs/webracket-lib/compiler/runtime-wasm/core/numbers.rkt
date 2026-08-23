@@ -3417,7 +3417,14 @@
 ;; generic-arithmetic-runtime-only-helper-names : (listof symbol?)
 ;;   Preserve the runtime emission order for generic arithmetic helpers.
 (define generic-arithmetic-runtime-only-helper-names
-  '($+/2
+  '($number-real-part/unchecked
+    $number-imag-part/unchecked
+    $complex-add/2
+    $complex-sub/2
+    $complex-mul/2
+    $complex-div/2
+    $complex=/2
+    $+/2
     $-/2
     $*/2
     $+
@@ -3452,8 +3459,136 @@
   (function-forms->runtime-helpers
    'generic-arithmetic-runtime-only-helpers
    `(
+         ;; number-real-part/unchecked : number? -> real?
+         ;;   Return the real component of a validated real-or-complex number.
+         (func $number-real-part/unchecked
+               (param $z (ref eq))
+               (result (ref eq))
+
+               (if (ref.test (ref $Complex) (local.get $z))
+                   (then
+                    (return
+                     (struct.get $Complex $real
+                                 (ref.cast (ref $Complex) (local.get $z))))))
+               (local.get $z))
+
+         ;; number-imag-part/unchecked : number? -> real?
+         ;;   Return the imaginary component of a validated real-or-complex number.
+         (func $number-imag-part/unchecked
+               (param $z (ref eq))
+               (result (ref eq))
+
+               (if (ref.test (ref $Complex) (local.get $z))
+                   (then
+                    (return
+                     (struct.get $Complex $imag
+                                 (ref.cast (ref $Complex) (local.get $z))))))
+               (global.get $zero))
+
+         ;; complex-add/2 : number? number? -> number?
+         ;;   Add two validated real-or-complex numbers.
+         (func $complex-add/2
+               (param $x (ref eq))
+               (param $y (ref eq))
+               (result (ref eq))
+               (call $make-rectangular/canonical
+                     (call $+/2
+                           (call $number-real-part/unchecked (local.get $x))
+                           (call $number-real-part/unchecked (local.get $y)))
+                     (call $+/2
+                           (call $number-imag-part/unchecked (local.get $x))
+                           (call $number-imag-part/unchecked (local.get $y)))))
+
+         ;; complex-sub/2 : number? number? -> number?
+         ;;   Subtract two validated real-or-complex numbers.
+         (func $complex-sub/2
+               (param $x (ref eq))
+               (param $y (ref eq))
+               (result (ref eq))
+               (call $make-rectangular/canonical
+                     (call $-/2
+                           (call $number-real-part/unchecked (local.get $x))
+                           (call $number-real-part/unchecked (local.get $y)))
+                     (call $-/2
+                           (call $number-imag-part/unchecked (local.get $x))
+                           (call $number-imag-part/unchecked (local.get $y)))))
+
+         ;; complex-mul/2 : number? number? -> number?
+         ;;   Multiply two validated real-or-complex numbers exactly when possible.
+         (func $complex-mul/2
+               (param $x (ref eq))
+               (param $y (ref eq))
+               (result (ref eq))
+
+               (local $a (ref eq))
+               (local $b (ref eq))
+               (local $c (ref eq))
+               (local $d (ref eq))
+
+               (local.set $a (call $number-real-part/unchecked (local.get $x)))
+               (local.set $b (call $number-imag-part/unchecked (local.get $x)))
+               (local.set $c (call $number-real-part/unchecked (local.get $y)))
+               (local.set $d (call $number-imag-part/unchecked (local.get $y)))
+               (call $make-rectangular/canonical
+                     (call $-/2
+                           (call $*/2 (local.get $a) (local.get $c))
+                           (call $*/2 (local.get $b) (local.get $d)))
+                     (call $+/2
+                           (call $*/2 (local.get $a) (local.get $d))
+                           (call $*/2 (local.get $b) (local.get $c)))))
+
+         ;; complex-div/2 : number? number? -> number?
+         ;;   Divide two validated real-or-complex numbers exactly when possible.
+         (func $complex-div/2
+               (param $x (ref eq))
+               (param $y (ref eq))
+               (result (ref eq))
+
+               (local $a     (ref eq))
+               (local $b     (ref eq))
+               (local $c     (ref eq))
+               (local $d     (ref eq))
+               (local $denom (ref eq))
+
+               (local.set $a (call $number-real-part/unchecked (local.get $x)))
+               (local.set $b (call $number-imag-part/unchecked (local.get $x)))
+               (local.set $c (call $number-real-part/unchecked (local.get $y)))
+               (local.set $d (call $number-imag-part/unchecked (local.get $y)))
+               (local.set $denom
+                          (call $+/2
+                                (call $*/2 (local.get $c) (local.get $c))
+                                (call $*/2 (local.get $d) (local.get $d))))
+               (call $make-rectangular/canonical
+                     (call $/2
+                           (call $+/2
+                                 (call $*/2 (local.get $a) (local.get $c))
+                                 (call $*/2 (local.get $b) (local.get $d)))
+                           (local.get $denom))
+                     (call $/2
+                           (call $-/2
+                                 (call $*/2 (local.get $b) (local.get $c))
+                                 (call $*/2 (local.get $a) (local.get $d)))
+                           (local.get $denom))))
+
+         ;; complex=/2 : number? number? -> boolean?
+         ;;   Compare two validated real-or-complex numbers component-wise.
+         (func $complex=/2
+               (param $x (ref eq))
+               (param $y (ref eq))
+               (result (ref eq))
+
+               (if (ref.eq
+                    (call $=/2
+                          (call $number-real-part/unchecked (local.get $x))
+                          (call $number-real-part/unchecked (local.get $y)))
+                    (global.get $false))
+                   (then (return (global.get $false))))
+               (call $=/2
+                     (call $number-imag-part/unchecked (local.get $x))
+                     (call $number-imag-part/unchecked (local.get $y))))
+
          ,@(let ()
-             (define (binop $op $who $flop $intop $ratop)
+             (define (binop $op $who $flop $intop $ratop $complexop)
                `(func ,$op (type $Prim2)
                       (param $x (ref eq))
                       (param $y (ref eq))
@@ -3461,7 +3596,31 @@
 
                       (local $x/is-rat i32)
                       (local $y/is-rat i32)
+                      (local $x/is-complex i32)
+                      (local $y/is-complex i32)
 
+                      (local.set $x/is-complex (ref.test (ref $Complex) (local.get $x)))
+                      (local.set $y/is-complex (ref.test (ref $Complex) (local.get $y)))
+                      (if (i32.or (local.get $x/is-complex)
+                                  (local.get $y/is-complex))
+                          (then
+                           (if (i32.eqz
+                                (i32.or (local.get $x/is-complex)
+                                        (call $real-number?/i32 (local.get $x))))
+                               (then (call $raise-expected-number/who
+                                           (global.get ,$who)
+                                           (local.get $x))
+                                     (unreachable)))
+                           (if (i32.eqz
+                                (i32.or (local.get $y/is-complex)
+                                        (call $real-number?/i32 (local.get $y))))
+                               (then (call $raise-expected-number/who
+                                           (global.get ,$who)
+                                           (local.get $y))
+                                     (unreachable)))
+                           (return (call ,$complexop
+                                         (local.get $x)
+                                         (local.get $y)))))
                       (local.set $x/is-rat (ref.test (ref $Rational) (local.get $x)))
                       (local.set $y/is-rat (ref.test (ref $Rational) (local.get $y)))
                       (if (i32.or (local.get $x/is-rat) (local.get $y/is-rat))
@@ -3592,9 +3751,9 @@
                                                           (global.get ,$who)
                                                           (local.get $x))
                                                     (unreachable)))))))))
-            (list (binop '$+/2 '$symbol:+ '$fl+ '$integer-add/2 '$exact-rational-add/2)
-                  (binop '$-/2 '$symbol:- '$fl- '$integer-sub/2 '$exact-rational-sub/2)
-                  (binop '$*/2 '$symbol:* '$fl* '$integer-mul/2 '$exact-rational-mul/2)))
+            (list (binop '$+/2 '$symbol:+ '$fl+ '$integer-add/2 '$exact-rational-add/2 '$complex-add/2)
+                  (binop '$-/2 '$symbol:- '$fl- '$integer-sub/2 '$exact-rational-sub/2 '$complex-sub/2)
+                  (binop '$*/2 '$symbol:* '$fl* '$integer-mul/2 '$exact-rational-mul/2 '$complex-mul/2)))
 
         (func $+ (type $Prim>=0)
                (param $xs0 (ref eq)) (result (ref eq))
@@ -3691,7 +3850,30 @@
                (local $y/exact i32)
                (local $x/inexact i32)
                (local $y/inexact i32)
+               (local $x/complex i32)
+               (local $y/complex i32)
 
+               (local.set $x/complex (ref.test (ref $Complex) (local.get $x)))
+               (local.set $y/complex (ref.test (ref $Complex) (local.get $y)))
+               (if (i32.or (local.get $x/complex) (local.get $y/complex))
+                   (then
+                    (if (i32.eqz
+                         (i32.or (local.get $x/complex)
+                                 (call $real-number?/i32 (local.get $x))))
+                        (then (call $raise-expected-number/who
+                                    (global.get $symbol:/)
+                                    (local.get $x))
+                              (unreachable)))
+                    (if (i32.eqz
+                         (i32.or (local.get $y/complex)
+                                 (call $real-number?/i32 (local.get $y))))
+                        (then (call $raise-expected-number/who
+                                    (global.get $symbol:/)
+                                    (local.get $y))
+                              (unreachable)))
+                    (return (call $complex-div/2
+                                  (local.get $x)
+                                  (local.get $y)))))
                (local.set $x/exact (call $exact-rational?/i32 (local.get $x)))
                (local.set $y/exact (call $exact-rational?/i32 (local.get $y)))
                (local.set $x/inexact (ref.test (ref $Flonum) (local.get $x)))
@@ -3987,9 +4169,31 @@
                       (local $y/is-rat i32)
                       (local $x/is-fl i32)
                       (local $y/is-fl i32)
+                      (local $x/is-complex i32)
+                      (local $y/is-complex i32)
                       (local $cmp/i32 i32)
                       (local $x-fl    (ref null $Flonum))
                       (local $y-fl    (ref null $Flonum))
+                      ,@(if (eq? expected 'number)
+                            `((local.set $x/is-complex
+                                         (ref.test (ref $Complex) (local.get $x)))
+                              (local.set $y/is-complex
+                                         (ref.test (ref $Complex) (local.get $y)))
+                              (if (i32.or (local.get $x/is-complex)
+                                          (local.get $y/is-complex))
+                                  (then
+                                   (if (i32.eqz
+                                        (i32.or (local.get $x/is-complex)
+                                                (call $real-number?/i32 (local.get $x))))
+                                       (then ,@(raise-expected-number who `(local.get $x))))
+                                   (if (i32.eqz
+                                        (i32.or (local.get $y/is-complex)
+                                                (call $real-number?/i32 (local.get $y))))
+                                       (then ,@(raise-expected-number who `(local.get $y))))
+                                   (return (call $complex=/2
+                                                 (local.get $x)
+                                                 (local.get $y))))))
+                            '())
                       ;; --- Check if x is a fixnum ---
                       (local.set $x/is-fx (call $fx?/i32 (local.get $x)))
                       ;; --- Check if x is a bignum ---
@@ -4150,6 +4354,7 @@
                       (local $x/is-big i32)
                       (local $x/is-rat i32)
                       (local $x/is-fl i32)
+                      (local $x/is-complex i32)
 
                       (local.set $xs
                                  (if (result (ref eq))
@@ -4165,12 +4370,20 @@
                                 (local.set $x/is-big (ref.test (ref $Bignum) (local.get $x0)))
                                 (local.set $x/is-rat (ref.test (ref $Rational) (local.get $x0)))
                                 (local.set $x/is-fl (ref.test (ref $Flonum) (local.get $x0)))
+                                ,@(if (eq? expected 'number)
+                                      `((local.set $x/is-complex
+                                                   (ref.test (ref $Complex) (local.get $x0))))
+                                      '())
                                 (if (i32.eqz
                                      (i32.or
                                       (i32.or
-                                       (i32.or (local.get $x/is-fx) (local.get $x/is-big))
-                                       (local.get $x/is-rat))
-                                      (local.get $x/is-fl)))
+                                       (i32.or
+                                        (i32.or (local.get $x/is-fx) (local.get $x/is-big))
+                                        (local.get $x/is-rat))
+                                       (local.get $x/is-fl))
+                                      ,(if (eq? expected 'number)
+                                           `(local.get $x/is-complex)
+                                           `(i32.const 0))))
                                     (then ,@(raise-expected expected who `(local.get $x0))))
                                 (return ,(Imm #t))))
 
