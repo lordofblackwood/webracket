@@ -1907,7 +1907,35 @@
             'integer-bitwise
             '(arithmetic-shift -9007199254740993 -80)
             #:gate? #t
-            #:note "arithmetic-shift sign-extends negative exact integers shifted past their length.")))
+            #:note "arithmetic-shift sign-extends negative exact integers shifted past their length.")
+   (nt-case 'vector-ref-first-bignum-index-error
+            'exact-integer-consumers
+            '(with-handlers ([exn:fail:contract? (lambda (exn) 'contract)])
+               (vector-ref '#(a b) 536870912)
+               'not-raised)
+            #:gate? #t
+            #:note "Bignum vector indexes are exact indexes and fail as catchable range errors.")
+   (nt-case 'vector-ref-huge-bignum-index-error
+            'exact-integer-consumers
+            '(with-handlers ([exn:fail:contract? (lambda (exn) 'contract)])
+               (vector-ref '#(a b) 4294967296)
+               'not-raised)
+            #:gate? #t
+            #:note "Multi-limb bignum vector indexes must not reach an unchecked i31 cast.")
+   (nt-case 'bytes-ref-bignum-index-error
+            'exact-integer-consumers
+            '(with-handlers ([exn:fail:contract? (lambda (exn) 'contract)])
+               (bytes-ref #"ab" 536870912)
+               'not-raised)
+            #:gate? #t
+            #:note "Bignum byte-string indexes fail as catchable range errors.")
+   (nt-case 'bytes-bignum-value-error
+            'exact-integer-consumers
+            '(with-handlers ([exn:fail:contract? (lambda (exn) 'contract)])
+               (bytes 4294967296)
+               'not-raised)
+            #:gate? #t
+            #:note "Bignum byte values fail the byte? boundary without unchecked i31 casts.")))
 
 ;; number-tower-groups : -> (listof symbol?)
 ;;   Return the distinct oracle groups in stable display order.

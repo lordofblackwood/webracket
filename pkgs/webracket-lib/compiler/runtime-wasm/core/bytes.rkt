@@ -152,25 +152,11 @@
            (param $x   (ref eq))
            (result i32)
 
-           (local $bits i32)
            (local $idx  i32)
 
-           (if (i32.eqz (ref.test (ref i31) (local.get $x)))
-               (then
-                (call $raise-argument-error1
-                      (local.get $who)
-                      (global.get $string:exact-nonnegative-integer?)
-                      (local.get $x))
-                (unreachable)))
-           (local.set $bits (i31.get_s (ref.cast (ref i31) (local.get $x))))
-           (if (i32.and (local.get $bits) (i32.const 1))
-               (then
-                (call $raise-argument-error1
-                      (local.get $who)
-                      (global.get $string:exact-nonnegative-integer?)
-                      (local.get $x))
-                (unreachable)))
-           (local.set $idx (i32.shr_s (local.get $bits) (i32.const 1)))
+           (local.set $idx
+                      (call $exact-nonnegative-integer->i32/saturating
+                            (local.get $x)))
            (if (i32.lt_s (local.get $idx) (i32.const 0))
                (then
                 (call $raise-argument-error1
@@ -184,19 +170,11 @@
            (param $x   (ref eq))
            (result i32)
 
-           (local $bits i32)
            (local $val  i32)
 
-           (if (i32.eqz (ref.test (ref i31) (local.get $x)))
-               (then
-                (call $raise-check-byte/who (local.get $who) (local.get $x))
-                (unreachable)))
-           (local.set $bits (i31.get_s (ref.cast (ref i31) (local.get $x))))
-           (if (i32.and (local.get $bits) (i32.const 1))
-               (then
-                (call $raise-check-byte/who (local.get $who) (local.get $x))
-                (unreachable)))
-           (local.set $val (i32.shr_s (local.get $bits) (i32.const 1)))
+           (local.set $val
+                      (call $exact-nonnegative-integer->i32/saturating
+                            (local.get $x)))
            (if (i32.or (i32.lt_s (local.get $val) (i32.const 0))
                        (i32.gt_u (local.get $val) (i32.const 255)))
                (then

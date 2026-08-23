@@ -167,25 +167,11 @@
               (param $x   (ref eq))
               (result i32)
 
-              (local $bits i32)
               (local $idx  i32)
 
-              (if (i32.eqz (ref.test (ref i31) (local.get $x)))
-                  (then
-                   (call $raise-argument-error1
-                         (local.get $who)
-                         (global.get $string:exact-nonnegative-integer?)
-                         (local.get $x))
-                   (unreachable)))
-              (local.set $bits (i31.get_s (ref.cast (ref i31) (local.get $x))))
-              (if (i32.and (local.get $bits) (i32.const 1))
-                  (then
-                   (call $raise-argument-error1
-                         (local.get $who)
-                         (global.get $string:exact-nonnegative-integer?)
-                         (local.get $x))
-                   (unreachable)))
-              (local.set $idx (i32.shr_s (local.get $bits) (i32.const 1)))
+              (local.set $idx
+                         (call $exact-nonnegative-integer->i32/saturating
+                               (local.get $x)))
               (if (i32.lt_s (local.get $idx) (i32.const 0))
                   (then
                    (call $raise-argument-error1

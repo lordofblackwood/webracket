@@ -13128,7 +13128,9 @@
         (list "check-mlist"         (equal? (begin (check-mlist '()) 'ok)                'ok))
         (list "check-range"         (equal? (begin (check-range 0 5 1) 'ok)              'ok))
         (list "check-range-generic" (equal? (begin (check-range-generic 'who 0 1 1) 'ok) 'ok))
-        (list "check-naturals"      (equal? (begin (check-naturals 5) 'ok)               'ok))))
+        (list "check-naturals"      (equal? (begin (check-naturals 5) 'ok)               'ok))
+        (list "check-naturals bignum"
+              (equal? (begin (check-naturals 536870912) 'ok) 'ok))))
 
  (list "FFI"
        (list

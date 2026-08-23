@@ -787,6 +787,47 @@
                          (ref.cast (ref $Bignum) (local.get $x))))
             (i32.const 1)))
 
+     ;; $exact-nonnegative-integer->i32/saturating : any/c -> i32
+     ;;   Decode exact nonnegative integers; return -1 on contract failures and saturate overflow.
+     (func $exact-nonnegative-integer->i32/saturating
+           (param $x (ref eq))
+           (result i32)
+
+           (local $bits  i32)
+           (local $idx   i32)
+           (local $bn    (ref $Bignum))
+           (local $limbs (ref $I32Array))
+           (local $len   i32)
+           (local $limb  i32)
+
+           (if (ref.test (ref i31) (local.get $x))
+               (then
+                (local.set $bits (i31.get_s (ref.cast (ref i31) (local.get $x))))
+                (if (i32.and (local.get $bits) (i32.const 1))
+                    (then (return (i32.const -1))))
+                (local.set $idx (i32.shr_s (local.get $bits) (i32.const 1)))
+                (if (i32.lt_s (local.get $idx) (i32.const 0))
+                    (then (return (i32.const -1))))
+                (return (local.get $idx))))
+
+           (if (i32.eqz (ref.test (ref $Bignum) (local.get $x)))
+               (then (return (i32.const -1))))
+           (local.set $bn (ref.cast (ref $Bignum) (local.get $x)))
+           (if (i32.lt_s (struct.get $Bignum $sign (local.get $bn))
+                         (i32.const 0))
+               (then (return (i32.const -1))))
+           (local.set $limbs (struct.get $Bignum $limbs (local.get $bn)))
+           (local.set $len (array.len (local.get $limbs)))
+           (if (i32.eqz (local.get $len))
+               (then (return (i32.const 0))))
+           (if (i32.gt_u (local.get $len) (i32.const 1))
+               (then (return (i32.const 2147483647))))
+           (local.set $limb
+                      (array.get $I32Array (local.get $limbs) (i32.const 0)))
+           (if (i32.gt_u (local.get $limb) (i32.const 2147483647))
+               (then (return (i32.const 2147483647))))
+           (local.get $limb))
+
      ;; $integer-apply-sign : exact-integer? i32 -> exact-integer?
      ;;   Apply sign to a nonnegative exact integer magnitude.
      (func $integer-apply-sign

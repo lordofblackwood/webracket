@@ -202,29 +202,9 @@
                (param $n (ref eq))   ;; n
                (result (ref eq))
                (if (result (ref eq))
-                   (ref.eq (call $integer? (local.get $n)) (global.get $true))
-                   (then (if (result (ref eq))
-                             (ref.eq (call $exact? (local.get $n)) (global.get $true))
-                             (then (if (result (ref eq))
-                                       (ref.test (ref i31) (local.get $n))
-                                       (then (if (result (ref eq))
-                                                 (i32.ge_s (i31.get_s (ref.cast (ref i31) (local.get $n))) (i32.const 0))
-                                                 (then (global.get $void))
-                                                 (else (call $raise-argument-error1
-                                                             (global.get $symbol:in-naturals)
-                                                             (global.get $string:exact-nonnegative-integer?)
-                                                             (local.get $n))
-                                                       (unreachable))))
-                                       (else (call $raise-argument-error1
-                                                   (global.get $symbol:in-naturals)
-                                                   (global.get $string:exact-nonnegative-integer?)
-                                                   (local.get $n))
-                                             (unreachable))))
-                             (else (call $raise-argument-error1
-                                         (global.get $symbol:in-naturals)
-                                         (global.get $string:exact-nonnegative-integer?)
-                                         (local.get $n))
-                                   (unreachable))))
+                   (ref.eq (call $exact-nonnegative-integer? (local.get $n))
+                           (global.get $true))
+                   (then (global.get $void))
                    (else (call $raise-argument-error1
                                (global.get $symbol:in-naturals)
                                (global.get $string:exact-nonnegative-integer?)
