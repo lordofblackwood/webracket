@@ -14,6 +14,20 @@
                    (string-contains? message needle))
                  needles))))
 
+(define (catch-fail/contains? thunk . needles)
+  (let ([message
+         (with-handlers ([exn:fail?
+                          (lambda (exn)
+                            (exn-message exn))])
+           (thunk)
+           #f)])
+    (and message
+         (andmap (lambda (needle)
+                   (string-contains? message needle))
+                 needles))))
+
+(define too-large-byte-length 536870912)
+
 (list
  (list "byte-string operations report byte-string contracts with public who"
        (and
@@ -58,7 +72,11 @@
          (lambda () (make-bytes 1 -1))
          "make-bytes"
          "byte?"
-         "given: -1")))
+         "given: -1")
+        (catch-fail/contains?
+         (lambda () (make-bytes too-large-byte-length))
+         "make-bytes"
+         "requested length is too large for WebRacket")))
  (list "byte-string index contracts use error-value->string-handler"
        (let ([old (error-value->string-handler)])
          (error-value->string-handler

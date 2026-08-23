@@ -31,6 +31,7 @@
     (bytes?                     "bytes?")
     (mutable-bytes?             "(and/c bytes? (not/c immutable?))")
     (char-or-false?             "(or/c char? #f)")
+    (bytes-length-too-large     ": requested length is too large for WebRacket")
     (bytes->string/utf-8:bad-encoding ": byte string is not a well-formed UTF-8 encoding")
     (bytes:expected-mutable "expected mutable byte string")
     (bytes-converter?           "bytes-converter?")))
@@ -101,6 +102,8 @@
     $raise-check-byte/who
     $raise-check-byte
     $bytes-index/i32
+    $raise-bytes-length-too-large/who
+    $bytes-length/i32/who
     $byte-value/i32/who
     $raise-bad-bytes-ref-index
     $raise-bad-bytes-set-index
@@ -165,6 +168,44 @@
                       (local.get $x))
                 (unreachable)))
            (local.get $idx))
+     (func $raise-bytes-length-too-large/who
+           (param $who (ref eq))
+
+           (local $message (ref $String))
+
+           (local.set $message
+                      (call $string-append/2
+                            (call $format/display (local.get $who))
+                            (global.get $string:bytes-length-too-large)))
+           (call $raise
+                 (call $exn:fail/make
+                       (local.get $message)
+                       (call $current-continuation-marks
+                             (global.get $missing)))
+                 (global.get $true))
+           (unreachable))
+     (func $bytes-length/i32/who
+           (param $who     (ref eq))
+           (param $len-raw (ref eq))
+           (result i32)
+
+           (local $len i32)
+
+           (local.set $len
+                      (call $exact-nonnegative-integer->i32/saturating
+                            (local.get $len-raw)))
+           (if (i32.lt_s (local.get $len) (i32.const 0))
+               (then
+                (call $raise-argument-error1
+                      (local.get $who)
+                      (global.get $string:exact-nonnegative-integer?)
+                      (local.get $len-raw))
+                (unreachable)))
+           (if (i32.gt_s (local.get $len) (i32.const 536870911))
+               (then
+                (call $raise-bytes-length-too-large/who (local.get $who))
+                (unreachable)))
+           (local.get $len))
      (func $byte-value/i32/who
            (param $who (ref eq))
            (param $x   (ref eq))
@@ -208,7 +249,7 @@
            (local $val i32)
            ;; Decode and check $k as exact-nonnegative-integer?
            (local.set $len
-                      (call $bytes-index/i32
+                      (call $bytes-length/i32/who
                             (global.get $symbol:make-bytes)
                             (local.get $k-raw)))
            ;; Handle optional byte argument
