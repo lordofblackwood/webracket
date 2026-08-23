@@ -140,6 +140,15 @@
         (equal? (procedure-arity-includes? values
                                            too-large-arity-index)
                 #t)))
+ (list "arity-at-least constructors accept bignum values"
+       (let ([arity1 (arity-at-least too-large-arity-index)]
+             [arity2 (make-arity-at-least too-large-arity-index)])
+         (and
+          (arity-at-least? arity1)
+          (arity-at-least? arity2)
+          (equal? (arity-at-least-value arity1) too-large-arity-index)
+          (equal? (arity-at-least-value arity2) too-large-arity-index)
+          (equal? arity1 arity2))))
  (list "procedure-arity-includes? procedure errors are catchable"
        (catch-contract/contains?
         (lambda () (procedure-arity-includes? 42 1))

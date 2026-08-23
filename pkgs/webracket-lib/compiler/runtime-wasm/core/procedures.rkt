@@ -1450,6 +1450,7 @@
 (define procedure-arity-at-least-runtime-only-helper-names
   '($ensure-arity-at-least-type
     $arity-at-least/make
+    $arity-at-least/make/value
     $make-arity-at-least
     $arity-at-least
     $raise-argument-error:arity-at-least-expected
@@ -3199,13 +3200,20 @@
            (param $value i32)   ;; exact non-negative integer
            (result (ref eq))
 
+           (call $arity-at-least/make/value
+                 (ref.i31 (i32.shl (local.get $value) (i32.const 1)))))
+
+     (func $arity-at-least/make/value
+           (param $value (ref eq)) ;; exact-nonnegative-integer?
+           (result (ref eq))
+
            (local $std    (ref $StructType))
            (local $fields (ref $Array))
 
            (local.set $std (call $ensure-arity-at-least-type))
            (local.set $fields
                       (array.new_fixed $Array 1
-                                       (ref.i31 (i32.shl (local.get $value) (i32.const 1)))))
+                                       (local.get $value)))
            (ref.cast (ref eq)
                      (struct.new $Struct
                                  (i32.const 0)
@@ -3226,10 +3234,8 @@
                            (global.get $string:exact-nonnegative-integer?)
                            (local.get $value))
                      (unreachable)))
-           (call $arity-at-least/make
-                 (i32.shr_s
-                  (i31.get_s (ref.cast (ref i31) (local.get $value)))
-                  (i32.const 1))))
+           (call $arity-at-least/make/value
+                 (local.get $value)))
 
      (func $arity-at-least (type $Prim1)
            (param $value (ref eq)) ; exact-nonnegative-integer?
@@ -4178,6 +4184,7 @@
 (define procedure-promoted-runtime-helper-names
   '($ensure-arity-at-least-type
     $arity-at-least/make
+    $arity-at-least/make/value
     $make-arity-at-least
     $arity-at-least
     $raise-argument-error:arity-at-least-expected
