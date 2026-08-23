@@ -8,7 +8,7 @@
    #rx"Racket CS"
    (lambda ()
      (validate-number-tower-cs-info!
-      (number-tower-cs-info "/tmp/not-cs-racket" "0.0" 'racketcgc)))))
+      (number-tower-cs-info "tmp/not-cs-racket" "0.0" 'racketcgc)))))
 
 (module+ main
   (void))

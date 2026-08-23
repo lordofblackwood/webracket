@@ -44,6 +44,24 @@
 (define-runtime-path repo-root* "..")
 
 (define repo-root (simplify-path repo-root*))
+(define number-tower-temp-root (build-path repo-root "tmp"))
+
+;; ensure-number-tower-temp-root! : -> void?
+;;   Ensure number-tower scratch files stay inside the repository tmp/ directory.
+(define (ensure-number-tower-temp-root!)
+  (make-directory* number-tower-temp-root))
+
+;; make-number-tower-temporary-file : string? -> path?
+;;   Create a temporary file below tmp/ for oracle subprocess capture.
+(define (make-number-tower-temporary-file template)
+  (ensure-number-tower-temp-root!)
+  (make-temporary-file template #:base-dir number-tower-temp-root))
+
+;; make-number-tower-temporary-directory : string? -> path?
+;;   Create a temporary directory below tmp/ for generated oracle programs.
+(define (make-number-tower-temporary-directory template)
+  (ensure-number-tower-temp-root!)
+  (make-temporary-directory template #:base-dir number-tower-temp-root))
 
 ;; default-racket-cs-path : -> path-string?
 ;;   Return the configured Racket CS executable path for oracle runs.
@@ -64,7 +82,7 @@
 ;; call-with-temp-directory : string? (path? -> any/c) -> any/c
 ;;   Create a temporary directory, pass it to thunk, and remove it afterward.
 (define (call-with-temp-directory prefix thunk)
-  (define dir (make-temporary-file prefix 'directory))
+  (define dir (make-number-tower-temporary-directory prefix))
   (dynamic-wind
     void
     (lambda () (thunk dir))
@@ -87,8 +105,8 @@
 ;; run-command/capture : path? path-string? (listof string?) -> (values exact-integer? string? string?)
 ;;   Run a subprocess with stdout and stderr captured in temporary files.
 (define (run-command/capture cwd command args #:timeout-seconds [timeout-seconds 60])
-  (define stdout-path (make-temporary-file "number-tower-stdout-~a.txt"))
-  (define stderr-path (make-temporary-file "number-tower-stderr-~a.txt"))
+  (define stdout-path (make-number-tower-temporary-file "number-tower-stdout-~a.txt"))
+  (define stderr-path (make-number-tower-temporary-file "number-tower-stderr-~a.txt"))
   (define stdout (open-output-file stdout-path #:exists 'truncate))
   (define stderr (open-output-file stderr-path #:exists 'truncate))
   (define-values (proc child-out child-in child-err)
