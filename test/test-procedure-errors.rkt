@@ -19,6 +19,8 @@
 (define (procedure-plain-given)
   (procedure-plain))
 
+(define too-large-arity-index 536870912)
+
 (list
  (list "procedure reflection errors preserve who"
        (and
@@ -127,6 +129,17 @@
          "procedure-arity-includes?"
          "exact-nonnegative-integer?"
          "given: #f")))
+ (list "procedure-arity-includes? accepts bignum k"
+       (and
+        (equal? (procedure-arity-includes? (lambda (x) x)
+                                           too-large-arity-index)
+                #f)
+        (equal? (procedure-arity-includes? (lambda args args)
+                                           too-large-arity-index)
+                #t)
+        (equal? (procedure-arity-includes? values
+                                           too-large-arity-index)
+                #t)))
  (list "procedure-arity-includes? procedure errors are catchable"
        (catch-contract/contains?
         (lambda () (procedure-arity-includes? 42 1))

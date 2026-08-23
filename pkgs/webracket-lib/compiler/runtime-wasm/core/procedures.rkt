@@ -1497,6 +1497,7 @@
   '($procedure-arity-mask
     $procedure-arity-mask/checked/i32
     $raise-argument-error:fixnum-expected
+    $procedure-arity-mask-includes?/i32
     $procedure-arity-includes?
     $procedure-arity-includes?/checked/i32))
 
@@ -4057,13 +4058,25 @@
                  (global.get $string:exact-nonnegative-integer?)
                  (local.get $got)))
 
+     (func $procedure-arity-mask-includes?/i32
+           (param $mask  i32)
+           (param $k-i32 i32)
+           (result       i32)
+
+           ;; For k >= 31, the bit shift below would wrap. A negative mask
+           ;; still indicates an arity-at-least suffix that includes large k.
+           (if (i32.ge_u (local.get $k-i32) (i32.const 31))
+               (then (return (i32.lt_s (local.get $mask) (i32.const 0)))))
+           (i32.ne (i32.and (local.get $mask)
+                            (i32.shl (i32.const 1) (local.get $k-i32)))
+                   (i32.const 0)))
+
      (func $procedure-arity-includes?
            (param $proc    (ref eq))    ;; procedure?
            (param $k       (ref eq))    ;; exact-nonnegative-integer?
            (param $kws-ok? (ref eq))    ;; optional any/c, default = #f
            (result         (ref eq))    ;; returns #true or #false
 
-           (local $k-fx  (ref i31))
            (local $k-i32 i32)
            (local $mask  i32)
 
@@ -4076,21 +4089,22 @@
                            (local.get $proc))
                      (unreachable)))
            ;; Step 2: type check and decode k.
-           (if (ref.eq (call $exact-nonnegative-integer? (local.get $k)) (global.get $false))
+           (local.set $k-i32
+                      (call $exact-nonnegative-integer->i32/saturating
+                            (local.get $k)))
+           (if (i32.lt_s (local.get $k-i32) (i32.const 0))
                (then (call $raise-argument-error:fixnum-expected (local.get $k))
                      (unreachable)))
-           (local.set $k-fx (ref.cast (ref i31) (local.get $k)))
-           (local.set $k-i32 (i32.shr_u (i31.get_u (local.get $k-fx)) (i32.const 1)))
            (if (ref.eq (call $procedure? (local.get $proc)) (global.get $false))
                (then (return (global.get $false))))
            ;; Step 3: get the checked arity mask.
            (local.set $mask
                       (call $procedure-arity-mask/checked/i32
                             (ref.cast (ref $Procedure) (local.get $proc))))
-           ;; Step 4: check if bit $k-i32 is set in $mask.
-           (if (i32.ne (i32.and (local.get $mask)
-                                (i32.shl (i32.const 1) (local.get $k-i32)))
-                       (i32.const 0))
+           ;; Step 4: check whether k is included in the mask.
+           (if (call $procedure-arity-mask-includes?/i32
+                     (local.get $mask)
+                     (local.get $k-i32))
                (then (return (global.get $true)))
                (else (return (global.get $false))))
            (unreachable))
@@ -4106,10 +4120,10 @@
            ;; Step 1: get the arity mask
            (local.set $mask (call $procedure-arity-mask/checked/i32
                                   (local.get $proc)))
-           ;; Step 2: check if bit $k-i32 is set in $mask
-           (i32.ne (i32.and (local.get $mask)
-                            (i32.shl (i32.const 1) (local.get $k-i32)))
-                   (i32.const 0)))
+           ;; Step 2: check whether k is included in the mask
+           (call $procedure-arity-mask-includes?/i32
+                 (local.get $mask)
+                 (local.get $k-i32)))
 
      (func $raise-argument-error:primitive-procedure-expected/who
            (param $who (ref eq))
