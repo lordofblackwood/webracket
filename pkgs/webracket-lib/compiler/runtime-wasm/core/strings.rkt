@@ -46,7 +46,6 @@
   '((empty           "")
     (space           " ")
     (char?           "char?")
-    (valid-string-length? "valid-string-length?")
     (string?         "string?")
     (mutable-string? "mutable-string?")
     (string-copy!:destination-contract "(and/c string? (not/c immutable?))")
@@ -67,6 +66,7 @@
     (substring:ending-index "\n  ending index: ")
     (string-utf8:byte-string "\n  byte string: ")
     (string-buffer-overflow "WebRacket linear-memory buffer is too small")
+    (string-length-too-large ": requested length is too large for WebRacket")
     (string-check:string-copy!/checked "internal string-copy!/checked bounds check failed")
     (string-check:index-out-of-bounds "internal string index bounds check failed")
     (string-check:invalid-utf8-input "invalid UTF-8 input")
@@ -204,6 +204,8 @@
     $raise-make-string:bad-char
     $raise-argument-error:char-expected/who
     $raise-argument-error:char-expected
+    $raise-string-length-too-large/who
+    $string-length/i32/who
     $make-string
     $make-string/checked
     $make-immutable-string/checked
@@ -483,7 +485,7 @@
                (param $x (ref eq))
                (call $raise-argument-error1
                      (global.get $symbol:make-string)
-                     (global.get $string:valid-string-length?)
+                     (global.get $string:exact-nonnegative-integer?)
                      (local.get $x)))
          (func $raise-make-string:bad-char
                (param $x (ref eq))
@@ -505,9 +507,48 @@
                      (global.get $symbol:char?)
                      (local.get $x))
                (unreachable))
+         (func $raise-string-length-too-large/who
+               (param $who (ref eq))
+
+               (local $message (ref $String))
+
+               (local.set $message
+                          (call $string-append/2
+                                (call $format/display (local.get $who))
+                                (global.get $string:string-length-too-large)))
+               (call $raise
+                     (call $exn:fail/make
+                           (local.get $message)
+                           (call $current-continuation-marks
+                                 (global.get $missing)))
+                     (global.get $true))
+               (unreachable))
+         (func $string-length/i32/who
+               (param $who      (ref eq))
+               (param $len-raw  (ref eq))
+               (param $expected (ref eq))
+               (result i32)
+
+               (local $len i32)
+
+               (local.set $len
+                          (call $exact-nonnegative-integer->i32/saturating
+                                (local.get $len-raw)))
+               (if (i32.lt_s (local.get $len) (i32.const 0))
+                   (then
+                    (call $raise-argument-error1
+                          (local.get $who)
+                          (local.get $expected)
+                          (local.get $len-raw))
+                    (unreachable)))
+               (if (i32.gt_s (local.get $len) (i32.const 536870911))
+                   (then
+                    (call $raise-string-length-too-large/who (local.get $who))
+                    (unreachable)))
+               (local.get $len))
 
          (func $make-string (type $Prim12)
-               (param $n-raw  (ref eq))    ;; fixnum
+               (param $n-raw  (ref eq))    ;; exact nonnegative integer
                (param $ch-raw (ref eq))    ;; optional immediate character
                (result        (ref eq))
 
@@ -515,16 +556,11 @@
                (local $ch-tagged  i32)
                (local $ch         i32)
                ;; --- Type check for length ---
-               (if (i32.eqz (ref.test (ref i31) (local.get $n-raw)))
-                   (then (call $raise-make-string:bad-length (local.get $n-raw))))
-               (if (i32.ne (i32.and (i31.get_u (ref.cast (ref i31) (local.get $n-raw)))
-                                    (i32.const 1))
-                           (i32.const 0))
-                   (then (call $raise-make-string:bad-length (local.get $n-raw))))
-               ;; --- Decode length ---
-               (local.set $n (i32.shr_s (i31.get_s (ref.cast (ref i31) (local.get $n-raw))) (i32.const 1)))
-               (if (i32.lt_s (local.get $n) (i32.const 0))
-                   (then (call $raise-make-string:bad-length (local.get $n-raw))))
+               (local.set $n
+                          (call $string-length/i32/who
+                                (global.get $symbol:make-string)
+                                (local.get $n-raw)
+                                (global.get $string:exact-nonnegative-integer?)))
                ;; --- Handle optional character ---
                (if (ref.eq (local.get $ch-raw) (global.get $missing))
                    (then (local.set $ch (i32.const 0)))
@@ -632,26 +668,13 @@
                (local $res  (ref eq))
                (local $cp   i32)
                (local $str  (ref $String))
-               (local $bits i32)
 
                ;; --- Check arguments ---
-               (if (i32.eqz (ref.test (ref i31) (local.get $n-raw)))
-                   (then (call $raise-build-string:bad-length (local.get $n-raw))
-                         (unreachable)))
-               (local.set $bits
-                          (i31.get_u
-                           (ref.cast (ref i31) (local.get $n-raw))))
-               (if (i32.and (local.get $bits) (i32.const 1))
-                   (then (call $raise-build-string:bad-length (local.get $n-raw))
-                         (unreachable)))
                (local.set $n
-                          (i32.shr_s
-                           (i31.get_s
-                            (ref.cast (ref i31) (local.get $n-raw)))
-                           (i32.const 1)))
-               (if (i32.lt_s (local.get $n) (i32.const 0))
-                   (then (call $raise-build-string:bad-length (local.get $n-raw))
-                         (unreachable)))
+                          (call $string-length/i32/who
+                                (global.get $symbol:build-string)
+                                (local.get $n-raw)
+                                (global.get $string:exact-nonnegative-integer?)))
                (if (ref.eq (call $procedure? (local.get $proc))
                            (global.get $false))
                    (then (call $raise-argument-error1
