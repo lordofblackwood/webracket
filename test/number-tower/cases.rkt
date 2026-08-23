@@ -709,6 +709,24 @@
                (and (number? z) (complex? z) (not (real? z)) (inexact? z)))
             #:gate? #t
             #:note "Unary complex atan uses the logarithmic branch formula.")
+   (nt-case 'asin-real-out-of-domain-exact
+            'complex-transcendental
+            '(let ([z (asin 2)])
+               (and (number? z) (complex? z) (not (real? z)) (inexact? z)))
+            #:gate? #t
+            #:note "asin exits the real line for exact values above 1.")
+   (nt-case 'acos-real-out-of-domain-exact
+            'complex-transcendental
+            '(let ([z (acos 2)])
+               (and (number? z) (complex? z) (not (real? z)) (inexact? z)))
+            #:gate? #t
+            #:note "acos exits the real line for exact values above 1.")
+   (nt-case 'asin-real-out-of-domain-flonum
+            'complex-transcendental
+            '(let ([z (asin -2.0)])
+               (and (number? z) (complex? z) (not (real? z)) (inexact? z)))
+            #:gate? #t
+            #:note "asin exits the real line for inexact values below -1.")
    (nt-case 'complex-expt-exact-integer
             'complex-expt
             '(expt 1+2i 2)

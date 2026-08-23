@@ -3452,6 +3452,7 @@
               (define inbits  (caddr p))
               (define outbits (cadddr p))
               (define complex-helper (list-ref p 4))
+              (define out-of-real-domain? (memq name '(asin acos)))
               `(func ,(string->symbol (format "$~a" name))
                      (type $Prim1)
                      (param $x (ref eq))
@@ -3476,6 +3477,18 @@
                               (then
                                (if (i32.eq (local.get $bits) (i32.const ,inbits))
                                    (then (return (ref.i31 (i32.const ,outbits)))))
+                               ,@(if out-of-real-domain?
+                                     `((if (f64.gt
+                                            (f64.abs
+                                             (f64.convert_i32_s
+                                              (i32.shr_s (local.get $bits)
+                                                         (i32.const 1))))
+                                            (f64.const 1.0))
+                                           (then
+                                            (return
+                                             (call ,complex-helper
+                                                   (local.get $x))))))
+                                     '())
                                (return (struct.new $Flonum
                                                    (i32.const 0)
                                                    (call ,js
@@ -3490,12 +3503,32 @@
                          (then
                           (local.set $fl (ref.cast (ref $Flonum) (local.get $x)))
                           (local.set $f64 (struct.get $Flonum $v (local.get $fl)))
+                          ,@(if out-of-real-domain?
+                                `((if (f64.gt (f64.abs (local.get $f64))
+                                               (f64.const 1.0))
+                                      (then
+                                       (return
+                                        (call ,complex-helper
+                                              (local.get $x))))))
+                                '())
                           (return (struct.new $Flonum
                                                (i32.const 0)
                                                (call ,js (local.get $f64))))))
 
                      (if (call $exact-rational?/i32 (local.get $x))
                          (then
+                          ,@(if out-of-real-domain?
+                                `((if (i32.gt_s
+                                       (call $exact-rational-compare/i32
+                                             (call $exact-rational-abs
+                                                   (local.get $x))
+                                             (global.get $one))
+                                       (i32.const 0))
+                                      (then
+                                       (return
+                                        (call ,complex-helper
+                                              (local.get $x))))))
+                                '())
                           (return
                            (struct.new $Flonum
                                        (i32.const 0)
