@@ -412,6 +412,46 @@
          "guard-for-prop:equal+hash"
          "procedure-arity-includes/c 4"
          "given:")))
+ (list "prop:equal+hash bignum hash results truncate to fixnums"
+       (let-values ([(st make-p p? p-ref p-set!)
+                     (make-struct-type 'big-hash-prop
+                                       #f
+                                       0
+                                       0
+                                       #f
+                                       (list (cons prop:equal+hash
+                                                   (list
+                                                    (lambda (self other recur)
+                                                      #t)
+                                                    (lambda (self recur)
+                                                      too-large-struct-index)
+                                                    (lambda (self recur)
+                                                      (+ too-large-struct-index 1))))))])
+         (let ([p (make-p)])
+           (and (fixnum? (equal-hash-code p))
+                (fixnum? (equal-always-hash-code p))
+                (equal? (equal-hash-code p) 0)
+                (equal? (equal-always-hash-code p) 0)))))
+ (list "prop:equal+hash hash result contract errors are catchable"
+       (let-values ([(st make-p p? p-ref p-set!)
+                     (make-struct-type 'bad-hash-prop
+                                       #f
+                                       0
+                                       0
+                                       #f
+                                       (list (cons prop:equal+hash
+                                                   (list
+                                                    (lambda (self other recur)
+                                                      #t)
+                                                    (lambda (self recur)
+                                                      #f)
+                                                    (lambda (self recur)
+                                                      #f)))))])
+         (catch-contract/contains?
+          (lambda () (equal-hash-code (make-p)))
+          "equal-hash-code"
+          "exact-integer?"
+          "given: #f")))
  (list "struct type property predicate procedure property errors are catchable with who"
        (let-values ([(prop:p p? p-ref) (make-struct-type-property 'p)])
          (and

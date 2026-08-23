@@ -42,7 +42,8 @@
 ;; hash-runtime-symbol-constants : (listof symbol?)
 ;;   Declare symbols used by public hash contract checks.
 (define hash-runtime-symbol-constants
-  '(hash-eq?
+  '(equal-hash-code
+    hash-eq?
     hash-eqv?
     hash-equal?
     hash-equal-always?

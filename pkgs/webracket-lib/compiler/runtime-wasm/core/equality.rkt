@@ -52,6 +52,7 @@
     $equal+hash-recur/hash
     $equal+hash-recur/hash-always
     $struct-equal+hash-apply
+    $hash-code-result->i32
     $struct-equal+hash-hash
     $equal-always?/struct
     $equal-always?
@@ -564,6 +565,29 @@
                                 (local.get $args)
                                 (local.get $inv)))
 
+         ;; hash-code-result->i32 : any/c -> i32
+         ;;   Truncate a custom prop:equal+hash result to WebRacket fixnum bits.
+         (func $hash-code-result->i32
+               (param $result (ref eq))
+               (result i32)
+
+               (local $truncated (ref eq))
+
+               (if (ref.eq (call $exact-integer? (local.get $result))
+                           (global.get $false))
+                   (then
+                    (call $raise-argument-error1
+                          (global.get $symbol:equal-hash-code)
+                          (global.get $string:exact-integer?)
+                          (local.get $result))
+                    (unreachable)))
+               (local.set $truncated
+                          (call $integer-bitwise-and/2
+                                (local.get $result)
+                                (ref.i31 (i32.const 1073741822))))
+               (call $exact-nonnegative-integer->i32/saturating
+                     (local.get $truncated)))
+
          (func $struct-equal+hash-hash
                (param $info (ref $Array))
                (param $self (ref $Struct))
@@ -578,7 +602,6 @@
                (local $mode-val (ref eq))
                (local $recur    (ref eq))
                (local $result   (ref eq))
-               (local $hash     (ref i31))
                (local $value    i32)
 
                ;; Initialize non-defaultable locals
@@ -629,8 +652,9 @@
                                          (local.get $args)
                                          (local.get $inv)))))
 
-               (local.set $hash (ref.cast (ref i31) (local.get $result)))
-               (local.set $value (i32.shr_s (i31.get_s (local.get $hash)) (i32.const 1)))
+               (local.set $value
+                          (call $hash-code-result->i32
+                                (local.get $result)))
                (local.get $value))
 
          (func $equal-always?/struct
