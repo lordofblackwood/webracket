@@ -647,6 +647,26 @@
             '(< 9007199254740993 +nan.0)
             #:gate? #t
             #:note "Mixed comparisons with NaN are unordered and return #f.")
+   (nt-case 'mixed-rational-flonum-not-equal
+            'integer-ordering
+            '(= 1/10 0.1)
+            #:gate? #t
+            #:note "Mixed rational/flonum equality compares against the exact binary flonum value.")
+   (nt-case 'mixed-rational-flonum-less-than
+            'integer-ordering
+            '(< 1/10 0.1)
+            #:gate? #t
+            #:note "The exact 1/10 is less than the binary flonum 0.1.")
+   (nt-case 'mixed-flonum-rational-greater-than
+            'integer-ordering
+            '(> 0.1 1/10)
+            #:gate? #t
+            #:note "Mixed rational/flonum ordering handles the flonum-left case.")
+   (nt-case 'mixed-rational-flonum-exact-tie
+            'integer-ordering
+            '(= 1/2 0.5)
+            #:gate? #t
+            #:note "Exactly representable rational/flonum pairs still compare equal.")
    (nt-case 'bignum-min-exact-only
             'integer-ordering
             '(min 9007199254740993 2)

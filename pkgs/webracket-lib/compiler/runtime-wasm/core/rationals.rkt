@@ -851,6 +851,27 @@
                  (local.get $num)
                  (local.get $den)))
 
+     ;; $exact-rational-flonum-compare/i32 : exact-rational? flonum? -> integer?
+     ;;   Compare an exact rational against a flonum's exact binary value.
+     ;;   Return 2 for unordered NaN comparisons.
+     (func $exact-rational-flonum-compare/i32
+           (param $x    (ref eq))
+           (param $y/fl (ref $Flonum))
+           (result i32)
+
+           (local $y f64)
+
+           (local.set $y (struct.get $Flonum $v (local.get $y/fl)))
+           (if (f64.ne (local.get $y) (local.get $y))
+               (then (return (i32.const 2))))
+           (if (f64.eq (local.get $y) (f64.const +inf))
+               (then (return (i32.const -1))))
+           (if (f64.eq (local.get $y) (f64.const -inf))
+               (then (return (i32.const 1))))
+           (call $exact-rational-compare/i32
+                 (local.get $x)
+                 (call $f64->exact-rational (local.get $y))))
+
      ;; $exact-rational-add/2 : exact-rational? exact-rational? -> exact-rational?
      ;;   Add exact rational values and normalize the result.
      (func $exact-rational-add/2

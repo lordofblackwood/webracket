@@ -3712,23 +3712,26 @@
                                            (i32.sub (i32.const 0)
                                                    (local.get $cmp/i32)))))
                            ,@(cmp-result->boolean who)))
-                      ;; --- Rational/flonum mixed cases use inexact comparison for now. ---
+                      ;; --- Rational/flonum mixed cases compare against the exact binary flonum value. ---
                       (if (i32.and (local.get $x/is-rat) (local.get $y/is-fl))
                           (then
-                           (return
-                            (call ,flcmp
-                                  (struct.new $Flonum
-                                              (i32.const 0)
-                                              (call $exact-rational->f64 (local.get $x)))
-                                  (ref.cast (ref $Flonum) (local.get $y))))))
+                           (local.set $cmp/i32
+                                      (call $exact-rational-flonum-compare/i32
+                                            (local.get $x)
+                                            (ref.cast (ref $Flonum) (local.get $y))))
+                           ,@(cmp-result->boolean who)))
                       (if (i32.and (local.get $x/is-fl) (local.get $y/is-rat))
                           (then
-                           (return
-                            (call ,flcmp
-                                  (ref.cast (ref $Flonum) (local.get $x))
-                                  (struct.new $Flonum
-                                              (i32.const 0)
-                                              (call $exact-rational->f64 (local.get $y)))))))
+                           (local.set $cmp/i32
+                                      (call $exact-rational-flonum-compare/i32
+                                            (local.get $y)
+                                            (ref.cast (ref $Flonum) (local.get $x))))
+                           (if (i32.ne (local.get $cmp/i32) (i32.const 2))
+                               (then
+                                (local.set $cmp/i32
+                                           (i32.sub (i32.const 0)
+                                                    (local.get $cmp/i32)))))
+                           ,@(cmp-result->boolean who)))
                       ;; --- If both are fixnums, use fx< ---
                       (if (i32.and (local.get $x/is-fx) (local.get $y/is-fx))
                           (then (return (call ,fxcmp (local.get $x) (local.get $y)))))
