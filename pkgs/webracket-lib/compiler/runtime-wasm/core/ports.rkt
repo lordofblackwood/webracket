@@ -2618,8 +2618,6 @@
            (local $res       (ref eq))
            (local $byte      i32)
            (local $dest-idx  i32)
-           (local $raw-start i32)
-           (local $raw-end   i32)
 
            ;; --- Validate byte string argument ---
            (if (i32.eqz (ref.test (ref $Bytes) (local.get $bstr)))
@@ -2644,37 +2642,25 @@
            ;; --- Decode optional start index ---
            (if (ref.eq (local.get $start) (global.get $missing))
                (then (local.set $from (i32.const 0)))
-               (else (if (ref.test (ref i31) (local.get $start))
-                         (then (local.set $raw-start (i31.get_s (ref.cast (ref i31) (local.get $start))))
-                               (if (i32.eqz (i32.and (local.get $raw-start) (i32.const 1)))
-                                   (then (local.set $from (i32.shr_s (local.get $raw-start) (i32.const 1)))
-                                         (if (i32.lt_s (local.get $from) (i32.const 0))
-                                             (then (call $raise-port-bytes-index-expected
-                                                         (local.get $who)
-                                                         (local.get $start)))))
-                                   (else (call $raise-port-bytes-index-expected
-                                               (local.get $who)
-                                               (local.get $start)))))
-                         (else (call $raise-port-bytes-index-expected
-                                     (local.get $who)
-                                     (local.get $start))))))
+               (else
+                (local.set $from
+                           (call $exact-nonnegative-integer->i32/saturating
+                                 (local.get $start)))
+                (if (i32.lt_s (local.get $from) (i32.const 0))
+                    (then (call $raise-port-bytes-index-expected
+                                (local.get $who)
+                                (local.get $start))))))
            ;; --- Decode optional end index ---
            (if (ref.eq (local.get $end) (global.get $missing))
                (then (local.set $to (local.get $len)))
-               (else (if (ref.test (ref i31) (local.get $end))
-                         (then (local.set $raw-end (i31.get_s (ref.cast (ref i31) (local.get $end))))
-                               (if (i32.eqz (i32.and (local.get $raw-end) (i32.const 1)))
-                                   (then (local.set $to (i32.shr_s (local.get $raw-end) (i32.const 1)))
-                                         (if (i32.lt_s (local.get $to) (i32.const 0))
-                                             (then (call $raise-port-bytes-index-expected
-                                                         (local.get $who)
-                                                         (local.get $end)))))
-                                   (else (call $raise-port-bytes-index-expected
-                                               (local.get $who)
-                                               (local.get $end)))))
-                         (else (call $raise-port-bytes-index-expected
-                                     (local.get $who)
-                                     (local.get $end))))))
+               (else
+                (local.set $to
+                           (call $exact-nonnegative-integer->i32/saturating
+                                 (local.get $end)))
+                (if (i32.lt_s (local.get $to) (i32.const 0))
+                    (then (call $raise-port-bytes-index-expected
+                                (local.get $who)
+                                (local.get $end))))))
            ;; --- Bounds checks ---
            (if (i32.gt_u (local.get $from) (local.get $to))
                (then (call $raise-bad-port-bytes-range
@@ -2793,8 +2779,6 @@
            (local $tagged   i32)
            (local $cp       i32)
            (local $dest-idx i32)
-           (local $raw-start i32)
-           (local $raw-end   i32)
 
            ;; --- Validate string argument ---
            (if (i32.eqz (ref.test (ref $String) (local.get $str)))
@@ -2819,37 +2803,25 @@
            ;; --- Decode optional start index ---
            (if (ref.eq (local.get $start) (global.get $missing))
                (then (local.set $from (i32.const 0)))
-               (else (if (ref.test (ref i31) (local.get $start))
-                         (then (local.set $raw-start (i31.get_s (ref.cast (ref i31) (local.get $start))))
-                               (if (i32.eqz (i32.and (local.get $raw-start) (i32.const 1)))
-                                   (then (local.set $from (i32.shr_s (local.get $raw-start) (i32.const 1)))
-                                         (if (i32.lt_s (local.get $from) (i32.const 0))
-                                             (then (call $raise-port-range-index-expected
-                                                         (global.get $symbol:read-string!)
-                                                         (local.get $start)))))
-                                   (else (call $raise-port-range-index-expected
-                                               (global.get $symbol:read-string!)
-                                               (local.get $start)))))
-                         (else (call $raise-port-range-index-expected
-                                     (global.get $symbol:read-string!)
-                                     (local.get $start))))))
+               (else
+                (local.set $from
+                           (call $exact-nonnegative-integer->i32/saturating
+                                 (local.get $start)))
+                (if (i32.lt_s (local.get $from) (i32.const 0))
+                    (then (call $raise-port-range-index-expected
+                                (global.get $symbol:read-string!)
+                                (local.get $start))))))
            ;; --- Decode optional end index ---
            (if (ref.eq (local.get $end) (global.get $missing))
                (then (local.set $to (local.get $len)))
-               (else (if (ref.test (ref i31) (local.get $end))
-                         (then (local.set $raw-end (i31.get_s (ref.cast (ref i31) (local.get $end))))
-                               (if (i32.eqz (i32.and (local.get $raw-end) (i32.const 1)))
-                                   (then (local.set $to (i32.shr_s (local.get $raw-end) (i32.const 1)))
-                                         (if (i32.lt_s (local.get $to) (i32.const 0))
-                                             (then (call $raise-port-range-index-expected
-                                                         (global.get $symbol:read-string!)
-                                                         (local.get $end)))))
-                                   (else (call $raise-port-range-index-expected
-                                               (global.get $symbol:read-string!)
-                                               (local.get $end)))))
-                         (else (call $raise-port-range-index-expected
-                                     (global.get $symbol:read-string!)
-                                     (local.get $end))))))
+               (else
+                (local.set $to
+                           (call $exact-nonnegative-integer->i32/saturating
+                                 (local.get $end)))
+                (if (i32.lt_s (local.get $to) (i32.const 0))
+                    (then (call $raise-port-range-index-expected
+                                (global.get $symbol:read-string!)
+                                (local.get $end))))))
            ;; --- Bounds checks ---
            (if (i32.gt_u (local.get $from) (local.get $to))
                (then (call $raise-bad-string-range

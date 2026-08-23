@@ -46,6 +46,7 @@
 
 (define port-input-plain-given
   "given: #(struct port-input-plain)")
+(define too-large-port-index 536870912)
 
 (list
  (list "basic input port contracts are catchable"
@@ -337,6 +338,38 @@
                     "CUSTOM-BYTES")])
            (error-value->string-handler old)
            ok)))
+ (list "input byte/string bignum range errors are catchable with who"
+       (and
+        (catch-contract/contains?
+         (lambda ()
+           (read-bytes! (make-bytes 3 0)
+                        (open-input-bytes #"abc")
+                        too-large-port-index))
+         "read-bytes!"
+         "starting index is out of range")
+        (catch-contract/contains?
+         (lambda ()
+           (read-bytes! (make-bytes 3 0)
+                        (open-input-bytes #"abc")
+                        0
+                        too-large-port-index))
+         "read-bytes!"
+         "ending index is out of range")
+        (catch-contract/contains?
+         (lambda ()
+           (read-string! (make-string 3 #\_)
+                         (open-input-string "abc")
+                         too-large-port-index))
+         "read-string!"
+         "starting index is out of range")
+        (catch-contract/contains?
+         (lambda ()
+           (read-string! (make-string 3 #\_)
+                         (open-input-string "abc")
+                         0
+                         too-large-port-index))
+         "read-string!"
+         "ending index is out of range")))
  (list "custom input-port peek backends are catchable unsupported errors"
        (and
         (catch-unsupported/contains?
