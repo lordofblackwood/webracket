@@ -409,6 +409,26 @@
  (list "peek byte/string bignum skips reach eof"
        (and
         (eof-object?
+         (peek-byte (open-input-bytes #"abc")
+                    too-large-port-index))
+        (eof-object?
+         (peek-char (open-input-string "abc")
+                    too-large-port-index))
+        (eof-object?
+         (peek-byte-or-special (open-input-bytes #"abc")
+                               too-large-port-index))
+        (eof-object?
+         (peek-char-or-special (open-input-string "abc")
+                               too-large-port-index))
+        (eof-object?
+         (peek-bytes 1
+                     too-large-port-index
+                     (open-input-bytes #"abc")))
+        (eof-object?
+         (peek-string 1
+                      too-large-port-index
+                      (open-input-string "abc")))
+        (eof-object?
          (peek-bytes! (make-bytes 1 0)
                       too-large-port-index
                       (open-input-bytes #"abc")))
@@ -425,6 +445,14 @@
         (catch-fail/contains?
          (lambda () (read-string too-large-port-index (open-input-string "abc")))
          "read-string"
+         "requested length is too large for WebRacket")
+        (catch-fail/contains?
+         (lambda () (peek-bytes too-large-port-index 0 (open-input-bytes #"abc")))
+         "peek-bytes"
+         "requested length is too large for WebRacket")
+        (catch-fail/contains?
+         (lambda () (peek-string too-large-port-index 0 (open-input-string "abc")))
+         "peek-string"
          "requested length is too large for WebRacket")))
  (list "custom input-port peek backends are catchable unsupported errors"
        (and
