@@ -33,6 +33,7 @@
     (list-index-reaches-non-pair ": index reaches a non-pair")
     (list-index      "\n  index: ")
     (list-in         "\n  in: ")
+    (list-length-too-large ": requested length is too large for WebRacket")
     (list-at-least-elements-prefix "a list with at least ")
     (list-at-least-elements-suffix " elements")
     (list-at-least-pairs-prefix "a (possibly improper) list with at least ")
@@ -756,6 +757,44 @@
                      (local.get $who)
                      (global.get $string:exact-nonnegative-integer?)
                      (local.get $x)))
+         (func $raise-list-length-too-large/who
+               (param $who (ref eq))
+
+               (local $message (ref $String))
+
+               (local.set $message
+                          (call $string-append/2
+                                (call $format/display (local.get $who))
+                                (global.get $string:list-length-too-large)))
+               (call $raise
+                     (call $exn:fail/make
+                           (local.get $message)
+                           (call $current-continuation-marks
+                                 (global.get $missing)))
+                     (global.get $true))
+               (unreachable))
+         (func $list-count/i32/who
+               (param $who   (ref eq))
+               (param $n-raw (ref eq))
+               (result i32)
+
+               (if (ref.eq (call $exact-nonnegative-integer? (local.get $n-raw))
+                           (global.get $false))
+                   (then
+                    (call $raise-exact-nonnegative-integer-expected/who
+                          (local.get $who)
+                          (local.get $n-raw))
+                    (unreachable)))
+               (if (i32.gt_s
+                    (call $integer-compare/i32
+                          (local.get $n-raw)
+                          (call $integer-from-i64 (i64.const 536870911)))
+                    (i32.const 0))
+                   (then
+                    (call $raise-list-length-too-large/who (local.get $who))
+                    (unreachable)))
+               (call $exact-nonnegative-integer->i32/saturating
+                     (local.get $n-raw)))
          (func $raise-bad-list-ref-index/who
                (param $who (ref eq))
                (param $xs  (ref eq))
@@ -1562,25 +1601,10 @@
 
               (local $n i32)
 
-              ;; Check and unwrap fixnum
-              (if (i32.or
-                   (i32.eqz (ref.test (ref i31) (local.get $n-raw)))
-                   (i32.ne (i32.and (i31.get_u (ref.cast (ref i31) (local.get $n-raw))) (i32.const 1))
-                           (i32.const 0)))
-                  (then (call $raise-argument-error1
-                              (global.get $symbol:make-list)
-                              (global.get $string:exact-nonnegative-integer?)
-                              (local.get $n-raw))
-                        (unreachable)))
-              (local.set $n (i32.shr_s (i31.get_s (ref.cast (ref i31) (local.get $n-raw))) (i32.const 1)))
-              ;; Negative counts must fail before allocation; unsigned decoding
-              ;; would otherwise turn them into huge positive counts.
-              (if (i32.lt_s (local.get $n) (i32.const 0))
-                  (then (call $raise-argument-error1
-                              (global.get $symbol:make-list)
-                              (global.get $string:exact-nonnegative-integer?)
-                              (local.get $n-raw))
-                        (unreachable)))
+              (local.set $n
+                         (call $list-count/i32/who
+                               (global.get $symbol:make-list)
+                               (local.get $n-raw)))
               (call $make-list/checked (local.get $n) (local.get $v)))))
 
     ;; drop/who : symbol? list? exact-nonnegative-integer? -> any/c
@@ -5266,26 +5290,10 @@
              (local $f   (ref $Procedure))
              (local $finv (ref $ProcedureInvoker))
 
-             ;; Check and unwrap n
-             (if (i32.or
-                  (i32.eqz (ref.test (ref i31) (local.get $n-raw)))
-                  (i32.ne (i32.and (i31.get_u (ref.cast (ref i31) (local.get $n-raw))) (i32.const 1))
-                          (i32.const 0)))
-                 (then (call $raise-argument-error1
-                             (global.get $symbol:build-list)
-                             (global.get $string:exact-nonnegative-integer?)
-                             (local.get $n-raw))
-                       (unreachable)))
              (local.set $n
-                        (i32.shr_s
-                         (i31.get_s (ref.cast (ref i31) (local.get $n-raw)))
-                         (i32.const 1)))
-             (if (i32.lt_s (local.get $n) (i32.const 0))
-                 (then (call $raise-argument-error1
-                             (global.get $symbol:build-list)
-                             (global.get $string:exact-nonnegative-integer?)
-                             (local.get $n-raw))
-                       (unreachable)))
+                        (call $list-count/i32/who
+                              (global.get $symbol:build-list)
+                              (local.get $n-raw)))
 
              ;; Check procedure and fetch invoker
              (if (ref.eq (call $procedure? (local.get $proc))

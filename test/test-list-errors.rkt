@@ -9,8 +9,22 @@
     (thunk)
     #f))
 
+(define (catch-fail/message thunk)
+  (with-handlers ([exn:fail?
+                   (lambda (exn)
+                     (exn-message exn))])
+    (thunk)
+    #f))
+
 (define (catch-contract/contains? thunk . needles)
   (let ([message (catch-contract/message thunk)])
+    (and message
+         (andmap (lambda (needle)
+                   (string-contains? message needle))
+                 needles))))
+
+(define (catch-fail/contains? thunk . needles)
+  (let ([message (catch-fail/message thunk)])
     (and message
          (andmap (lambda (needle)
                    (string-contains? message needle))
@@ -115,6 +129,14 @@
          "build-list"
          "exact-nonnegative-integer?"
          "given: -1")
+        (catch-fail/contains?
+         (lambda () (make-list 536870912 'x))
+         "make-list"
+         "requested length is too large for WebRacket")
+        (catch-fail/contains?
+         (lambda () (build-list 536870912 values))
+         "build-list"
+         "requested length is too large for WebRacket")
           (catch-contract/contains?
            (lambda () (build-list 1 #f))
            "build-list"
