@@ -798,6 +798,376 @@
                (then (return (call $integer-negate (local.get $mag)))))
            (local.get $mag))
 
+     ;; $integer-nonnegative-limb-count/i32 : exact-nonnegative-integer? -> i32
+     ;;   Return the number of finite magnitude limbs needed for x.
+     (func $integer-nonnegative-limb-count/i32
+           (param $x (ref eq))
+           (result i32)
+
+           (if (ref.test (ref i31) (local.get $x))
+               (then
+                (if (i32.eqz (i31.get_s (ref.cast (ref i31) (local.get $x))))
+                    (then (return (i32.const 0))))
+                (return (i32.const 1))))
+           (array.len
+            (struct.get $Bignum $limbs
+                        (ref.cast (ref $Bignum) (local.get $x)))))
+
+     ;; $integer-nonnegative-limb/u32 : exact-nonnegative-integer? i32 -> i32
+     ;;   Return limb i of x, or 0 beyond x's finite magnitude.
+     (func $integer-nonnegative-limb/u32
+           (param $x (ref eq))
+           (param $i i32)
+           (result i32)
+
+           (local $limbs (ref $I32Array))
+
+           (if (ref.test (ref i31) (local.get $x))
+               (then
+                (if (i32.eqz (local.get $i))
+                    (then
+                     (return
+                      (i32.shr_u
+                       (i31.get_s (ref.cast (ref i31) (local.get $x)))
+                       (i32.const 1)))))
+                (return (i32.const 0))))
+           (local.set $limbs
+                      (struct.get $Bignum $limbs
+                                  (ref.cast (ref $Bignum) (local.get $x))))
+           (if (i32.lt_u (local.get $i) (array.len (local.get $limbs)))
+               (then
+                (return
+                 (array.get $I32Array
+                            (local.get $limbs)
+                            (local.get $i)))))
+           (i32.const 0))
+
+     ;; $integer-bitwise-and/nonnegative : exact-nonnegative-integer? exact-nonnegative-integer? -> exact-nonnegative-integer?
+     ;;   Compute finite-limb bitwise and for nonnegative exact integers.
+     (func $integer-bitwise-and/nonnegative
+           (param $x (ref eq))
+           (param $y (ref eq))
+           (result (ref eq))
+
+           (local $x-len   i32)
+           (local $y-len   i32)
+           (local $out-len i32)
+           (local $out     (ref $I32Array))
+           (local $i       i32)
+
+           (local.set $x-len (call $integer-nonnegative-limb-count/i32
+                                   (local.get $x)))
+           (local.set $y-len (call $integer-nonnegative-limb-count/i32
+                                   (local.get $y)))
+           (local.set $out-len
+                      (select (local.get $x-len)
+                              (local.get $y-len)
+                              (i32.lt_u (local.get $x-len)
+                                        (local.get $y-len))))
+           (if (i32.eqz (local.get $out-len))
+               (then (return (ref.i31 (i32.const 0)))))
+           (local.set $out (array.new_default $I32Array
+                                              (local.get $out-len)))
+           (block $done
+                  (loop $loop
+                        (br_if $done
+                               (i32.ge_u (local.get $i)
+                                         (local.get $out-len)))
+                        (array.set $I32Array
+                                   (local.get $out)
+                                   (local.get $i)
+                                   (i32.and
+                                    (call $integer-nonnegative-limb/u32
+                                          (local.get $x)
+                                          (local.get $i))
+                                    (call $integer-nonnegative-limb/u32
+                                          (local.get $y)
+                                          (local.get $i))))
+                        (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                        (br $loop)))
+           (call $bignum-normalize (i32.const 1) (local.get $out)))
+
+     ;; $integer-bitwise-ior/nonnegative : exact-nonnegative-integer? exact-nonnegative-integer? -> exact-nonnegative-integer?
+     ;;   Compute finite-limb bitwise inclusive-or for nonnegative exact integers.
+     (func $integer-bitwise-ior/nonnegative
+           (param $x (ref eq))
+           (param $y (ref eq))
+           (result (ref eq))
+
+           (local $x-len   i32)
+           (local $y-len   i32)
+           (local $out-len i32)
+           (local $out     (ref $I32Array))
+           (local $i       i32)
+
+           (local.set $x-len (call $integer-nonnegative-limb-count/i32
+                                   (local.get $x)))
+           (local.set $y-len (call $integer-nonnegative-limb-count/i32
+                                   (local.get $y)))
+           (local.set $out-len
+                      (select (local.get $x-len)
+                              (local.get $y-len)
+                              (i32.gt_u (local.get $x-len)
+                                        (local.get $y-len))))
+           (if (i32.eqz (local.get $out-len))
+               (then (return (ref.i31 (i32.const 0)))))
+           (local.set $out (array.new_default $I32Array
+                                              (local.get $out-len)))
+           (block $done
+                  (loop $loop
+                        (br_if $done
+                               (i32.ge_u (local.get $i)
+                                         (local.get $out-len)))
+                        (array.set $I32Array
+                                   (local.get $out)
+                                   (local.get $i)
+                                   (i32.or
+                                    (call $integer-nonnegative-limb/u32
+                                          (local.get $x)
+                                          (local.get $i))
+                                    (call $integer-nonnegative-limb/u32
+                                          (local.get $y)
+                                          (local.get $i))))
+                        (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                        (br $loop)))
+           (call $bignum-normalize (i32.const 1) (local.get $out)))
+
+     ;; $integer-bitwise-xor/nonnegative : exact-nonnegative-integer? exact-nonnegative-integer? -> exact-nonnegative-integer?
+     ;;   Compute finite-limb bitwise exclusive-or for nonnegative exact integers.
+     (func $integer-bitwise-xor/nonnegative
+           (param $x (ref eq))
+           (param $y (ref eq))
+           (result (ref eq))
+
+           (local $x-len   i32)
+           (local $y-len   i32)
+           (local $out-len i32)
+           (local $out     (ref $I32Array))
+           (local $i       i32)
+
+           (local.set $x-len (call $integer-nonnegative-limb-count/i32
+                                   (local.get $x)))
+           (local.set $y-len (call $integer-nonnegative-limb-count/i32
+                                   (local.get $y)))
+           (local.set $out-len
+                      (select (local.get $x-len)
+                              (local.get $y-len)
+                              (i32.gt_u (local.get $x-len)
+                                        (local.get $y-len))))
+           (if (i32.eqz (local.get $out-len))
+               (then (return (ref.i31 (i32.const 0)))))
+           (local.set $out (array.new_default $I32Array
+                                              (local.get $out-len)))
+           (block $done
+                  (loop $loop
+                        (br_if $done
+                               (i32.ge_u (local.get $i)
+                                         (local.get $out-len)))
+                        (array.set $I32Array
+                                   (local.get $out)
+                                   (local.get $i)
+                                   (i32.xor
+                                    (call $integer-nonnegative-limb/u32
+                                          (local.get $x)
+                                          (local.get $i))
+                                    (call $integer-nonnegative-limb/u32
+                                          (local.get $y)
+                                          (local.get $i))))
+                        (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                        (br $loop)))
+           (call $bignum-normalize (i32.const 1) (local.get $out)))
+
+     ;; $integer-bitwise-andnot/nonnegative : exact-nonnegative-integer? exact-nonnegative-integer? -> exact-nonnegative-integer?
+     ;;   Compute x & (bitwise-not y) for nonnegative exact integers.
+     (func $integer-bitwise-andnot/nonnegative
+           (param $x (ref eq))
+           (param $y (ref eq))
+           (result (ref eq))
+
+           (local $out-len i32)
+           (local $out     (ref $I32Array))
+           (local $i       i32)
+
+           (local.set $out-len
+                      (call $integer-nonnegative-limb-count/i32
+                            (local.get $x)))
+           (if (i32.eqz (local.get $out-len))
+               (then (return (ref.i31 (i32.const 0)))))
+           (local.set $out (array.new_default $I32Array
+                                              (local.get $out-len)))
+           (block $done
+                  (loop $loop
+                        (br_if $done
+                               (i32.ge_u (local.get $i)
+                                         (local.get $out-len)))
+                        (array.set $I32Array
+                                   (local.get $out)
+                                   (local.get $i)
+                                   (i32.and
+                                    (call $integer-nonnegative-limb/u32
+                                          (local.get $x)
+                                          (local.get $i))
+                                    (i32.xor
+                                     (call $integer-nonnegative-limb/u32
+                                           (local.get $y)
+                                           (local.get $i))
+                                     (i32.const -1))))
+                        (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                        (br $loop)))
+           (call $bignum-normalize (i32.const 1) (local.get $out)))
+
+     ;; $integer-bitwise-complement : exact-integer? -> exact-integer?
+     ;;   Compute the infinite two's-complement bitwise not.
+     (func $integer-bitwise-complement
+           (param $x (ref eq))
+           (result (ref eq))
+
+           (call $integer-sub/2 (ref.i31 (i32.const -2)) (local.get $x)))
+
+     ;; $integer-bitwise-and/2 : exact-integer? exact-integer? -> exact-integer?
+     ;;   Compute infinite two's-complement bitwise and.
+     (func $integer-bitwise-and/2
+           (param $x (ref eq))
+           (param $y (ref eq))
+           (result (ref eq))
+
+           (local $x-neg? i32)
+           (local $y-neg? i32)
+           (local $xc     (ref eq))
+           (local $yc     (ref eq))
+
+           (local.set $xc (ref.i31 (i32.const 0)))
+           (local.set $yc (ref.i31 (i32.const 0)))
+           (local.set $x-neg? (i32.lt_s (call $integer-sign/i32 (local.get $x))
+                                        (i32.const 0)))
+           (local.set $y-neg? (i32.lt_s (call $integer-sign/i32 (local.get $y))
+                                        (i32.const 0)))
+           (if (i32.eqz (i32.or (local.get $x-neg?) (local.get $y-neg?)))
+               (then
+                (return
+                 (call $integer-bitwise-and/nonnegative
+                       (local.get $x)
+                       (local.get $y)))))
+           (if (local.get $x-neg?)
+               (then (local.set $xc (call $integer-bitwise-complement
+                                          (local.get $x)))))
+           (if (local.get $y-neg?)
+               (then (local.set $yc (call $integer-bitwise-complement
+                                          (local.get $y)))))
+           (if (i32.and (local.get $x-neg?) (local.get $y-neg?))
+               (then
+                (return
+                 (call $integer-bitwise-complement
+                       (call $integer-bitwise-ior/nonnegative
+                             (local.get $xc)
+                             (local.get $yc))))))
+           (if (local.get $x-neg?)
+               (then
+                (return
+                 (call $integer-bitwise-andnot/nonnegative
+                       (local.get $y)
+                       (local.get $xc)))))
+           (call $integer-bitwise-andnot/nonnegative
+                 (local.get $x)
+                 (local.get $yc)))
+
+     ;; $integer-bitwise-ior/2 : exact-integer? exact-integer? -> exact-integer?
+     ;;   Compute infinite two's-complement bitwise inclusive-or.
+     (func $integer-bitwise-ior/2
+           (param $x (ref eq))
+           (param $y (ref eq))
+           (result (ref eq))
+
+           (local $x-neg? i32)
+           (local $y-neg? i32)
+           (local $xc     (ref eq))
+           (local $yc     (ref eq))
+
+           (local.set $xc (ref.i31 (i32.const 0)))
+           (local.set $yc (ref.i31 (i32.const 0)))
+           (local.set $x-neg? (i32.lt_s (call $integer-sign/i32 (local.get $x))
+                                        (i32.const 0)))
+           (local.set $y-neg? (i32.lt_s (call $integer-sign/i32 (local.get $y))
+                                        (i32.const 0)))
+           (if (i32.eqz (i32.or (local.get $x-neg?) (local.get $y-neg?)))
+               (then
+                (return
+                 (call $integer-bitwise-ior/nonnegative
+                       (local.get $x)
+                       (local.get $y)))))
+           (if (local.get $x-neg?)
+               (then (local.set $xc (call $integer-bitwise-complement
+                                          (local.get $x)))))
+           (if (local.get $y-neg?)
+               (then (local.set $yc (call $integer-bitwise-complement
+                                          (local.get $y)))))
+           (if (i32.and (local.get $x-neg?) (local.get $y-neg?))
+               (then
+                (return
+                 (call $integer-bitwise-complement
+                       (call $integer-bitwise-and/nonnegative
+                             (local.get $xc)
+                             (local.get $yc))))))
+           (if (local.get $x-neg?)
+               (then
+                (return
+                 (call $integer-bitwise-complement
+                       (call $integer-bitwise-andnot/nonnegative
+                             (local.get $xc)
+                             (local.get $y))))))
+           (call $integer-bitwise-complement
+                 (call $integer-bitwise-andnot/nonnegative
+                       (local.get $yc)
+                       (local.get $x))))
+
+     ;; $integer-bitwise-xor/2 : exact-integer? exact-integer? -> exact-integer?
+     ;;   Compute infinite two's-complement bitwise exclusive-or.
+     (func $integer-bitwise-xor/2
+           (param $x (ref eq))
+           (param $y (ref eq))
+           (result (ref eq))
+
+           (local $x-neg? i32)
+           (local $y-neg? i32)
+           (local $xc     (ref eq))
+           (local $yc     (ref eq))
+
+           (local.set $xc (ref.i31 (i32.const 0)))
+           (local.set $yc (ref.i31 (i32.const 0)))
+           (local.set $x-neg? (i32.lt_s (call $integer-sign/i32 (local.get $x))
+                                        (i32.const 0)))
+           (local.set $y-neg? (i32.lt_s (call $integer-sign/i32 (local.get $y))
+                                        (i32.const 0)))
+           (if (i32.eqz (i32.or (local.get $x-neg?) (local.get $y-neg?)))
+               (then
+                (return
+                 (call $integer-bitwise-xor/nonnegative
+                       (local.get $x)
+                       (local.get $y)))))
+           (if (local.get $x-neg?)
+               (then (local.set $xc (call $integer-bitwise-complement
+                                          (local.get $x)))))
+           (if (local.get $y-neg?)
+               (then (local.set $yc (call $integer-bitwise-complement
+                                          (local.get $y)))))
+           (if (i32.and (local.get $x-neg?) (local.get $y-neg?))
+               (then
+                (return
+                 (call $integer-bitwise-xor/nonnegative
+                       (local.get $xc)
+                       (local.get $yc)))))
+           (if (local.get $x-neg?)
+               (then
+                (return
+                 (call $integer-bitwise-complement
+                       (call $integer-bitwise-xor/nonnegative
+                             (local.get $xc)
+                             (local.get $y))))))
+           (call $integer-bitwise-complement
+                 (call $integer-bitwise-xor/nonnegative
+                       (local.get $x)
+                       (local.get $yc))))
+
      ;; $bignum-divmod-u32 : bignum? i32 -> values exact-integer? exact-integer?
      ;;   Divide a positive bignum magnitude by a nonzero unsigned 32-bit limb.
      (func $bignum-divmod-u32

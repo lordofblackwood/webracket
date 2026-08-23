@@ -857,6 +857,78 @@
             #:comparison 'ignore-fixnum-width
             #:gate? #t
             #:note "bitwise-not follows infinite two's-complement for negative bignums.")
+   (nt-case 'bitwise-and-positive-bignums
+            'integer-bitwise
+            '(bitwise-and 18446744073709551615 1085102592571150095)
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "bitwise-and combines positive bignum limbs.")
+   (nt-case 'bitwise-ior-positive-bignums
+            'integer-bitwise
+            '(bitwise-ior 18446744073709551616 255)
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "bitwise-ior combines positive bignum limbs.")
+   (nt-case 'bitwise-xor-positive-bignums
+            'integer-bitwise
+            '(bitwise-xor 18446744073709551615 1085102592571150095)
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "bitwise-xor combines positive bignum limbs.")
+   (nt-case 'bitwise-and-negative-positive-bignum
+            'integer-bitwise
+            '(bitwise-and -18446744073709551616 18446744073709551615)
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "bitwise-and handles negative and positive bignum operands.")
+   (nt-case 'bitwise-ior-negative-positive-bignum
+            'integer-bitwise
+            '(bitwise-ior -18446744073709551616 255)
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "bitwise-ior handles negative and positive bignum operands.")
+   (nt-case 'bitwise-xor-negative-positive-bignum
+            'integer-bitwise
+            '(bitwise-xor -18446744073709551616 255)
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "bitwise-xor handles negative and positive bignum operands.")
+   (nt-case 'bitwise-and-negative-bignums
+            'integer-bitwise
+            '(bitwise-and -18446744073709551616 -1085102592571150096)
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "bitwise-and handles two negative bignum operands.")
+   (nt-case 'bitwise-ior-negative-bignums
+            'integer-bitwise
+            '(bitwise-ior -18446744073709551616 -1085102592571150096)
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "bitwise-ior handles two negative bignum operands.")
+   (nt-case 'bitwise-xor-negative-bignums
+            'integer-bitwise
+            '(bitwise-xor -18446744073709551616 -1085102592571150096)
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "bitwise-xor handles two negative bignum operands.")
+   (nt-case 'bitwise-and-variadic-bignum
+            'integer-bitwise
+            '(bitwise-and 18446744073709551615 281474976710655 65535)
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "Variadic bitwise-and folds through bignum intermediates.")
+   (nt-case 'bitwise-ior-variadic-bignum
+            'integer-bitwise
+            '(bitwise-ior 18446744073709551616 281474976710655 65535)
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "Variadic bitwise-ior folds through bignum intermediates.")
+   (nt-case 'bitwise-xor-variadic-bignum
+            'integer-bitwise
+            '(bitwise-xor 18446744073709551616 281474976710655 65535)
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "Variadic bitwise-xor folds through bignum intermediates.")
    (nt-case 'bitwise-bit-set-positive-bignum-set
             'integer-bitwise
             '(bitwise-bit-set? 9007199254740992 53)

@@ -3721,7 +3721,7 @@
    'generic-bitwise-runtime-only-helpers
    `(
         ,@(let ()
-            (define (gen-bitop name fxop)
+            (define (gen-bitop name integer-op)
               (define $name/2 (string->symbol (~a "$" name "/2")))
               (define $name   (string->symbol (~a "$" name)))
               (define $who    (string->symbol (~a "$symbol:" name)))
@@ -3737,7 +3737,7 @@
                                       (global.get ,$who)
                                       (local.get $y))
                                 (unreachable)))
-                      (call ,fxop (local.get $x) (local.get $y)))
+                      (call ,integer-op (local.get $x) (local.get $y)))
                 (func ,$name (type $Prim>=1)
                       (param $x0 (ref eq)) (param $xs0 (ref eq)) (result (ref eq))
                       (local $xs   (ref eq))
@@ -3766,9 +3766,9 @@
                                    (local.set $xs   (struct.get $Pair $d (local.get $node)))
                                    (br $loop)))
                       (local.get $r))))
-            (append (gen-bitop 'bitwise-and '$fxand/2)
-                    (gen-bitop 'bitwise-ior '$fxior/2)
-                    (gen-bitop 'bitwise-xor '$fxxor/2)))
+            (append (gen-bitop 'bitwise-and '$integer-bitwise-and/2)
+                    (gen-bitop 'bitwise-ior '$integer-bitwise-ior/2)
+                    (gen-bitop 'bitwise-xor '$integer-bitwise-xor/2)))
 
 
         (func $bitwise-not (type $Prim1)
