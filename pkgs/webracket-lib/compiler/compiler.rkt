@@ -2504,6 +2504,8 @@
   inexact->exact
   exact->inexact
   real->double-flonum
+  make-rectangular make-polar
+  real-part imag-part magnitude angle conjugate
   exact-round exact-floor exact-ceiling exact-truncate
   round floor ceiling truncate
   numerator denominator rationalize
@@ -19341,10 +19343,9 @@
                                 "literal" v)]))
 
     (define (complex-number-literal->expr v)
-      `(struct.new $Complex
-                   (i32.const 0)
-                   ,(real-number-literal->expr (real-part v))
-                   ,(real-number-literal->expr (imag-part v))))
+      `(call $make-rectangular/canonical
+             ,(real-number-literal->expr (real-part v))
+             ,(real-number-literal->expr (imag-part v))))
 	    )
 
   (ClosureAllocation : ClosureAllocation (ca dd) -> * ()

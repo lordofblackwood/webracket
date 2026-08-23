@@ -465,27 +465,63 @@
    (nt-case 'rectangular-literal
             'complex-basic
             1+2i
+            #:gate? #t
             #:note "Rectangular complex literal with exact components.")
    (nt-case 'unit-imaginary
             'complex-basic
             +i
+            #:gate? #t
             #:note "Abbreviated imaginary literal.")
    (nt-case 'polar-zero-angle
             'complex-basic
             2@0
+            #:gate? #t
             #:note "Polar syntax that collapses to an exact real in CS.")
    (nt-case 'make-rectangular-exact-zero
             'complex-basic
             '(make-rectangular 1 0)
+            #:gate? #t
             #:note "Exact zero imaginary component collapses to a real.")
    (nt-case 'make-rectangular-inexact-positive-zero
             'complex-basic
             '(make-rectangular 1 0.0)
+            #:gate? #t
             #:note "CS preserves the inexact zero imaginary component.")
    (nt-case 'make-rectangular-inexact-negative-zero
             'complex-basic
             '(make-rectangular 1 -0.0)
+            #:gate? #t
             #:note "CS preserves the negative zero imaginary component.")
+   (nt-case 'real-part-complex
+            'complex-basic
+            '(real-part 1+2i)
+            #:gate? #t
+            #:note "real-part extracts the rectangular real component.")
+   (nt-case 'imag-part-real-inexact
+            'complex-basic
+            '(imag-part 1.0)
+            #:gate? #t
+            #:note "imag-part of a real number is exact zero.")
+   (nt-case 'make-polar-exact-zero-magnitude
+            'complex-basic
+            '(make-polar 0 1.0)
+            #:gate? #t
+            #:note "Exact zero magnitude collapses to exact zero.")
+   (nt-case 'magnitude-exact-3-4-5
+            'complex-basic
+            '(magnitude 3+4i)
+            #:gate? #t
+            #:note "Exact complex magnitude stays exact when the root is exact.")
+   (nt-case 'angle-positive-inexact-real
+            'complex-basic
+            '(angle 1.0)
+            #:gate? #t
+            #:note "Positive inexact real angle is exact zero.")
+   (nt-case 'conjugate-inexact-positive-zero
+            'complex-basic
+            '(conjugate (make-rectangular 1 0.0))
+            #:gate? #t
+            #:note "Conjugate flips the sign of an inexact zero imaginary part.")
    (nt-case 'positive-nan
             'real-special-values
             +nan.0

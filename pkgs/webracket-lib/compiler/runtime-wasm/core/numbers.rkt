@@ -40,7 +40,8 @@
     (floating-point-bytes->real:index-line "\n  index: ")
     (inexact->exact:no-exact-representation ": no exact representation for ")
     (order-of-magnitude:positive-finite "(and/c (>/c 0.0) (not/c +inf.0))")
-    (bitwise-bit-field:end-before-start "ending index is smaller than starting index")))
+    (bitwise-bit-field:end-before-start "ending index is smaller than starting index")
+    (angle:nonzero "(not/c zero?)")))
 
 ;; number-runtime-symbol-constants : (listof symbol?)
 ;;   Declare symbols used by generic number helpers and errors.
@@ -60,6 +61,13 @@
     exact->inexact
     real->double-flonum
     zero?
+    make-rectangular
+    make-polar
+    real-part
+    imag-part
+    magnitude
+    angle
+    conjugate
     integer-sqrt
     integer-sqrt/remainder
     expt
@@ -361,11 +369,13 @@
                (global.get $false))
 
          (func $exact? (type $Prim1)
-               ;; Exact numbers are fixnums, bignums, and exact rationals.
+               ;; Exact numbers are fixnums, bignums, exact rationals, and
+               ;; complex numbers with exact components.
                (param $z (ref eq))
                (result   (ref eq))
 
                (local $bits i32)
+               (local $c (ref $Complex))
                (if (result (ref eq))
                    (ref.test (ref i31) (local.get $z))
                    (then (local.set $bits (i31.get_u (ref.cast (ref i31) (local.get $z))))
@@ -377,17 +387,53 @@
                              (i32.or (ref.test (ref $Bignum) (local.get $z))
                                      (ref.test (ref $Rational) (local.get $z)))
                              (then (global.get $true))
-                             (else (global.get $false))))))
+                             (else
+                              (if (result (ref eq))
+                                  (ref.test (ref $Complex) (local.get $z))
+                                  (then
+                                   (local.set $c (ref.cast (ref $Complex) (local.get $z)))
+                                   (if (result (ref eq))
+                                       (i32.and
+                                        (ref.eq (call $exact?
+                                                      (struct.get $Complex $real
+                                                                  (local.get $c)))
+                                                (global.get $true))
+                                        (ref.eq (call $exact?
+                                                      (struct.get $Complex $imag
+                                                                  (local.get $c)))
+                                                (global.get $true)))
+                                       (then (global.get $true))
+                                       (else (global.get $false))))
+                                  (else (global.get $false))))))))
 
          (func $inexact? (type $Prim1)
-               ;; A number is inexact if it's a flonum
+               ;; A number is inexact if it is a flonum or a complex number
+               ;; with at least one inexact component.
                (param $z (ref eq))
                (result   (ref eq))
 
+               (local $c (ref $Complex))
                (if (result (ref eq))
                    (ref.test (ref $Flonum) (local.get $z))
                    (then (global.get $true))
-                   (else (global.get $false))))
+                   (else
+                    (if (result (ref eq))
+                        (ref.test (ref $Complex) (local.get $z))
+                        (then
+                         (local.set $c (ref.cast (ref $Complex) (local.get $z)))
+                         (if (result (ref eq))
+                             (i32.or
+                              (ref.eq (call $inexact?
+                                            (struct.get $Complex $real
+                                                        (local.get $c)))
+                                      (global.get $true))
+                              (ref.eq (call $inexact?
+                                            (struct.get $Complex $imag
+                                                        (local.get $c)))
+                                      (global.get $true)))
+                             (then (global.get $true))
+                             (else (global.get $false))))
+                        (else (global.get $false))))))
 
          (func $single-flonum? (type $Prim1)
                ;; single-flonums are not supported
@@ -1566,6 +1612,18 @@
     $numerator
     $denominator
     $rationalize
+    $real-number?/i32
+    $real->f64/checked
+    $flonum-negative-sign?/i32
+    $real-negate
+    $make-rectangular/canonical
+    $make-rectangular
+    $real-part
+    $imag-part
+    $make-polar
+    $magnitude
+    $angle
+    $conjugate
     $sin
     $cos
     $tan
@@ -2620,6 +2678,304 @@
                   (then (return (call $exact->inexact
                                       (local.get $result)))))
               (local.get $result))
+
+        ;; real-number?/i32 : any/c -> i32
+        ;;   Return 1 when x is a WebRacket real number.
+        (func $real-number?/i32
+              (param $x (ref eq))
+              (result i32)
+              (i32.or
+               (call $exact-rational?/i32 (local.get $x))
+               (ref.test (ref $Flonum) (local.get $x))))
+
+        ;; real->f64/checked : symbol? real? -> f64
+        ;;   Convert a real argument to f64 for inexact complex operations.
+        (func $real->f64/checked
+              (param $who (ref eq))
+              (param $x   (ref eq))
+              (result f64)
+
+              (local $fl (ref $Flonum))
+
+              (if (ref.test (ref $Flonum) (local.get $x))
+                  (then
+                   (local.set $fl (ref.cast (ref $Flonum) (local.get $x)))
+                   (return (struct.get $Flonum $v (local.get $fl)))))
+              (if (call $exact-rational?/i32 (local.get $x))
+                  (then (return (call $exact-rational->f64
+                                      (local.get $x)))))
+              (call $raise-expected-real
+                    (local.get $who)
+                    (local.get $x))
+              (unreachable))
+
+        ;; flonum-negative-sign?/i32 : f64 -> i32
+        ;;   Return 1 when x has the IEEE negative sign bit, including -0.0.
+        (func $flonum-negative-sign?/i32
+              (param $x f64)
+              (result i32)
+
+              (local $bits i64)
+
+              (local.set $bits (i64.reinterpret_f64 (local.get $x)))
+              (i32.wrap_i64
+               (i64.shr_u (local.get $bits) (i64.const 63))))
+
+        ;; real-negate : real? -> real?
+        ;;   Negate a real number while preserving flonum signed zero.
+        (func $real-negate
+              (param $x (ref eq))
+              (result (ref eq))
+
+              (local $fl (ref $Flonum))
+
+              (if (ref.test (ref $Flonum) (local.get $x))
+                  (then
+                   (local.set $fl (ref.cast (ref $Flonum) (local.get $x)))
+                   (return
+                    (struct.new $Flonum
+                                (i32.const 0)
+                                (f64.neg
+                                 (struct.get $Flonum $v (local.get $fl)))))))
+              (call $-/2 (global.get $zero) (local.get $x)))
+
+        ;; make-rectangular/canonical : real? real? -> number?
+        ;;   Build a complex number, collapsing only exact zero imaginary parts.
+        (func $make-rectangular/canonical
+              (param $real (ref eq))
+              (param $imag (ref eq))
+              (result (ref eq))
+
+              (local $inexact? i32)
+
+              (if (call $exact-rational-zero?/i32 (local.get $imag))
+                  (then (return (local.get $real))))
+              (local.set $inexact?
+                         (i32.or
+                          (ref.test (ref $Flonum) (local.get $real))
+                          (ref.test (ref $Flonum) (local.get $imag))))
+              (if (local.get $inexact?)
+                  (then
+                   (return
+                    (struct.new $Complex
+                                (i32.const 0)
+                                (call $exact->inexact (local.get $real))
+                                (call $exact->inexact (local.get $imag))))))
+              (struct.new $Complex
+                          (i32.const 0)
+                          (local.get $real)
+                          (local.get $imag)))
+
+        ;; make-rectangular : real? real? -> number?
+        ;;   Construct a rectangular complex number with Racket canonicalization.
+        (func $make-rectangular (type $Prim2)
+              (param $real (ref eq))
+              (param $imag (ref eq))
+              (result (ref eq))
+
+              (if (i32.eqz (call $real-number?/i32 (local.get $real)))
+                  (then (call $raise-expected-real
+                              (global.get $symbol:make-rectangular)
+                              (local.get $real))
+                        (unreachable)))
+              (if (i32.eqz (call $real-number?/i32 (local.get $imag)))
+                  (then (call $raise-expected-real
+                              (global.get $symbol:make-rectangular)
+                              (local.get $imag))
+                        (unreachable)))
+              (call $make-rectangular/canonical
+                    (local.get $real)
+                    (local.get $imag)))
+
+        ;; real-part : number? -> real?
+        ;;   Return the real component of a number.
+        (func $real-part (type $Prim1)
+              (param $z (ref eq))
+              (result (ref eq))
+
+              (local $c (ref $Complex))
+
+              (if (call $real-number?/i32 (local.get $z))
+                  (then (return (local.get $z))))
+              (if (ref.test (ref $Complex) (local.get $z))
+                  (then
+                   (local.set $c (ref.cast (ref $Complex) (local.get $z)))
+                   (return (struct.get $Complex $real (local.get $c)))))
+              (call $raise-expected-number/who
+                    (global.get $symbol:real-part)
+                    (local.get $z))
+              (unreachable))
+
+        ;; imag-part : number? -> real?
+        ;;   Return the imaginary component of a number.
+        (func $imag-part (type $Prim1)
+              (param $z (ref eq))
+              (result (ref eq))
+
+              (local $c (ref $Complex))
+
+              (if (call $real-number?/i32 (local.get $z))
+                  (then (return (global.get $zero))))
+              (if (ref.test (ref $Complex) (local.get $z))
+                  (then
+                   (local.set $c (ref.cast (ref $Complex) (local.get $z)))
+                   (return (struct.get $Complex $imag (local.get $c)))))
+              (call $raise-expected-number/who
+                    (global.get $symbol:imag-part)
+                    (local.get $z))
+              (unreachable))
+
+        ;; make-polar : real? real? -> number?
+        ;;   Construct a polar complex number.
+        (func $make-polar (type $Prim2)
+              (param $magnitude (ref eq))
+              (param $angle     (ref eq))
+              (result (ref eq))
+
+              (local $m f64)
+              (local $a f64)
+
+              (local.set $m
+                         (call $real->f64/checked
+                               (global.get $symbol:make-polar)
+                               (local.get $magnitude)))
+              (local.set $a
+                         (call $real->f64/checked
+                               (global.get $symbol:make-polar)
+                               (local.get $angle)))
+              (if (call $exact-rational-zero?/i32 (local.get $magnitude))
+                  (then (return (global.get $zero))))
+              (if (call $exact-rational-zero?/i32 (local.get $angle))
+                  (then (return (local.get $magnitude))))
+              (call $make-rectangular/canonical
+                    (struct.new $Flonum
+                                (i32.const 0)
+                                (f64.mul (local.get $m)
+                                         (call $js-raw-math-cos
+                                               (local.get $a))))
+                    (struct.new $Flonum
+                                (i32.const 0)
+                                (f64.mul (local.get $m)
+                                         (call $js-raw-math-sin
+                                               (local.get $a))))))
+
+        ;; magnitude : number? -> real?
+        ;;   Return the magnitude of a number.
+        (func $magnitude (type $Prim1)
+              (param $z (ref eq))
+              (result (ref eq))
+
+              (local $c (ref $Complex))
+              (local $real (ref eq))
+              (local $imag (ref eq))
+
+              (if (call $real-number?/i32 (local.get $z))
+                  (then (return (call $abs (local.get $z)))))
+              (if (ref.test (ref $Complex) (local.get $z))
+                  (then
+                   (local.set $c (ref.cast (ref $Complex) (local.get $z)))
+                   (local.set $real (struct.get $Complex $real (local.get $c)))
+                   (local.set $imag (struct.get $Complex $imag (local.get $c)))
+                   (return
+                    (call $sqrt
+                          (call $+/2
+                                (call $*/2 (local.get $real) (local.get $real))
+                                (call $*/2 (local.get $imag) (local.get $imag)))))))
+              (call $raise-expected-number/who
+                    (global.get $symbol:magnitude)
+                    (local.get $z))
+              (unreachable))
+
+        ;; angle : number? -> real?
+        ;;   Return the phase angle of a number.
+        (func $angle (type $Prim1)
+              (param $z (ref eq))
+              (result (ref eq))
+
+              (local $c       (ref $Complex))
+              (local $fl      (ref $Flonum))
+              (local $f64     f64)
+              (local $cmp/i32 i32)
+
+              (if (ref.test (ref $Complex) (local.get $z))
+                  (then
+                   (local.set $c (ref.cast (ref $Complex) (local.get $z)))
+                   (return
+                    (struct.new $Flonum
+                                (i32.const 0)
+                                (call $js-raw-math-atan2
+                                      (call $real->f64/checked
+                                            (global.get $symbol:angle)
+                                            (struct.get $Complex $imag
+                                                        (local.get $c)))
+                                      (call $real->f64/checked
+                                            (global.get $symbol:angle)
+                                            (struct.get $Complex $real
+                                                        (local.get $c))))))))
+              (if (call $exact-rational?/i32 (local.get $z))
+                  (then
+                   (local.set $cmp/i32
+                              (call $exact-rational-compare/i32
+                                    (local.get $z)
+                                    (global.get $zero)))
+                   (if (i32.eqz (local.get $cmp/i32))
+                       (then (call $raise-argument-error1
+                                   (global.get $symbol:angle)
+                                   (global.get $string:angle:nonzero)
+                                   (local.get $z))
+                             (unreachable)))
+                   (if (i32.gt_s (local.get $cmp/i32) (i32.const 0))
+                       (then (return (global.get $zero)))
+                       (else
+                        (return
+                         (struct.new $Flonum
+                                     (i32.const 0)
+                                     (f64.const 3.141592653589793)))))))
+              (if (ref.test (ref $Flonum) (local.get $z))
+                  (then
+                   (local.set $fl (ref.cast (ref $Flonum) (local.get $z)))
+                   (local.set $f64 (struct.get $Flonum $v (local.get $fl)))
+                   (if (f64.ne (local.get $f64) (local.get $f64))
+                       (then
+                        (return
+                         (struct.new $Flonum
+                                     (i32.const 0)
+                                     (f64.div (f64.const 0.0)
+                                              (f64.const 0.0))))))
+                   (if (call $flonum-negative-sign?/i32 (local.get $f64))
+                       (then
+                        (return
+                         (struct.new $Flonum
+                                     (i32.const 0)
+                                     (f64.const 3.141592653589793))))
+                       (else (return (global.get $zero))))))
+              (call $raise-expected-number/who
+                    (global.get $symbol:angle)
+                    (local.get $z))
+              (unreachable))
+
+        ;; conjugate : number? -> number?
+        ;;   Return the complex conjugate of a number.
+        (func $conjugate (type $Prim1)
+              (param $z (ref eq))
+              (result (ref eq))
+
+              (local $c (ref $Complex))
+
+              (if (call $real-number?/i32 (local.get $z))
+                  (then (return (local.get $z))))
+              (if (ref.test (ref $Complex) (local.get $z))
+                  (then
+                   (local.set $c (ref.cast (ref $Complex) (local.get $z)))
+                   (return
+                    (call $make-rectangular/canonical
+                          (struct.get $Complex $real (local.get $c))
+                          (call $real-negate
+                                (struct.get $Complex $imag (local.get $c)))))))
+              (call $raise-expected-number/who
+                    (global.get $symbol:conjugate)
+                    (local.get $z))
+              (unreachable))
 
         ;; Trigonometric functions
         ;               name js            inbits outbits
