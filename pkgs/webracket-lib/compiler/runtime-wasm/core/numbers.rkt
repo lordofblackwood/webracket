@@ -1041,6 +1041,16 @@
                    (local.set $f64 (struct.get $Flonum $v (local.get $fl)))
                    (return (struct.new $Flonum (i32.const 0) (call $js-raw-math-exp (local.get $f64))))))
 
+              ;; Exact rational heap case
+              (if (call $exact-rational?/i32 (local.get $x))
+                  (then
+                   (return
+                    (struct.new $Flonum
+                                (i32.const 0)
+                                (call $js-raw-math-exp
+                                      (call $exact-rational->f64
+                                            (local.get $x)))))))
+
               ;; Not a number
               (call $raise-expected-number/who
                     (global.get $symbol:exp)
@@ -1083,6 +1093,21 @@
                         (local.set $zf64 (struct.get $Flonum $v (local.get $fl)))
                         (return (struct.new $Flonum (i32.const 0)
                                             (call $js-raw-math-log (local.get $zf64))))))
+                   (if (call $exact-rational?/i32 (local.get $z))
+                       (then
+                        (if (call $exact-rational-zero?/i32 (local.get $z))
+                            (then (call $raise-division-by-zero) (unreachable)))
+                        (if (i32.eqz
+                             (call $exact-rational-compare/i32
+                                   (local.get $z)
+                                   (ref.i31 (i32.const 2))))
+                            (then (return (ref.i31 (i32.const 0)))))
+                        (return
+                         (struct.new $Flonum
+                                     (i32.const 0)
+                                     (call $js-raw-math-log
+                                           (call $exact-rational->f64
+                                                 (local.get $z)))))))
                    (call $raise-expected-number/who
                          (global.get $symbol:log)
                          (local.get $z))
@@ -1106,9 +1131,17 @@
                             (then
                              (local.set $fl (ref.cast (ref $Flonum) (local.get $z)))
                              (local.set $zf64 (struct.get $Flonum $v (local.get $fl))))
-                            (else (call $raise-expected-number/who
-                                        (global.get $symbol:log)
-                                        (local.get $z)) (unreachable)))))
+                            (else
+                             (if (call $exact-rational?/i32 (local.get $z))
+                                 (then
+                                  (if (call $exact-rational-zero?/i32 (local.get $z))
+                                      (then (call $raise-division-by-zero) (unreachable)))
+                                  (local.set $zf64
+                                             (call $exact-rational->f64
+                                                   (local.get $z))))
+                                 (else (call $raise-expected-number/who
+                                             (global.get $symbol:log)
+                                             (local.get $z)) (unreachable)))))))
                    (if (ref.test (ref i31) (local.get $b))
                        (then
                         (local.set $bits (i31.get_s (ref.cast (ref i31) (local.get $b))))
@@ -1126,9 +1159,20 @@
                             (then
                              (local.set $fl (ref.cast (ref $Flonum) (local.get $b)))
                              (local.set $bf64 (struct.get $Flonum $v (local.get $fl))))
-                            (else (call $raise-expected-number/who
-                                        (global.get $symbol:log)
-                                        (local.get $b)) (unreachable)))))
+                            (else
+                             (if (call $exact-rational?/i32 (local.get $b))
+                                 (then
+                                  (if (i32.eqz
+                                       (call $exact-rational-compare/i32
+                                             (local.get $b)
+                                             (ref.i31 (i32.const 2))))
+                                      (then (call $raise-division-by-zero) (unreachable)))
+                                  (local.set $bf64
+                                             (call $exact-rational->f64
+                                                   (local.get $b))))
+                                 (else (call $raise-expected-number/who
+                                             (global.get $symbol:log)
+                                             (local.get $b)) (unreachable)))))))
                    (local.set $res
                               (f64.div (call $js-raw-math-log (local.get $zf64))
                                        (call $js-raw-math-log (local.get $bf64))))
@@ -2620,6 +2664,15 @@
                                                (i32.const 0)
                                                (call ,js (local.get $f64))))))
 
+                     (if (call $exact-rational?/i32 (local.get $x))
+                         (then
+                          (return
+                           (struct.new $Flonum
+                                       (i32.const 0)
+                                       (call ,js
+                                             (call $exact-rational->f64
+                                                   (local.get $x)))))))
+
                      (call $raise-expected-number/who
                            (global.get ,(string->symbol (format "$symbol:~a" name)))
                            (local.get $x))
@@ -2653,9 +2706,15 @@
                        (then (local.set $y/f64
                                         (struct.get $Flonum $v
                                                     (ref.cast (ref $Flonum) (local.get $y)))))
-	                       (else (call $raise-expected-number/who
-	                                   (global.get $symbol:atan)
-	                                   (local.get $y)) (unreachable)))))
+                       (else
+                        (if (call $exact-rational?/i32 (local.get $y))
+                            (then (local.set $y/f64
+                                             (call $exact-rational->f64
+                                                   (local.get $y)))
+                                  (local.set $y-exact (i32.const 1)))
+                            (else (call $raise-expected-number/who
+                                        (global.get $symbol:atan)
+                                        (local.get $y)) (unreachable)))))))
 
               (if (ref.eq (local.get $x) (global.get $missing))
                   (then
@@ -2682,9 +2741,14 @@
                        (then (local.set $x/f64
                                         (struct.get $Flonum $v
                                                     (ref.cast (ref $Flonum) (local.get $x)))))
-	                       (else (call $raise-expected-number/who
-	                                   (global.get $symbol:atan)
-	                                   (local.get $x)) (unreachable)))))
+                       (else
+                        (if (call $exact-rational?/i32 (local.get $x))
+                            (then (local.set $x/f64
+                                             (call $exact-rational->f64
+                                                   (local.get $x))))
+                            (else (call $raise-expected-number/who
+                                        (global.get $symbol:atan)
+                                        (local.get $x)) (unreachable)))))))
 
               (struct.new $Flonum
                           (i32.const 0)

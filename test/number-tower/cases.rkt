@@ -949,6 +949,41 @@
             '(expt 2.0 1/2)
             #:gate? #t
             #:note "expt with exact 1/2 accepts nonnegative flonum bases.")
+   (nt-case 'exp-rational
+            'real-math
+            '(exp 1/2)
+            #:gate? #t
+            #:note "exp accepts exact rational inputs through the real inexact path.")
+   (nt-case 'log-rational
+            'real-math
+            '(log 3/2)
+            #:gate? #t
+            #:note "log accepts exact rational inputs through the real inexact path.")
+   (nt-case 'log-rational-base
+            'real-math
+            '(log 8/27 2/3)
+            #:gate? #t
+            #:note "log with a base accepts exact rational inputs.")
+   (nt-case 'sin-rational
+            'real-math
+            '(sin 1/2)
+            #:gate? #t
+            #:note "trigonometric functions accept exact rational inputs.")
+   (nt-case 'cos-rational
+            'real-math
+            '(cos 1/2)
+            #:gate? #t
+            #:note "cos accepts exact rational inputs.")
+   (nt-case 'atan-rational
+            'real-math
+            '(atan 1/4)
+            #:gate? #t
+            #:note "atan accepts exact rational inputs.")
+   (nt-case 'atan2-rational
+            'real-math
+            '(atan 1/2 3/4)
+            #:gate? #t
+            #:note "two-argument atan accepts exact rational inputs.")
    (nt-case 'integer-length-bignum-two-to-53-plus-one
             'integer-bitwise
             '(integer-length 9007199254740993)
