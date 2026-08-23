@@ -381,6 +381,53 @@
             '(string->number "2i")
             #:gate? #t
             #:note "Unsigned pure imaginary coefficients parse as #f.")
+   (nt-case 'string->number-polar-complex
+            'string-number
+            '(string->number "1@2")
+            #:gate? #t
+            #:note "string->number parses polar complex syntax.")
+   (nt-case 'string->number-polar-negative-angle
+            'string-number
+            '(string->number "1@-2")
+            #:gate? #t
+            #:note "Polar syntax accepts signed angle components.")
+   (nt-case 'string->number-polar-zero-angle
+            'string-number
+            '(string->number "1@0")
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "Exact zero polar angles canonicalize through make-polar.")
+   (nt-case 'string->number-polar-radix
+            'string-number
+            '(string->number "#x10@0")
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "Source radix prefixes apply to polar components.")
+   (nt-case 'string->number-polar-inexact-prefix
+            'string-number
+            '(string->number "#i1@0")
+            #:gate? #t
+            #:note "Inexact prefixes preserve inexact zero-angle polar components.")
+   (nt-case 'string->number-polar-exact-decimal
+            'string-number
+            '(string->number "#e1.5@2.5")
+            #:gate? #t
+            #:note "Exact prefixes exactify polar results.")
+   (nt-case 'string->number-polar-missing-angle
+            'string-number
+            '(string->number "1@")
+            #:gate? #t
+            #:note "Missing polar angle components parse as #f.")
+   (nt-case 'string->number-polar-multiple-separators
+            'string-number
+            '(string->number "1@@2")
+            #:gate? #t
+            #:note "Multiple polar separators parse as #f.")
+   (nt-case 'string->number-polar-complex-magnitude-rejected
+            'string-number
+            '(string->number "1+2i@3")
+            #:gate? #t
+            #:note "Polar magnitude and angle components must be real.")
    (nt-case 'string->number-zero-denominator
             'string-number
             '(string->number "1/0")

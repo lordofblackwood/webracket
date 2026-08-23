@@ -6327,6 +6327,8 @@
            (local $special  i32)
            (local $real     (ref eq))
            (local $imag     (ref eq))
+           (local $polar    (ref eq))
+           (local $c        (ref $Complex))
            (local $int      (ref eq))
            (local $den      (ref eq))
            (local $frac-int (ref eq))
@@ -6472,8 +6474,73 @@
            (if (i32.eq (local.get $i) (local.get $len))
                (then (return (global.get $false))))
 
-           ;; Rectangular complex syntax: a+bi, a-bi, +bi, -bi, +i, -i.
+           ;; Polar complex syntax: magnitude@angle.
            (local.set $body-start (local.get $i))
+           (local.set $split (i32.const -1))
+           (local.set $scan (local.get $body-start))
+           (block $polar-scan-done
+                  (loop $polar-scan
+                        (br_if $polar-scan-done
+                               (i32.ge_u (local.get $scan)
+                                         (local.get $len)))
+                        (local.set $cp
+                                   (call $i32array-ref
+                                         (local.get $arr)
+                                         (local.get $scan)))
+                        (if (i32.eq (local.get $cp) (i32.const 64))
+                            (then
+                             (if (i32.ge_s (local.get $split) (i32.const 0))
+                                 (then (return (global.get $false))))
+                             (local.set $split (local.get $scan))))
+                        (local.set $scan
+                                   (i32.add (local.get $scan) (i32.const 1)))
+                        (br $polar-scan)))
+
+           (if (i32.ge_s (local.get $split) (i32.const 0))
+               (then
+                (local.set $real
+                           (call $string->number:component
+                                 (local.get $s)
+                                 (local.get $body-start)
+                                 (local.get $split)
+                                 (local.get $radix)
+                                 (local.get $exactness)))
+                (if (i32.or
+                     (ref.eq (local.get $real) (global.get $false))
+                     (i32.eqz (call $real-number?/i32 (local.get $real))))
+                    (then (return (global.get $false))))
+                (local.set $imag
+                           (call $string->number:component
+                                 (local.get $s)
+                                 (i32.add (local.get $split) (i32.const 1))
+                                 (local.get $len)
+                                 (local.get $radix)
+                                 (local.get $exactness)))
+                (if (i32.or
+                     (ref.eq (local.get $imag) (global.get $false))
+                     (i32.eqz (call $real-number?/i32 (local.get $imag))))
+                    (then (return (global.get $false))))
+                (local.set $polar
+                           (call $make-polar
+                                 (local.get $real)
+                                 (local.get $imag)))
+                (if (i32.eq (local.get $exactness) (i32.const 1))
+                    (then
+                     (if (ref.test (ref $Complex) (local.get $polar))
+                         (then
+                          (local.set $c
+                                     (ref.cast (ref $Complex)
+                                               (local.get $polar)))
+                          (return
+                           (call $make-rectangular/canonical
+                                 (call $inexact->exact
+                                       (struct.get $Complex $real (local.get $c)))
+                                 (call $inexact->exact
+                                       (struct.get $Complex $imag (local.get $c)))))))
+                     (return (call $inexact->exact (local.get $polar)))))
+                (return (local.get $polar))))
+
+           ;; Rectangular complex syntax: a+bi, a-bi, +bi, -bi, +i, -i.
            (local.set $tail (i32.sub (local.get $len) (i32.const 1)))
            (local.set $cp (call $i32array-ref (local.get $arr) (local.get $tail)))
            (if (i32.or
