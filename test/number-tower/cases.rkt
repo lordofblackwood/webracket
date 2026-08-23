@@ -655,6 +655,37 @@
             '(log (make-rectangular 0.0 0.0))
             #:gate? #t
             #:note "Complex log of inexact zero keeps the complex result shape.")
+   (nt-case 'complex-expt-exact-integer
+            'complex-expt
+            '(expt 1+2i 2)
+            #:gate? #t
+            #:note "Exact integer complex exponents preserve exactness.")
+   (nt-case 'complex-expt-negative-integer
+            'complex-expt
+            '(expt 1+2i -1)
+            #:gate? #t
+            #:note "Negative exact integer complex exponents preserve exact rationals.")
+   (nt-case 'complex-expt-negative-half
+            'complex-expt
+            '(expt -4 1/2)
+            #:gate? #t
+            #:note "Exact half exponents route through complex-aware sqrt.")
+   (nt-case 'complex-expt-complex-half
+            'complex-expt
+            '(expt 3+4i 1/2)
+            #:gate? #t
+            #:note "Complex half exponents can remain exact.")
+   (nt-case 'complex-expt-real-exponent
+            'complex-expt
+            '(let ([z (expt 1+2i 3.0)])
+               (and (number? z) (complex? z) (not (real? z)) (inexact? z)))
+            #:gate? #t
+            #:note "Non-integer complex exponentiation uses exp/log composition; ULP comparison is not available yet.")
+   (nt-case 'complex-expt-complex-exponent
+            'complex-expt
+            '(expt 2 1+i)
+            #:gate? #t
+            #:note "Complex exponents on real bases use exp/log composition.")
    (nt-case 'positive-nan
             'real-special-values
             +nan.0

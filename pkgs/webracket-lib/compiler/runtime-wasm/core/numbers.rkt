@@ -161,6 +161,7 @@
     $integer-sqrt/remainder
     $pow-special
     $exact-rational-expt/integer
+    $number-expt/integer
     $expt
     $complex-exp
     $complex-log
@@ -957,6 +958,67 @@
                                 (local.get $result))))))
               (local.get $result))
 
+        ;; number-expt/integer : number? exact-integer? -> number?
+        ;;   Raise a number to an exact integer power by repeated squaring.
+        (func $number-expt/integer
+              (param $base (ref eq))
+              (param $exp  (ref eq))
+              (result      (ref eq))
+
+              (local $negative-exp? i32)
+              (local $e             (ref eq))
+              (local $factor        (ref eq))
+              (local $result        (ref eq))
+              (local $vals          (ref $Values))
+
+              (local.set $e      (ref.i31 (i32.const 0)))
+              (local.set $factor (global.get $one))
+              (local.set $result (global.get $one))
+              (local.set $vals
+                         (array.new_fixed $Values 2
+                                          (ref.i31 (i32.const 0))
+                                          (ref.i31 (i32.const 0))))
+              (local.set $negative-exp?
+                         (i32.lt_s (call $integer-sign/i32 (local.get $exp))
+                                   (i32.const 0)))
+              (if (local.get $negative-exp?)
+                  (then (local.set $e (call $integer-negate (local.get $exp))))
+                  (else (local.set $e (local.get $exp))))
+              (local.set $factor (local.get $base))
+              (block $done
+                     (loop $loop
+                           (br_if $done
+                                  (call $integer-zero?/i32 (local.get $e)))
+                           (if (i32.eqz
+                                (call $integer-even?/i32 (local.get $e)))
+                               (then
+                                (local.set $result
+                                           (call $*/2
+                                                 (local.get $result)
+                                                 (local.get $factor)))))
+                           (local.set $vals
+                                      (call $integer-divmod
+                                            (local.get $e)
+                                            (ref.i31 (i32.const 4))))
+                           (local.set $e
+                                      (array.get $Values
+                                                 (local.get $vals)
+                                                 (i32.const 0)))
+                           (br_if $done
+                                  (call $integer-zero?/i32 (local.get $e)))
+                           (local.set $factor
+                                      (call $*/2
+                                            (local.get $factor)
+                                            (local.get $factor)))
+                           (br $loop)))
+              (if (local.get $negative-exp?)
+                  (then
+                   (return
+                    (call $/2
+                          (global.get $one)
+                          (local.get $result)))))
+              (local.get $result))
+
         (func $expt (type $Prim2)
               (param $z (ref eq))
               (param $w (ref eq))
@@ -969,24 +1031,18 @@
               (local $res    f64)
               (local $exactz i32)
               (local $exactw i32)
+              (local $z/complex i32)
+              (local $w/complex i32)
 
               ;; Exact 1/2 exponent uses sqrt, which can return exact roots.
               (if (call $exact-rational-half?/i32 (local.get $w))
                   (then
                    (if (call $exact-rational?/i32 (local.get $z))
-                       (then
-                        (if (i32.ge_s
-                             (call $exact-rational-sign/i32 (local.get $z))
-                             (i32.const 0))
-                            (then (return (call $sqrt (local.get $z)))))))
+                       (then (return (call $sqrt (local.get $z)))))
                    (if (ref.test (ref $Flonum) (local.get $z))
-                       (then
-                        (local.set $zf64
-                                   (struct.get $Flonum $v
-                                               (ref.cast (ref $Flonum)
-                                                         (local.get $z))))
-                        (if (f64.ge (local.get $zf64) (f64.const 0.0))
-                            (then (return (call $sqrt (local.get $z)))))))))
+                       (then (return (call $sqrt (local.get $z)))))
+                   (if (ref.test (ref $Complex) (local.get $z))
+                       (then (return (call $sqrt (local.get $z)))))))
 
               ;; Exact rational base with exact integer exponent.
               (if (i32.and
@@ -998,6 +1054,45 @@
                     (call $exact-rational-expt/integer
                           (local.get $z)
                           (local.get $w)))))
+
+              ;; Complex base with exact integer exponent remains exact when
+              ;; the repeated products and divisions are exact.
+              (if (i32.and
+                   (ref.test (ref $Complex) (local.get $z))
+                   (i32.or (call $fx?/i32 (local.get $w))
+                           (ref.test (ref $Bignum) (local.get $w))))
+                  (then
+                   (return
+                    (call $number-expt/integer
+                          (local.get $z)
+                          (local.get $w)))))
+
+              ;; General complex exponentiation.
+              (local.set $z/complex (ref.test (ref $Complex) (local.get $z)))
+              (local.set $w/complex (ref.test (ref $Complex) (local.get $w)))
+              (if (i32.or (local.get $z/complex) (local.get $w/complex))
+                  (then
+                   (if (i32.eqz
+                        (i32.or (local.get $z/complex)
+                                (call $real-number?/i32 (local.get $z))))
+                       (then (call $raise-expected-number/who
+                                   (global.get $symbol:expt)
+                                   (local.get $z))
+                             (unreachable)))
+                   (if (i32.eqz
+                        (i32.or (local.get $w/complex)
+                                (call $real-number?/i32 (local.get $w))))
+                       (then (call $raise-expected-number/who
+                                   (global.get $symbol:expt)
+                                   (local.get $w))
+                             (unreachable)))
+                   (return
+                    (call $exp
+                          (call $*/2
+                                (local.get $w)
+                                (call $log
+                                      (local.get $z)
+                                      (global.get $missing)))))))
 
               ;; Decode z
               (if (ref.test (ref i31) (local.get $z))
