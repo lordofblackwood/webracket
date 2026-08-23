@@ -18,11 +18,13 @@
 ;;   Declare string constants used by pseudo-random-generator helpers.
 (define random-runtime-string-constants
   '((pseudo-random-generator? "pseudo-random-generator?")
-    (random:seed-contract "(integer-in 0 (sub1 (expt 2 31)))")
-    (random:single-argument-contract "(or/c (integer-in 1 4294967087) pseudo-random-generator?)")
-    (random:generator-count-contract "(integer-in 1 4294967087)")
-    (random:exact-integer? "exact-integer?")
-    (random:second-argument-contract "(or/c exact-integer? pseudo-random-generator?)")
+    ;; Racket accepts wider exact-integer bounds for `random` and
+    ;; `random-seed`; WebRacket keeps these paths fixnum-only for now.
+    (random:seed-contract "(integer-in 0 536870911)")
+    (random:single-argument-contract "(or/c (integer-in 1 536870911) pseudo-random-generator?)")
+    (random:generator-count-contract "(integer-in 1 536870911)")
+    (random:fixnum? "fixnum?")
+    (random:second-argument-contract "(or/c fixnum? pseudo-random-generator?)")
     (random:gt/c-prefix "(>/c ")
     (random:right-paren ")")
     (random:argument-position-1st "\n  argument position: 1st")
@@ -103,7 +105,7 @@
   '($raise-random-seed:contract
     $raise-random:single-argument-contract
     $raise-random:generator-count-contract
-    $raise-random:first-exact-integer-contract
+    $raise-random:first-fixnum-contract
     $raise-random:second-argument-contract
     $raise-random:range-contract
     $raise-random:argument-error2
@@ -240,12 +242,12 @@
                     (global.get $string:random:generator-count-contract)
                     (local.get $x)))
 
-        (func $raise-random:first-exact-integer-contract
+        (func $raise-random:first-fixnum-contract
               (param $x (ref eq))
 
               (call $raise-argument-error1
                     (global.get $symbol:random)
-                    (global.get $string:random:exact-integer?)
+                    (global.get $string:random:fixnum?)
                     (local.get $x)))
 
         (func $raise-random:second-argument-contract
@@ -311,11 +313,11 @@
                     (global.get $true))
               (unreachable))
 
-        ;; random-seed : exact-integer? -> void?
-        ;;   Seed the current lightweight generator. The accepted range follows
-        ;;   Racket's documented 0 <= k < 2^31 restriction for fixnums.
+        ;; random-seed : fixnum? -> void?
+        ;;   Seed the current lightweight generator. WebRacket keeps this
+        ;;   path in the WebRacket fixnum range.
         (func $random-seed (type $Prim1)
-              (param $k-raw (ref eq)) ;; exact integer in [0, 2^31)
+              (param $k-raw (ref eq)) ;; fixnum in [0, most-positive-fixnum]
               (result       (ref eq))
               (local $k i32)
               (if (i32.eqz (call $fx?/i32 (local.get $k-raw)))
@@ -399,7 +401,7 @@
                                                        (global.get $string:random:argument-position-1st)
                                                        (local.get $b)))
                                            (else (call $raise-random:argument-error2
-                                                       (global.get $string:random:exact-integer?)
+                                                       (global.get $string:random:fixnum?)
                                                        (local.get $a)
                                                        (global.get $string:random:argument-position-1st)
                                                        (local.get $b))))
@@ -435,9 +437,9 @@
                                        (unreachable)))
                              (local.set $r (i32.add (local.get $min)
                                                     (i32.rem_u
-                                                               (call $random-u32/generator
-                                                                     (local.get $gen))
-                                                               (local.get $range))))
+                                                     (call $random-u32/generator
+                                                           (local.get $gen))
+                                                     (local.get $range))))
                              (return (ref.i31 (i32.shl (local.get $r) (i32.const 1))))))))
               (unreachable))
 

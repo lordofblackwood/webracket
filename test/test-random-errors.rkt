@@ -20,24 +20,29 @@
         (catch-contract/contains?
          (lambda () (random #f))
          "random"
-         "(or/c (integer-in 1 4294967087) pseudo-random-generator?)"
+         "(or/c (integer-in 1 536870911) pseudo-random-generator?)"
          "given: #f")
         (catch-contract/contains?
          (lambda () (random 0))
          "random"
-         "(or/c (integer-in 1 4294967087) pseudo-random-generator?)"
+         "(or/c (integer-in 1 536870911) pseudo-random-generator?)"
          "given: 0")
+        (catch-contract/contains?
+         (lambda () (random 536870912))
+         "random"
+         "(or/c (integer-in 1 536870911) pseudo-random-generator?)"
+         "given: 536870912")
         (catch-contract/contains?
          (lambda () (random #f 10))
          "random"
-         "exact-integer?"
+         "fixnum?"
          "given: #f"
          "argument position: 1st"
          "other arguments...")
         (catch-contract/contains?
          (lambda () (random 1 #f))
          "random"
-         "(or/c exact-integer? pseudo-random-generator?)"
+         "(or/c fixnum? pseudo-random-generator?)"
          "given: #f"
          "argument position: 2nd"
          "other arguments...")
@@ -53,17 +58,40 @@
            (catch-contract/contains?
             (lambda () (random #f g))
             "random"
-            "(integer-in 1 4294967087)"
+            "(integer-in 1 536870911)"
             "given: #f"
             "argument position: 1st"
             "other arguments...")
            (catch-contract/contains?
             (lambda () (random 0 g))
             "random"
-            "(integer-in 1 4294967087)"
+            "(integer-in 1 536870911)"
             "given: 0"
             "argument position: 1st"
+            "other arguments...")
+           (catch-contract/contains?
+            (lambda () (random 536870912 g))
+            "random"
+            "(integer-in 1 536870911)"
+            "given: 536870912"
+            "argument position: 1st"
             "other arguments...")))))
+ (list "random bignum two-argument errors are catchable"
+       (and
+        (catch-contract/contains?
+         (lambda () (random 536870912 536870913))
+         "random"
+         "fixnum?"
+         "given: 536870912"
+         "argument position: 1st"
+         "other arguments...")
+        (catch-contract/contains?
+         (lambda () (random 0 536870912))
+         "random"
+         "(or/c fixnum? pseudo-random-generator?)"
+         "given: 536870912"
+         "argument position: 2nd"
+         "other arguments...")))
  (list "random two-argument errors use error-value->string-handler"
        (let ([old (error-value->string-handler)])
          (error-value->string-handler
@@ -82,7 +110,7 @@
                     (catch-contract/contains?
                      (lambda () (random #f 10))
                      "random"
-                     "exact-integer?"
+                     "fixnum?"
                      "given: CUSTOM-VALUE"
                      "other arguments...:"
                      "CUSTOM-NUMBER"))])
@@ -93,13 +121,18 @@
         (catch-contract/contains?
          (lambda () (random-seed #f))
          "random-seed"
-         "(integer-in 0 (sub1 (expt 2 31)))"
+         "(integer-in 0 536870911)"
          "given: #f")
         (catch-contract/contains?
          (lambda () (random-seed -1))
          "random-seed"
-         "(integer-in 0 (sub1 (expt 2 31)))"
-         "given: -1")))
+         "(integer-in 0 536870911)"
+         "given: -1")
+        (catch-contract/contains?
+         (lambda () (random-seed 536870912))
+         "random-seed"
+         "(integer-in 0 536870911)"
+         "given: 536870912")))
  (list "current-pseudo-random-generator errors are catchable with who"
        (catch-contract/contains?
         (lambda () (current-pseudo-random-generator 42))
@@ -124,6 +157,11 @@
                 (and (flonum? v) (> v 0.0) (< v 1.0)))
               (let ([v (random 5 g)])
                 (and (exact-integer? v) (>= v 0) (< v 5)))
+              (void? (random-seed 536870911))
+              (let ([v (random 536870911)])
+                (and (exact-integer? v) (>= v 0) (< v 536870911)))
+              (let ([v (random 536870911 g)])
+                (and (exact-integer? v) (>= v 0) (< v 536870911)))
               (let ([v (flrandom)])
                 (and (flonum? v) (> v 0.0) (< v 1.0)))
               (let ([v (flrandom g)])

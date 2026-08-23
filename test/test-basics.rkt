@@ -1107,43 +1107,43 @@
                             (and
                              (catch-contract/who+expected+given?
                               "random-seed"
-                              "(integer-in 0 (sub1 (expt 2 31)))"
+                              "(integer-in 0 536870911)"
                               "#f"
                               (lambda () (random-seed #f)))
                              (catch-contract/who+expected+given?
                               "random-seed"
-                              "(integer-in 0 (sub1 (expt 2 31)))"
+                              "(integer-in 0 536870911)"
                               "-1"
                               (lambda () (random-seed -1)))
                              (catch-contract/who+expected+given?
                               "random"
-                              "(or/c (integer-in 1 4294967087) pseudo-random-generator?)"
+                              "(or/c (integer-in 1 536870911) pseudo-random-generator?)"
                               "#f"
                               (lambda () (random #f)))
                              (catch-contract/who+expected+given?
                               "random"
-                              "(or/c (integer-in 1 4294967087) pseudo-random-generator?)"
+                              "(or/c (integer-in 1 536870911) pseudo-random-generator?)"
                               "0"
                               (lambda () (random 0)))
                              (catch-contract/who+expected+given?
                               "random"
-                              "exact-integer?"
+                              "fixnum?"
                               "#f"
                               (lambda () (random #f 10)))
                              (catch-contract/who+expected+given?
                               "random"
-                              "(or/c exact-integer? pseudo-random-generator?)"
+                              "(or/c fixnum? pseudo-random-generator?)"
                               "#f"
                               (lambda () (random 1 #f)))
                              (catch-contract/who+expected+given?
                               "random"
-                              "(integer-in 1 4294967087)"
+                              "(integer-in 1 536870911)"
                               "#f"
                               (lambda ()
                                 (random #f (make-pseudo-random-generator))))
                              (catch-contract/who+expected+given?
                               "random"
-                              "(integer-in 1 4294967087)"
+                              "(integer-in 1 536870911)"
                               "0"
                               (lambda ()
                                 (random 0 (make-pseudo-random-generator))))
