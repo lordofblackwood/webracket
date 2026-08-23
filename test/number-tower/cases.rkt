@@ -872,6 +872,27 @@
             '(expt -1 536870913)
             #:gate? #t
             #:note "Exact bignum exponents are reduced by squaring.")
+   (nt-case 'sqrt-bignum-perfect-square
+            'real-math
+            '(sqrt 18446744073709551616)
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "sqrt returns an exact root for bignum perfect squares.")
+   (nt-case 'sqrt-bignum-nonperfect-inexact
+            'real-math
+            '(sqrt 536870912)
+            #:gate? #t
+            #:note "sqrt falls back to an inexact result for non-perfect bignums.")
+   (nt-case 'sqrt-rational-perfect-square
+            'real-math
+            '(sqrt 9/16)
+            #:gate? #t
+            #:note "sqrt returns exact rational roots when numerator and denominator are squares.")
+   (nt-case 'sqrt-bignum-rational-perfect-square
+            'real-math
+            '(sqrt (/ (expt 9007199254740993 2) 25))
+            #:gate? #t
+            #:note "sqrt preserves exactness for bignum rational perfect squares.")
    (nt-case 'integer-length-bignum-two-to-53-plus-one
             'integer-bitwise
             '(integer-length 9007199254740993)

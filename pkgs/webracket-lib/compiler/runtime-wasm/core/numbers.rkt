@@ -1475,6 +1475,7 @@
     $add1
     $sub1
     $sqr
+    $exact-rational-sqrt/real
     $sqrt
     $abs
     $round
@@ -2078,6 +2079,74 @@
                      (local.get $x))
                (unreachable))
 
+         ;; $exact-rational-sqrt/real : exact-rational? -> real?
+         ;;   Return an exact square root for perfect squares, otherwise inexact.
+         (func $exact-rational-sqrt/real
+               (param $x (ref eq))
+               (result (ref eq))
+
+               (local $num      (ref eq))
+               (local $den      (ref eq))
+               (local $sqrt-num (ref eq))
+               (local $sqrt-den (ref eq))
+               (local $sq       (ref eq))
+
+               (local.set $num      (ref.i31 (i32.const 0)))
+               (local.set $den      (ref.i31 (i32.const 2)))
+               (local.set $sqrt-num (ref.i31 (i32.const 0)))
+               (local.set $sqrt-den (ref.i31 (i32.const 2)))
+               (local.set $sq       (ref.i31 (i32.const 0)))
+
+               (local.set $num (call $exact-rational-numerator (local.get $x)))
+               (if (i32.lt_s (call $integer-sign/i32 (local.get $num))
+                             (i32.const 0))
+                   (then
+                    (return
+                     (struct.new $Flonum
+                                 (i32.const 0)
+                                 (call $js-raw-math-sqrt
+                                       (call $exact-rational->f64
+                                             (local.get $x)))))))
+               (local.set $den (call $exact-rational-denominator (local.get $x)))
+               (local.set $sqrt-num
+                          (call $integer-sqrt/exact (local.get $num)))
+               (local.set $sq
+                          (call $integer-mul/2
+                                (local.get $sqrt-num)
+                                (local.get $sqrt-num)))
+               (if (i32.ne
+                    (call $integer-compare/i32
+                          (local.get $sq)
+                          (local.get $num))
+                    (i32.const 0))
+                   (then
+                    (return
+                     (struct.new $Flonum
+                                 (i32.const 0)
+                                 (call $js-raw-math-sqrt
+                                       (call $exact-rational->f64
+                                             (local.get $x)))))))
+               (local.set $sqrt-den
+                          (call $integer-sqrt/exact (local.get $den)))
+               (local.set $sq
+                          (call $integer-mul/2
+                                (local.get $sqrt-den)
+                                (local.get $sqrt-den)))
+               (if (i32.ne
+                    (call $integer-compare/i32
+                          (local.get $sq)
+                          (local.get $den))
+                    (i32.const 0))
+                   (then
+                    (return
+                     (struct.new $Flonum
+                                 (i32.const 0)
+                                 (call $js-raw-math-sqrt
+                                       (call $exact-rational->f64
+                                             (local.get $x)))))))
+               (call $rational-normalize
+                     (local.get $sqrt-num)
+                     (local.get $sqrt-den)))
 
          (func $sqrt (type $Prim1)
                (param $x (ref eq))
@@ -2086,6 +2155,13 @@
                (local $bits i32)
                (local $fl (ref $Flonum))
                (local $f64 f64)
+
+               ;; Exact rational case
+               (if (call $exact-rational?/i32 (local.get $x))
+                   (then
+                    (return
+                     (call $exact-rational-sqrt/real
+                           (local.get $x)))))
 
                ;; If x is a fixnum, compute sqrt and return fixnum if integral
                (if (ref.test (ref i31) (local.get $x))
