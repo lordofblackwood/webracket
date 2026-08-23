@@ -706,6 +706,36 @@
          (lambda () (drop-right '(a b) 3))
          "drop-right"
          "a list with at least 3 elements"
+         "given: '(a b)")
+        (catch-contract/contains?
+         (lambda () (take '(a b) 536870912))
+         "take"
+         "a list with at least"
+         "given: '(a b)")
+        (catch-contract/contains?
+         (lambda () (drop '(a b) 536870912))
+         "drop"
+         "a list with at least"
+         "given: '(a b)")
+        (catch-contract/contains?
+         (lambda () (take-right '(a b) 536870912))
+         "take-right"
+         "a list with at least"
+         "given: '(a b)")
+        (catch-contract/contains?
+         (lambda () (drop-right '(a b) 536870912))
+         "drop-right"
+         "a list with at least"
+         "given: '(a b)")
+        (catch-contract/contains?
+         (lambda () (split-at '(a b) 536870912))
+         "split-at"
+         "a list with at least"
+         "given: '(a b)")
+        (catch-contract/contains?
+         (lambda () (split-at-right '(a b) 536870912))
+         "split-at-right"
+         "a list with at least"
          "given: '(a b)")))
  (list "take/drop length errors use error-value->string-handler for given lists"
        (let ([old (error-value->string-handler)])

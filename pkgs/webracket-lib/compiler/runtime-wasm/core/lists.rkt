@@ -1604,22 +1604,10 @@
               (local.set $node (global.get $dummy-pair))
               (local.set $next (global.get $null))
 
-              ;; Decode and validate index
-              (if (ref.test (ref i31) (local.get $pos))
-                  (then
-                   (local.set $n
-                              (i32.shr_s
-                               (i31.get_s (ref.cast (ref i31) (local.get $pos)))
-                               (i32.const 1)))
-                   (if (i32.lt_s (local.get $n) (i32.const 0))
-                       (then (call $raise-exact-nonnegative-integer-expected/who
-                                   (local.get $who)
-                                   (local.get $pos))
-                             (unreachable))))
-                  (else (call $raise-exact-nonnegative-integer-expected/who
-                              (local.get $who)
-                              (local.get $pos))
-                        (unreachable)))
+              (local.set $n
+                         (call $list-index/i32/who
+                               (local.get $who)
+                               (local.get $pos)))
 
               ;; Dropping zero elements returns the list unchanged
               (if (i32.eqz (local.get $n))
@@ -1713,22 +1701,10 @@
               (local.set $tail      (global.get $null))
               (local.set $rev       (global.get $null))
 
-              ;; Decode and validate index
-              (if (ref.test (ref i31) (local.get $pos))
-                  (then
-                   (local.set $n
-                              (i32.shr_s
-                               (i31.get_s (ref.cast (ref i31) (local.get $pos)))
-                               (i32.const 1)))
-                   (if (i32.lt_s (local.get $n) (i32.const 0))
-                       (then (call $raise-exact-nonnegative-integer-expected/who
-                                   (local.get $who)
-                                   (local.get $pos))
-                             (unreachable))))
-                  (else (call $raise-exact-nonnegative-integer-expected/who
-                              (local.get $who)
-                              (local.get $pos))
-                        (unreachable)))
+              (local.set $n
+                         (call $list-index/i32/who
+                               (local.get $who)
+                               (local.get $pos)))
 
               (if (i32.eqz (local.get $n))
                   (then (return (local.get $lst))))
@@ -7089,23 +7065,10 @@
              (local $elem       (ref eq))
              (local $acc        (ref eq))
 
-             (if (ref.test (ref i31) (local.get $n/fx))
-                 (then (local.set $count (i31.get_s (ref.cast (ref i31) (local.get $n/fx))))
-                       (if (i32.ne (i32.and (local.get $count) (i32.const 1)) (i32.const 0))
-                           (then (call $raise-exact-nonnegative-integer-expected/who
-                                       (local.get $who)
-                                       (local.get $n/fx))
-                                 (unreachable)))
-                       (local.set $count (i32.shr_s (local.get $count) (i32.const 1))))
-                 (else (call $raise-exact-nonnegative-integer-expected/who
-                             (local.get $who)
-                             (local.get $n/fx))
-                       (unreachable)))
-             (if (i32.lt_s (local.get $count) (i32.const 0))
-                 (then (call $raise-exact-nonnegative-integer-expected/who
-                             (local.get $who)
-                             (local.get $n/fx))
-                       (unreachable)))
+             (local.set $count
+                        (call $list-index/i32/who
+                              (local.get $who)
+                              (local.get $n/fx)))
 
              (local.set $orig-count (local.get $count))
 
@@ -7172,23 +7135,10 @@
              (local $pair       (ref $Pair))
              (local $lag-pair   (ref $Pair))
 
-             (if (ref.test (ref i31) (local.get $n/fx))
-                 (then (local.set $count (i31.get_s (ref.cast (ref i31) (local.get $n/fx))))
-                       (if (i32.ne (i32.and (local.get $count) (i32.const 1)) (i32.const 0))
-                           (then (call $raise-exact-nonnegative-integer-expected/who
-                                       (local.get $who)
-                                       (local.get $n/fx))
-                                 (unreachable)))
-                       (local.set $count (i32.shr_s (local.get $count) (i32.const 1))))
-                 (else (call $raise-exact-nonnegative-integer-expected/who
-                             (local.get $who)
-                             (local.get $n/fx))
-                       (unreachable)))
-             (if (i32.lt_s (local.get $count) (i32.const 0))
-                 (then (call $raise-exact-nonnegative-integer-expected/who
-                             (local.get $who)
-                             (local.get $n/fx))
-                       (unreachable)))
+             (local.set $count
+                        (call $list-index/i32/who
+                              (local.get $who)
+                              (local.get $n/fx)))
 
              (local.set $orig-count (local.get $count))
 
