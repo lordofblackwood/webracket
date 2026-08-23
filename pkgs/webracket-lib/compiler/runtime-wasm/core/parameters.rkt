@@ -1315,24 +1315,31 @@
      ;;   keeps an eight-slot cache, enough for the current configuration
      ;;   slots 0, 1, 3, and 4.
      (func $cache-configuration (type $Prim2)
-           (param $index-raw (ref eq)) ;; exact-nonnegative-integer?
+           (param $index-raw (ref eq)) ;; (integer-in 0 7)
            (param $thunk-raw (ref eq)) ;; procedure?
            (result           (ref eq))
+           (local $raw   i32)
            (local $index i32)
            (local $cache (ref $Array))
            (local $thunk (ref $Procedure))
            (local $cached (ref eq))
            (local $invoke (ref $ProcedureInvoker))
 
-           (if (ref.eq (call $exact-nonnegative-integer? (local.get $index-raw))
-                       (global.get $false))
+           (if (i32.eqz (ref.test (ref i31) (local.get $index-raw)))
                (then (call $raise-argument-error1
                            (global.get $symbol:cache-configuration)
                            (global.get $string:cache-configuration-index)
                            (local.get $index-raw))
                      (unreachable)))
-           (local.set $index (call $fixnum->i32 (local.get $index-raw)))
-           (if (i32.ge_u (local.get $index) (i32.const 8))
+           (local.set $raw (i31.get_s (ref.cast (ref i31) (local.get $index-raw))))
+           (if (i32.ne (i32.and (local.get $raw) (i32.const 1)) (i32.const 0))
+               (then (call $raise-argument-error1
+                           (global.get $symbol:cache-configuration)
+                           (global.get $string:cache-configuration-index)
+                           (local.get $index-raw))
+                     (unreachable)))
+           (local.set $index (i32.shr_s (local.get $raw) (i32.const 1)))
+           (if (i32.gt_u (local.get $index) (i32.const 7))
                (then (call $raise-argument-error1
                            (global.get $symbol:cache-configuration)
                            (global.get $string:cache-configuration-index)

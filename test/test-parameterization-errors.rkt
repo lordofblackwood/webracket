@@ -57,6 +57,11 @@
          "(integer-in 0 7)"
          "given: 8")
         (catch-contract/contains?
+         (lambda () (cache-configuration 536870912 (lambda () 'ok)))
+         "cache-configuration"
+         "(integer-in 0 7)"
+         "given: 536870912")
+        (catch-contract/contains?
          (lambda () (cache-configuration 0 42))
          "cache-configuration"
          "procedure?"
