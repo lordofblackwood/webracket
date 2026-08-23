@@ -162,6 +162,8 @@
     $pow-special
     $exact-rational-expt/integer
     $expt
+    $complex-exp
+    $complex-log
     $exp
     $log
     $positive?
@@ -1068,6 +1070,38 @@
 
               (struct.new $Flonum (i32.const 0) (local.get $res)))
 
+        ;; complex-exp : complex? -> number?
+        ;;   Compute exp(a+bi) as exp(a) * (cos(b) + i sin(b)).
+        (func $complex-exp
+              (param $z (ref $Complex))
+              (result (ref eq))
+
+              (local $a     (ref eq))
+              (local $b     (ref eq))
+              (local $scale (ref eq))
+
+              (local.set $a (struct.get $Complex $real (local.get $z)))
+              (local.set $b (struct.get $Complex $imag (local.get $z)))
+              (local.set $scale (call $exp (local.get $a)))
+              (call $make-rectangular/canonical
+                    (call $*/2
+                          (local.get $scale)
+                          (call $cos (local.get $b)))
+                    (call $*/2
+                          (local.get $scale)
+                          (call $sin (local.get $b)))))
+
+        ;; complex-log : complex? -> number?
+        ;;   Compute the principal natural logarithm.
+        (func $complex-log
+              (param $z (ref $Complex))
+              (result (ref eq))
+              (call $make-rectangular/canonical
+                    (call $log
+                          (call $magnitude (local.get $z))
+                          (global.get $missing))
+                    (call $angle (local.get $z))))
+
         (func $exp (type $Prim1)
               (param $x (ref eq))
               (result (ref eq))
@@ -1075,6 +1109,13 @@
               (local $bits i32)
               (local $fl (ref $Flonum))
               (local $f64 f64)
+
+              ;; Complex case
+              (if (ref.test (ref $Complex) (local.get $x))
+                  (then
+                   (return
+                    (call $complex-exp
+                          (ref.cast (ref $Complex) (local.get $x))))))
 
               ;; Fixnum case
               (if (ref.test (ref i31) (local.get $x))
@@ -1126,10 +1167,16 @@
               (local $zf64 f64)
               (local $bf64 f64)
               (local $res f64)
+              (local $cmp/i32 i32)
 
               ;; Natural log when base is missing
               (if (ref.eq (local.get $b) (global.get $missing))
                   (then
+                   (if (ref.test (ref $Complex) (local.get $z))
+                       (then
+                        (return
+                         (call $complex-log
+                               (ref.cast (ref $Complex) (local.get $z))))))
                    (if (ref.test (ref i31) (local.get $z))
                        (then
                         (local.set $bits (i31.get_s (ref.cast (ref i31) (local.get $z))))
@@ -1140,6 +1187,19 @@
                                  (then (call $raise-division-by-zero) (unreachable)))
                              (if (i32.eq (local.get $bits) (i32.const 1))
                                  (then (return (ref.i31 (i32.const 0)))))
+                             (if (i32.lt_s (local.get $bits) (i32.const 0))
+                                 (then
+                                  (return
+                                   (call $make-rectangular/canonical
+                                         (struct.new $Flonum
+                                                     (i32.const 0)
+                                                     (call $js-raw-math-log
+                                                           (f64.abs
+                                                            (f64.convert_i32_s
+                                                             (local.get $bits)))))
+                                         (struct.new $Flonum
+                                                     (i32.const 0)
+                                                     (f64.const 3.141592653589793))))))
                              (local.set $res
                                         (call $js-raw-math-log (f64.convert_i32_s (local.get $bits))))
                              (return (struct.new $Flonum (i32.const 0) (local.get $res))))
@@ -1150,17 +1210,42 @@
                        (then
                         (local.set $fl (ref.cast (ref $Flonum) (local.get $z)))
                         (local.set $zf64 (struct.get $Flonum $v (local.get $fl)))
+                        (if (f64.lt (local.get $zf64) (f64.const 0.0))
+                            (then
+                             (return
+                              (call $make-rectangular/canonical
+                                    (struct.new $Flonum
+                                                (i32.const 0)
+                                                (call $js-raw-math-log
+                                                      (f64.abs (local.get $zf64))))
+                                    (struct.new $Flonum
+                                                (i32.const 0)
+                                                (f64.const 3.141592653589793))))))
                         (return (struct.new $Flonum (i32.const 0)
                                             (call $js-raw-math-log (local.get $zf64))))))
                    (if (call $exact-rational?/i32 (local.get $z))
                        (then
                         (if (call $exact-rational-zero?/i32 (local.get $z))
                             (then (call $raise-division-by-zero) (unreachable)))
-                        (if (i32.eqz
-                             (call $exact-rational-compare/i32
-                                   (local.get $z)
-                                   (ref.i31 (i32.const 2))))
+                        (local.set $cmp/i32
+                                   (call $exact-rational-compare/i32
+                                         (local.get $z)
+                                         (ref.i31 (i32.const 2))))
+                        (if (i32.eqz (local.get $cmp/i32))
                             (then (return (ref.i31 (i32.const 0)))))
+                        (if (i32.lt_s (local.get $cmp/i32) (i32.const 0))
+                            (then
+                             (return
+                              (call $make-rectangular/canonical
+                                    (struct.new $Flonum
+                                                (i32.const 0)
+                                                (call $js-raw-math-log
+                                                      (f64.abs
+                                                       (call $exact-rational->f64
+                                                             (local.get $z)))))
+                                    (struct.new $Flonum
+                                                (i32.const 0)
+                                                (f64.const 3.141592653589793))))))
                         (return
                          (struct.new $Flonum
                                      (i32.const 0)

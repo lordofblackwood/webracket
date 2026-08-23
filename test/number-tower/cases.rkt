@@ -620,6 +620,41 @@
             '(sqrt (make-rectangular 4 -0.0))
             #:gate? #t
             #:note "Complex sqrt preserves negative zero imaginary components.")
+   (nt-case 'complex-exp-unit-imaginary
+            'complex-transcendental
+            '(exp +i)
+            #:gate? #t
+            #:note "Complex exp composes real exp with sin/cos.")
+   (nt-case 'complex-exp-rectangular
+            'complex-transcendental
+            '(exp 1+2i)
+            #:gate? #t
+            #:note "Complex exp handles nonzero real and imaginary components.")
+   (nt-case 'complex-exp-inexact-zero-imaginary
+            'complex-transcendental
+            '(exp (make-rectangular 0 0.0))
+            #:gate? #t
+            #:note "Complex exp preserves inexact zero imaginary inputs.")
+   (nt-case 'log-negative-exact
+            'complex-transcendental
+            '(log -1)
+            #:gate? #t
+            #:note "Natural log of a negative exact real enters the complex plane.")
+   (nt-case 'log-negative-flonum
+            'complex-transcendental
+            '(log -1.0)
+            #:gate? #t
+            #:note "Natural log of a negative flonum enters the complex plane.")
+   (nt-case 'complex-log-rectangular
+            'complex-transcendental
+            '(log 3+4i)
+            #:gate? #t
+            #:note "Complex natural log uses magnitude and angle.")
+   (nt-case 'complex-log-inexact-zero
+            'complex-transcendental
+            '(log (make-rectangular 0.0 0.0))
+            #:gate? #t
+            #:note "Complex log of inexact zero keeps the complex result shape.")
    (nt-case 'positive-nan
             'real-special-values
             +nan.0
