@@ -195,6 +195,7 @@
 (define string-number-conversion-runtime-only-helper-names
   '($raise-string->number:bad-argument
     $raise-string->number:bad-radix
+    $string->number:special-tail
     $string->number:parse-fractional-part
     $string->number:parse-integer
     $string->number))
@@ -5987,6 +5988,100 @@
                  (local.get $bad))
            (unreachable))
 
+     ;; string->number:special-tail : string? i32 -> i32
+     ;;   Return 1 for inf.0, 2 for nan.0, and 0 otherwise.
+     (func $string->number:special-tail
+           (param $s (ref $String))
+           (param $i i32)
+           (result i32)
+
+           (local $arr (ref $I32Array))
+           (local $len i32)
+           (local $cp  i32)
+
+           (local.set $arr (struct.get $String $codepoints (local.get $s)))
+           (local.set $len (call $i32array-length (local.get $arr)))
+
+           (if (i32.ne
+                (i32.sub (local.get $len) (local.get $i))
+                (i32.const 5))
+               (then (return (i32.const 0))))
+
+           (local.set $cp (call $i32array-ref (local.get $arr) (local.get $i)))
+           (if (i32.or
+                (i32.eq (local.get $cp) (i32.const 105))
+                (i32.eq (local.get $cp) (i32.const 73)))
+               (then
+                (local.set $cp
+                           (call $i32array-ref
+                                 (local.get $arr)
+                                 (i32.add (local.get $i) (i32.const 1))))
+                (if (i32.eqz
+                     (i32.or
+                      (i32.eq (local.get $cp) (i32.const 110))
+                      (i32.eq (local.get $cp) (i32.const 78))))
+                    (then (return (i32.const 0))))
+                (local.set $cp
+                           (call $i32array-ref
+                                 (local.get $arr)
+                                 (i32.add (local.get $i) (i32.const 2))))
+                (if (i32.eqz
+                     (i32.or
+                      (i32.eq (local.get $cp) (i32.const 102))
+                      (i32.eq (local.get $cp) (i32.const 70))))
+                    (then (return (i32.const 0))))
+                (local.set $cp
+                           (call $i32array-ref
+                                 (local.get $arr)
+                                 (i32.add (local.get $i) (i32.const 3))))
+                (if (i32.ne (local.get $cp) (i32.const 46))
+                    (then (return (i32.const 0))))
+                (local.set $cp
+                           (call $i32array-ref
+                                 (local.get $arr)
+                                 (i32.add (local.get $i) (i32.const 4))))
+                (if (i32.eq (local.get $cp) (i32.const 48))
+                    (then (return (i32.const 1))))
+                (return (i32.const 0))))
+
+           (if (i32.or
+                (i32.eq (local.get $cp) (i32.const 110))
+                (i32.eq (local.get $cp) (i32.const 78)))
+               (then
+                (local.set $cp
+                           (call $i32array-ref
+                                 (local.get $arr)
+                                 (i32.add (local.get $i) (i32.const 1))))
+                (if (i32.eqz
+                     (i32.or
+                      (i32.eq (local.get $cp) (i32.const 97))
+                      (i32.eq (local.get $cp) (i32.const 65))))
+                    (then (return (i32.const 0))))
+                (local.set $cp
+                           (call $i32array-ref
+                                 (local.get $arr)
+                                 (i32.add (local.get $i) (i32.const 2))))
+                (if (i32.eqz
+                     (i32.or
+                      (i32.eq (local.get $cp) (i32.const 110))
+                      (i32.eq (local.get $cp) (i32.const 78))))
+                    (then (return (i32.const 0))))
+                (local.set $cp
+                           (call $i32array-ref
+                                 (local.get $arr)
+                                 (i32.add (local.get $i) (i32.const 3))))
+                (if (i32.ne (local.get $cp) (i32.const 46))
+                    (then (return (i32.const 0))))
+                (local.set $cp
+                           (call $i32array-ref
+                                 (local.get $arr)
+                                 (i32.add (local.get $i) (i32.const 4))))
+                (if (i32.eq (local.get $cp) (i32.const 48))
+                    (then (return (i32.const 2))))
+                (return (i32.const 0))))
+
+           (i32.const 0))
+
      ;; string->number:parse-fractional-part : string? i32 -> f64 i32
      ;;   Parse decimal digits into an inexact fractional value.
      (func $string->number:parse-fractional-part
@@ -6148,7 +6243,9 @@
            (local $len      i32)
            (local $i        i32)
            (local $neg      i32)
+           (local $sign-seen i32)
            (local $cp       i32)
+           (local $special  i32)
            (local $int      (ref eq))
            (local $den      (ref eq))
            (local $frac-int (ref eq))
@@ -6295,22 +6392,51 @@
                (then (return (global.get $false))))
 
            ;; Sign
-           (local.set $neg (i32.const 0))
+           (local.set $neg       (i32.const 0))
+           (local.set $sign-seen (i32.const 0))
 
            (local.set $cp (call $i32array-ref (local.get $arr) (local.get $i)))
            (if (i32.eq (local.get $cp) (i32.const 45))
                (then
                 (local.set $neg (i32.const 1))
+                (local.set $sign-seen (i32.const 1))
                 (local.set $i   (i32.add (local.get $i) (i32.const 1))))
                (else
                 (if (i32.eq (local.get $cp) (i32.const 43))
-                    (then (local.set $i (i32.add (local.get $i) (i32.const 1))))
+                    (then
+                     (local.set $sign-seen (i32.const 1))
+                     (local.set $i (i32.add (local.get $i) (i32.const 1))))
                     (else (nop)))))
 
            ;; Cannot be only sign
            (if (i32.eq (local.get $i) (local.get $len))
                (then (return (global.get $false)))
                (else (nop)))
+
+           (if (local.get $sign-seen)
+               (then
+                (local.set $special
+                           (call $string->number:special-tail
+                                 (local.get $s)
+                                 (local.get $i)))
+                (if (local.get $special)
+                    (then
+                     (if (i32.eq (local.get $exactness) (i32.const 1))
+                         (then (return (global.get $false))))
+                     (if (i32.eq (local.get $special) (i32.const 1))
+                         (then
+                          (local.set $res (f64.const +inf))
+                          (if (local.get $neg)
+                              (then (local.set $res (f64.const -inf))))
+                          (return
+                           (struct.new $Flonum
+                                       (i32.const 0)
+                                       (local.get $res)))))
+                     (return
+                      (struct.new $Flonum
+                                  (i32.const 0)
+                                  (f64.div (f64.const 0.0)
+                                           (f64.const 0.0))))))))
 
            ;; Parse integer
            (call $string->number:parse-integer

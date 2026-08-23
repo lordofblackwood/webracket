@@ -255,6 +255,41 @@
             '(string->number "#i-0")
             #:gate? #t
             #:note "Inexact prefixes preserve negative zero for signed exact zero syntax.")
+   (nt-case 'string->number-positive-infinity
+            'string-number
+            '(string->number "+inf.0")
+            #:gate? #t
+            #:note "string->number parses signed positive infinity syntax.")
+   (nt-case 'string->number-negative-infinity
+            'string-number
+            '(string->number "-inf.0")
+            #:gate? #t
+            #:note "string->number parses signed negative infinity syntax.")
+   (nt-case 'string->number-positive-nan
+            'string-number
+            '(string->number "+nan.0")
+            #:gate? #t
+            #:note "string->number parses signed NaN syntax.")
+   (nt-case 'string->number-negative-nan
+            'string-number
+            '(string->number "-nan.0")
+            #:gate? #t
+            #:note "Negative NaN syntax normalizes to +nan.0.")
+   (nt-case 'string->number-exact-infinity
+            'string-number
+            '(string->number "#e+inf.0")
+            #:gate? #t
+            #:note "Exact infinity syntax parses as #f.")
+   (nt-case 'string->number-radix-infinity
+            'string-number
+            '(string->number "#x+inf.0")
+            #:gate? #t
+            #:note "Source radix prefixes do not block infinity syntax.")
+   (nt-case 'string->number-unsigned-infinity
+            'string-number
+            '(string->number "inf.0")
+            #:gate? #t
+            #:note "Infinity syntax must include an explicit sign.")
    (nt-case 'string->number-zero-denominator
             'string-number
             '(string->number "1/0")
