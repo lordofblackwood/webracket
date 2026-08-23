@@ -655,6 +655,42 @@
             '(log (make-rectangular 0.0 0.0))
             #:gate? #t
             #:note "Complex log of inexact zero keeps the complex result shape.")
+   (nt-case 'complex-sin-shape
+            'complex-transcendental
+            '(let ([z (sin 1+2i)])
+               (and (number? z) (complex? z) (not (real? z)) (inexact? z)))
+            #:gate? #t
+            #:note "Complex sin uses the rectangular formula.")
+   (nt-case 'complex-cos-shape
+            'complex-transcendental
+            '(let ([z (cos 1+2i)])
+               (and (number? z) (complex? z) (not (real? z)) (inexact? z)))
+            #:gate? #t
+            #:note "Complex cos uses the rectangular formula.")
+   (nt-case 'complex-tan-shape
+            'complex-transcendental
+            '(let ([z (tan +i)])
+               (and (number? z) (complex? z) (not (real? z)) (inexact? z)))
+            #:gate? #t
+            #:note "Complex tan uses sin/cos division.")
+   (nt-case 'complex-sinh-shape
+            'complex-transcendental
+            '(let ([z (sinh 1+i)])
+               (and (number? z) (complex? z) (not (real? z)) (inexact? z)))
+            #:gate? #t
+            #:note "Complex sinh uses the rectangular formula.")
+   (nt-case 'complex-cosh-shape
+            'complex-transcendental
+            '(let ([z (cosh 1+i)])
+               (and (number? z) (complex? z) (not (real? z)) (inexact? z)))
+            #:gate? #t
+            #:note "Complex cosh uses the rectangular formula.")
+   (nt-case 'complex-tanh-shape
+            'complex-transcendental
+            '(let ([z (tanh 1+i)])
+               (and (number? z) (complex? z) (not (real? z)) (inexact? z)))
+            #:gate? #t
+            #:note "Complex tanh uses sinh/cosh division.")
    (nt-case 'complex-expt-exact-integer
             'complex-expt
             '(expt 1+2i 2)

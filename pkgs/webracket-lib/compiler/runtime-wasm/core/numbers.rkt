@@ -1806,6 +1806,12 @@
     $magnitude
     $angle
     $conjugate
+    $complex-sin
+    $complex-cos
+    $complex-tan
+    $complex-sinh
+    $complex-cosh
+    $complex-tanh
     $sin
     $cos
     $tan
@@ -3251,19 +3257,114 @@
                     (local.get $z))
               (unreachable))
 
+        ;; complex-sin : complex? -> number?
+        ;;   Compute sin(a+bi).
+        (func $complex-sin
+              (param $z (ref $Complex))
+              (result (ref eq))
+
+              (local $a (ref eq))
+              (local $b (ref eq))
+
+              (local.set $a (struct.get $Complex $real (local.get $z)))
+              (local.set $b (struct.get $Complex $imag (local.get $z)))
+              (call $make-rectangular/canonical
+                    (call $*/2
+                          (call $sin (local.get $a))
+                          (call $cosh (local.get $b)))
+                    (call $*/2
+                          (call $cos (local.get $a))
+                          (call $sinh (local.get $b)))))
+
+        ;; complex-cos : complex? -> number?
+        ;;   Compute cos(a+bi).
+        (func $complex-cos
+              (param $z (ref $Complex))
+              (result (ref eq))
+
+              (local $a (ref eq))
+              (local $b (ref eq))
+
+              (local.set $a (struct.get $Complex $real (local.get $z)))
+              (local.set $b (struct.get $Complex $imag (local.get $z)))
+              (call $make-rectangular/canonical
+                    (call $*/2
+                          (call $cos (local.get $a))
+                          (call $cosh (local.get $b)))
+                    (call $real-negate
+                          (call $*/2
+                                (call $sin (local.get $a))
+                                (call $sinh (local.get $b))))))
+
+        ;; complex-tan : complex? -> number?
+        ;;   Compute tan(a+bi).
+        (func $complex-tan
+              (param $z (ref $Complex))
+              (result (ref eq))
+              (call $/2
+                    (call $complex-sin (local.get $z))
+                    (call $complex-cos (local.get $z))))
+
+        ;; complex-sinh : complex? -> number?
+        ;;   Compute sinh(a+bi).
+        (func $complex-sinh
+              (param $z (ref $Complex))
+              (result (ref eq))
+
+              (local $a (ref eq))
+              (local $b (ref eq))
+
+              (local.set $a (struct.get $Complex $real (local.get $z)))
+              (local.set $b (struct.get $Complex $imag (local.get $z)))
+              (call $make-rectangular/canonical
+                    (call $*/2
+                          (call $sinh (local.get $a))
+                          (call $cos (local.get $b)))
+                    (call $*/2
+                          (call $cosh (local.get $a))
+                          (call $sin (local.get $b)))))
+
+        ;; complex-cosh : complex? -> number?
+        ;;   Compute cosh(a+bi).
+        (func $complex-cosh
+              (param $z (ref $Complex))
+              (result (ref eq))
+
+              (local $a (ref eq))
+              (local $b (ref eq))
+
+              (local.set $a (struct.get $Complex $real (local.get $z)))
+              (local.set $b (struct.get $Complex $imag (local.get $z)))
+              (call $make-rectangular/canonical
+                    (call $*/2
+                          (call $cosh (local.get $a))
+                          (call $cos (local.get $b)))
+                    (call $*/2
+                          (call $sinh (local.get $a))
+                          (call $sin (local.get $b)))))
+
+        ;; complex-tanh : complex? -> number?
+        ;;   Compute tanh(a+bi).
+        (func $complex-tanh
+              (param $z (ref $Complex))
+              (result (ref eq))
+              (call $/2
+                    (call $complex-sinh (local.get $z))
+                    (call $complex-cosh (local.get $z))))
+
         ;; Trigonometric functions
         ;               name js            inbits outbits
-        ,@(let ([ops '((sin  $js-raw-math-sin  0      0)    ;  sin(0) = 0
-                       (cos  $js-raw-math-cos  0      2)    ;  cos(0) = 1
-                       (tan  $js-raw-math-tan  0      0)    ;  tan(0) = 0
-                       (asin $js-raw-math-asin 0      0)    ; asin(0) = 0
-                       (acos $js-raw-math-acos 2      0)    ; acos(1) = 0
-                       (sinh  $js-raw-math-sinh  0      0) ;  sinh(0) = 0
-                       (cosh  $js-raw-math-cosh  0      2) ;  cosh(0) = 1
-                       (tanh  $js-raw-math-tanh  0      0) ;  tanh(0) = 0
-                       (asinh $js-raw-math-asinh 0      0) ; asinh(0) = 0
-                       (acosh $js-raw-math-acosh 2      0) ; acosh(1) = 0
-                       (atanh $js-raw-math-atanh 0      0))]) ; atanh(0) = 0
+        ,@(let ([ops '((sin  $js-raw-math-sin  0      0 $complex-sin)    ;  sin(0) = 0
+                       (cos  $js-raw-math-cos  0      2 $complex-cos)    ;  cos(0) = 1
+                       (tan  $js-raw-math-tan  0      0 $complex-tan)    ;  tan(0) = 0
+                       (asin $js-raw-math-asin 0      0 #f)    ; asin(0) = 0
+                       (acos $js-raw-math-acos 2      0 #f)    ; acos(1) = 0
+                       (sinh  $js-raw-math-sinh  0      0 $complex-sinh) ;  sinh(0) = 0
+                       (cosh  $js-raw-math-cosh  0      2 $complex-cosh) ;  cosh(0) = 1
+                       (tanh  $js-raw-math-tanh  0      0 $complex-tanh) ;  tanh(0) = 0
+                       (asinh $js-raw-math-asinh 0      0 #f) ; asinh(0) = 0
+                       (acosh $js-raw-math-acosh 2      0 #f) ; acosh(1) = 0
+                       (atanh $js-raw-math-atanh 0      0 #f))]) ; atanh(0) = 0
             ;; inbits and outbits are raw i31 fixnum encodings.
             ;; They mark trivial exact identities of trig functions
             ;; (e.g. sin 0 = 0, cos 0 = 1, acos 1 = 0).
@@ -3273,6 +3374,7 @@
               (define js      (cadr p))
               (define inbits  (caddr p))
               (define outbits (cadddr p))
+              (define complex-helper (list-ref p 4))
               `(func ,(string->symbol (format "$~a" name))
                      (type $Prim1)
                      (param $x (ref eq))
@@ -3281,6 +3383,14 @@
                      (local $bits i32)
                      (local $fl (ref $Flonum))
                      (local $f64 f64)
+
+                     ,@(if complex-helper
+                           `((if (ref.test (ref $Complex) (local.get $x))
+                                 (then
+                                  (return
+                                   (call ,complex-helper
+                                         (ref.cast (ref $Complex) (local.get $x)))))))
+                           '())
 
                      (if (ref.test (ref i31) (local.get $x))
                          (then
