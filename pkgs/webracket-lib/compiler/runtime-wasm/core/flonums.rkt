@@ -796,8 +796,6 @@
 
             (local $fl         (ref $Flonum))
             (local $bits       i64)
-            (local $start/tag  i32)
-            (local $end/tag    i32)
             (local $start/i    i32)
             (local $end/i      i32)
             (local $width      i32)
@@ -815,25 +813,12 @@
             (local.set $fl (ref.cast (ref $Flonum) (local.get $a)))
             (local.set $bits (i64.reinterpret_f64 (struct.get $Flonum $v (local.get $fl))))
 
-            ;; Validate start/end before decoding.
-            (if (ref.eq (call $exact-integer? (local.get $start)) (global.get $false))
-                (then (call $raise-argument-error1
-                            (global.get $symbol:flbit-field)
-                            (global.get $string:flbit-field:index)
-                            (local.get $start))
-                      (unreachable)))
-            (if (ref.eq (call $exact-integer? (local.get $end)) (global.get $false))
-                (then (call $raise-argument-error1
-                            (global.get $symbol:flbit-field)
-                            (global.get $string:flbit-field:index)
-                            (local.get $end))
-                      (unreachable)))
-
-            ;; Extract integer values
-            (local.set $start/tag (i31.get_s (ref.cast (ref i31) (local.get $start))))
-            (local.set $end/tag   (i31.get_s (ref.cast (ref i31) (local.get $end))))
-            (local.set $start/i   (i32.shr_s (local.get $start/tag) (i32.const 1)))
-            (local.set $end/i     (i32.shr_s (local.get $end/tag) (i32.const 1)))
+            (local.set $start/i
+                       (call $exact-nonnegative-integer->i32/saturating
+                             (local.get $start)))
+            (local.set $end/i
+                       (call $exact-nonnegative-integer->i32/saturating
+                             (local.get $end)))
 
             ;; Range checks: 0 <= start <= end <= 64
             (if (i32.lt_s (local.get $start/i) (i32.const 0))

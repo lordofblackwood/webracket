@@ -14,6 +14,8 @@
                    (string-contains? message needle))
                  needles))))
 
+(define too-large-index 536870912)
+
 (list
  (list "flonum arithmetic errors are catchable with who"
        (and
@@ -92,7 +94,12 @@
          (lambda () (flbit-field 1.0 -1 1))
          "flbit-field"
          "(integer-in 0 64)"
-         "given: -1")))
+         "given: -1")
+        (catch-contract/contains?
+         (lambda () (flbit-field 1.0 too-large-index 64))
+         "flbit-field"
+         "(integer-in 0 64)"
+         "given: 536870912")))
  (list "flbit-field end errors preserve public contract"
        (and
         (catch-contract/contains?
@@ -104,7 +111,12 @@
          (lambda () (flbit-field 1.0 0 -1))
          "flbit-field"
          "(integer-in 0 64)"
-         "given: -1")))
+         "given: -1")
+        (catch-contract/contains?
+         (lambda () (flbit-field 1.0 0 too-large-index))
+         "flbit-field"
+         "(integer-in 0 64)"
+         "given: 536870912")))
  (list "flbit-field range errors preserve who"
        (and
         (catch-contract/contains?
