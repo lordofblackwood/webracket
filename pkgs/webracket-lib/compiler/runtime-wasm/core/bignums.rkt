@@ -503,14 +503,20 @@
 
            (local $a-limbs (ref $I32Array))
            (local $b-limbs (ref $I32Array))
+           (local $small-limbs (ref $I32Array))
+           (local $large-limbs (ref $I32Array))
            (local $a-len i32)
            (local $b-len i32)
+           (local $small-len i32)
+           (local $large-len i32)
            (local $out-len i32)
            (local $out (ref $I32Array))
            (local $sign i32)
            (local $i i32)
            (local $j i32)
            (local $pos i32)
+           (local $small-limb i32)
+           (local $large-limb i32)
            (local $acc i64)
            (local $carry i64)
 
@@ -535,27 +541,60 @@
            (if (i32.eq (local.get $b-len) (i32.const 1))
                (then
                 (return
-                 (call $bignum-mul-u32
-                       (local.get $a)
-                       (array.get $I32Array
-                                  (local.get $b-limbs)
-                                  (i32.const 0))
-                       (local.get $sign)))))
-           (local.set $out-len (i32.add (local.get $a-len) (local.get $b-len)))
+	                 (call $bignum-mul-u32
+	                       (local.get $a)
+	                       (array.get $I32Array
+	                                  (local.get $b-limbs)
+	                                  (i32.const 0))
+	                       (local.get $sign)))))
+           (local.set $small-limbs (local.get $a-limbs))
+           (local.set $small-len   (local.get $a-len))
+           (local.set $large-limbs (local.get $b-limbs))
+           (local.set $large-len   (local.get $b-len))
+           (if (i32.gt_u (local.get $a-len) (local.get $b-len))
+               (then
+                (local.set $small-limbs (local.get $b-limbs))
+                (local.set $small-len   (local.get $b-len))
+                (local.set $large-limbs (local.get $a-limbs))
+                (local.set $large-len   (local.get $a-len))))
+           (local.set $out-len
+                      (i32.add (local.get $small-len)
+                               (local.get $large-len)))
            (local.set $out (array.new_default $I32Array (local.get $out-len)))
            (block $outer-done
                   (loop $outer
                         (br_if $outer-done
-                               (i32.ge_u (local.get $i) (local.get $a-len)))
+                               (i32.ge_u (local.get $i) (local.get $small-len)))
+                        (local.set $small-limb
+                                   (array.get $I32Array
+                                              (local.get $small-limbs)
+                                              (local.get $i)))
+                        (if (i32.eqz (local.get $small-limb))
+                            (then
+                             (local.set $i (i32.add (local.get $i)
+                                                    (i32.const 1)))
+                             (br $outer)))
                         (local.set $carry (i64.const 0))
                         (local.set $j (i32.const 0))
                         (block $inner-done
                                (loop $inner
                                      (br_if $inner-done
-                                            (i32.ge_u (local.get $j) (local.get $b-len)))
+                                            (i32.ge_u (local.get $j) (local.get $large-len)))
                                      (local.set $pos
                                                 (i32.add (local.get $i)
                                                          (local.get $j)))
+                                     (local.set $large-limb
+                                                (array.get $I32Array
+                                                           (local.get $large-limbs)
+                                                           (local.get $j)))
+                                     (if (i32.and
+                                          (i32.eqz (local.get $large-limb))
+                                          (i64.eqz (local.get $carry)))
+                                         (then
+                                          (local.set $j
+                                                     (i32.add (local.get $j)
+                                                              (i32.const 1)))
+                                          (br $inner)))
                                      (local.set $acc
                                                 (i64.add
                                                  (i64.add
@@ -565,13 +604,9 @@
                                                               (local.get $pos)))
                                                   (i64.mul
                                                    (i64.extend_i32_u
-                                                    (array.get $I32Array
-                                                               (local.get $a-limbs)
-                                                               (local.get $i)))
+                                                    (local.get $small-limb))
                                                    (i64.extend_i32_u
-                                                    (array.get $I32Array
-                                                               (local.get $b-limbs)
-                                                               (local.get $j)))))
+                                                    (local.get $large-limb))))
                                                  (local.get $carry)))
                                      (array.set $I32Array
                                                 (local.get $out)
@@ -585,7 +620,7 @@
                                                          (i32.const 1)))
                                      (br $inner)))
                         (local.set $pos
-                                   (i32.add (local.get $i) (local.get $b-len)))
+                                   (i32.add (local.get $i) (local.get $large-len)))
                         (block $carry-done
                                (loop $carry-loop
                                      (br_if $carry-done (i64.eqz (local.get $carry)))

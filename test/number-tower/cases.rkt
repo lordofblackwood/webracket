@@ -1391,6 +1391,20 @@
             #:comparison 'ignore-fixnum-width
             #:gate? #t
             #:note "Bignum multiplication handles internal zero limbs.")
+   (nt-case 'bignum-mul-asymmetric-short-left
+            'integer-arithmetic
+            '(* (+ (arithmetic-shift 1 33) 17)
+                (- (arithmetic-shift 1 192) 123456789))
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "Bignum multiplication handles asymmetric multi-limb operands.")
+   (nt-case 'bignum-mul-asymmetric-short-right
+            'integer-arithmetic
+            '(* (- (arithmetic-shift 1 192) 123456789)
+                (+ (arithmetic-shift 1 33) 17))
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "Bignum multiplication handles reversed asymmetric multi-limb operands.")
    (nt-case 'bignum-mul-normalizes-to-fixnum
             'integer-arithmetic
             '(* 536870912 -1)
