@@ -789,7 +789,7 @@
                                (equal? (* 4294967296 4294967296)
                                        18446744073709551616)))
                     (list "/"
-                          (and (equal? (/ 2)       0.5)
+                          (and (equal? (/ 2)       1/2)
                                (equal? (/ 2.)      0.5)
                                (equal? (/ 10.0)    0.1)
                                (equal? (/ 10  2)   5)
@@ -1165,6 +1165,18 @@
                     (list "real->floating-point-bytes default"
                           (bytes=? (real->floating-point-bytes 1.0 8)
                                    #"\x00\x00\x00\x00\x00\x00\xf0\x3f"))
+                    (list "real->floating-point-bytes exact rationals"
+                          (and (bytes=? (real->floating-point-bytes 1/2 8)
+                                        #"\x00\x00\x00\x00\x00\x00\xe0\x3f")
+                               (bytes=? (real->floating-point-bytes
+                                         2106270354592/12789239550964971
+                                         8)
+                                        #"\xdd\xc5\x25\x60\x1b\x96\x25\x3f")))
+                    (list "real->floating-point-bytes exact bignum"
+                          (bytes=? (real->floating-point-bytes
+                                    9007199254740993
+                                    8)
+                                   #"\x00\x00\x00\x00\x00\x00\x40\x43"))
                     (list "real->floating-point-bytes start"
                           (let* ([dest (make-bytes 10)]
                                  [res  (real->floating-point-bytes 1.0 8 #f dest 2)])

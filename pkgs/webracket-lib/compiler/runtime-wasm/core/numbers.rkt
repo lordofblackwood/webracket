@@ -5430,10 +5430,10 @@
 
      ;; real->floating-point-bytes
      ;; Convert a real number to its IEEE floating-point byte representation.
-     ;; Only fixnums and flonums are supported for now. The start argument
-     ;; defaults to 0 when omitted, and a provided destination must be a
-     ;; mutable byte string of sufficient length. The big-endian? argument
-     ;; defaults to #f.
+     ;; Exact values are rounded to an f64 before the selected byte width is
+     ;; written. The start argument defaults to 0 when omitted, and a provided
+     ;; destination must be a mutable byte string of sufficient length. The
+     ;; big-endian? argument defaults to #f.
      (func $real->floating-point-bytes (type $Prim25)
            (param $x         (ref eq))  ; real?
            (param $size-raw  (ref eq))  ; (or/c 4 8)
@@ -5448,6 +5448,7 @@
            (local $arr    (ref $I8Array))
            (local $fl     (ref $Flonum))
            (local $val    f64)
+           (local $bits   i32)
            (local $start  i32)
            (local $dest-len i32)
 
@@ -5532,18 +5533,41 @@
                     (then)
                     (else (local.set $big (i32.const 1))))))
 
-           ;; --- Convert x to flonum ---
-           (local.set $fl (ref.cast (ref $Flonum) (global.get $flzero)))
+           ;; --- Convert x to f64 ---
            (if (ref.test (ref $Flonum) (local.get $x))
-               (then (local.set $fl (ref.cast (ref $Flonum) (local.get $x))))
+               (then
+                (local.set $fl (ref.cast (ref $Flonum) (local.get $x)))
+                (local.set $val (struct.get $Flonum $v (local.get $fl))))
                (else
-                (if (ref.eq (call $exact-integer? (local.get $x)) (global.get $true))
-                    (then (local.set $fl (call $fx->fl/precise (local.get $x))))
-                    (else (call $raise-expected-real
-                                (global.get $symbol:real->floating-point-bytes)
-                                (local.get $x))
-                          (unreachable)))))
-           (local.set $val (struct.get $Flonum $v (local.get $fl)))
+                (if (ref.test (ref i31) (local.get $x))
+                    (then
+                     (local.set $bits (i31.get_s (ref.cast (ref i31) (local.get $x))))
+                     (if (i32.eqz (i32.and (local.get $bits) (i32.const 1)))
+                         (then
+                          (local.set $val
+                                     (f64.convert_i32_s
+                                      (i32.shr_s (local.get $bits)
+                                                 (i32.const 1)))))
+                         (else (call $raise-expected-real
+                                     (global.get $symbol:real->floating-point-bytes)
+                                     (local.get $x))
+                               (unreachable))))
+                    (else
+                     (if (ref.test (ref $Bignum) (local.get $x))
+                         (then
+                          (local.set $val
+                                     (call $exact-rational->f64
+                                           (local.get $x))))
+                         (else
+                          (if (ref.test (ref $Rational) (local.get $x))
+                              (then
+                               (local.set $val
+                                          (call $exact-rational->f64
+                                                (local.get $x))))
+                              (else (call $raise-expected-real
+                                          (global.get $symbol:real->floating-point-bytes)
+                                          (local.get $x))
+                                    (unreachable)))))))))
 
            ;; Do it!
            (return_call $real->floating-point-bytes/checked
