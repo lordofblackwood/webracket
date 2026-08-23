@@ -294,6 +294,66 @@
             '(denominator -0.0)
             #:gate? #t
             #:note "Inexact negative zero has inexact denominator 1.0.")
+   (nt-case 'gcd-rationals
+            'rational-gcd-lcm
+            '(gcd 1/2 1/3)
+            #:gate? #t
+            #:note "Rational gcd uses numerator gcd over denominator lcm.")
+   (nt-case 'lcm-rationals
+            'rational-gcd-lcm
+            '(lcm 1/2 1/3)
+            #:gate? #t
+            #:note "Rational lcm uses numerator lcm over denominator gcd.")
+   (nt-case 'gcd-negative-rational
+            'rational-gcd-lcm
+            '(gcd -1/2 1/3)
+            #:gate? #t
+            #:note "Rational gcd is nonnegative.")
+   (nt-case 'lcm-negative-rational
+            'rational-gcd-lcm
+            '(lcm -1/2 1/3)
+            #:gate? #t
+            #:note "Rational lcm is nonnegative.")
+   (nt-case 'gcd-rational-zero
+            'rational-gcd-lcm
+            '(gcd 1/2 0)
+            #:gate? #t
+            #:note "Rational gcd handles exact zero arguments.")
+   (nt-case 'lcm-rational-zero
+            'rational-gcd-lcm
+            '(lcm 1/2 0)
+            #:gate? #t
+            #:note "Rational lcm returns zero if any argument is zero.")
+   (nt-case 'gcd-inexact-rational
+            'rational-gcd-lcm
+            '(gcd 12 81.0)
+            #:gate? #t
+            #:note "Inexact rational inputs coerce the gcd result to inexact.")
+   (nt-case 'lcm-inexact-rational
+            'rational-gcd-lcm
+            '(lcm 12 81.0)
+            #:gate? #t
+            #:note "Inexact rational inputs coerce the lcm result to inexact.")
+   (nt-case 'gcd-binary-flonum-rational
+            'rational-gcd-lcm
+            '(gcd 0.1 1/5)
+            #:gate? #t
+            #:note "Inexact rational gcd uses exact binary flonum values.")
+   (nt-case 'lcm-unary-rational
+            'rational-gcd-lcm
+            '(lcm 1/2)
+            #:gate? #t
+            #:note "Unary rational lcm returns the absolute argument.")
+   (nt-case 'lcm-rational-with-one
+            'rational-gcd-lcm
+            '(lcm 1 1/2)
+            #:gate? #t
+            #:note "Binary rational lcm with 1 follows the pair formula.")
+   (nt-case 'lcm-bignum-rational
+            'rational-gcd-lcm
+            '(lcm 9007199254740993/2 3/2)
+            #:gate? #t
+            #:note "Rational lcm can preserve a bignum numerator.")
    (nt-case 'rectangular-literal
             'complex-basic
             1+2i

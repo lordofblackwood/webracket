@@ -43,6 +43,34 @@
                         (br $loop)))
            (local.get $a))
 
+     ;; $integer-lcm : exact-integer? exact-integer? -> exact-nonnegative-integer?
+     ;;   Compute a nonnegative least common multiple for exact integers.
+     (func $integer-lcm
+           (param $n (ref eq))
+           (param $m (ref eq))
+           (result (ref eq))
+
+           (local $g    (ref eq))
+           (local $vals (ref $Values))
+
+           (local.set $n (call $integer-abs (local.get $n)))
+           (local.set $m (call $integer-abs (local.get $m)))
+           (if (call $integer-zero?/i32 (local.get $n))
+               (then (return (ref.i31 (i32.const 0)))))
+           (if (call $integer-zero?/i32 (local.get $m))
+               (then (return (ref.i31 (i32.const 0)))))
+           (local.set $g (call $integer-gcd
+                               (local.get $n)
+                               (local.get $m)))
+           (local.set $vals (call $integer-divmod
+                                  (local.get $n)
+                                  (local.get $g)))
+           (call $integer-mul/2
+                 (array.get $Values
+                            (local.get $vals)
+                            (i32.const 0))
+                 (local.get $m)))
+
      ;; $rational-normalize : exact-integer? exact-integer? -> exact-rational?
      ;;   Build a canonical exact rational, collapsing integers.
      (func $rational-normalize
@@ -131,6 +159,24 @@
            (if (ref.test (ref $Rational) (local.get $x))
                (then (return (i32.const 0))))
            (call $integer-zero?/i32 (local.get $x)))
+
+     ;; $exact-rational-abs : exact-rational? -> exact-rational?
+     ;;   Return the absolute value of an exact rational.
+     (func $exact-rational-abs
+           (param $x (ref eq))
+           (result (ref eq))
+
+           (local $q (ref $Rational))
+
+           (if (ref.test (ref $Rational) (local.get $x))
+               (then
+                (local.set $q (ref.cast (ref $Rational) (local.get $x)))
+                (return
+                 (call $rational-normalize
+                       (call $integer-abs
+                             (struct.get $Rational $num (local.get $q)))
+                       (struct.get $Rational $den (local.get $q))))))
+           (call $integer-abs (local.get $x)))
 
      ;; $exact-rational-numerator : exact-rational? -> exact-integer?
      ;;   Return the numerator, using the integer itself for exact integers.
@@ -331,6 +377,40 @@
                  (call $integer-mul/2
                        (call $exact-rational-numerator (local.get $y))
                        (call $exact-rational-denominator (local.get $x)))))
+
+     ;; $exact-rational-gcd/2 : exact-rational? exact-rational? -> exact-rational?
+     ;;   Compute the exact rational GCD using numerator GCD and denominator LCM.
+     (func $exact-rational-gcd/2
+           (param $x (ref eq))
+           (param $y (ref eq))
+           (result (ref eq))
+
+           (call $rational-normalize
+                 (call $integer-gcd
+                       (call $exact-rational-numerator (local.get $x))
+                       (call $exact-rational-numerator (local.get $y)))
+                 (call $integer-lcm
+                       (call $exact-rational-denominator (local.get $x))
+                       (call $exact-rational-denominator (local.get $y)))))
+
+     ;; $exact-rational-lcm/2 : exact-rational? exact-rational? -> exact-rational?
+     ;;   Compute the exact rational LCM using numerator LCM and denominator GCD.
+     (func $exact-rational-lcm/2
+           (param $x (ref eq))
+           (param $y (ref eq))
+           (result (ref eq))
+
+           (if (call $exact-rational-zero?/i32 (local.get $x))
+               (then (return (ref.i31 (i32.const 0)))))
+           (if (call $exact-rational-zero?/i32 (local.get $y))
+               (then (return (ref.i31 (i32.const 0)))))
+           (call $rational-normalize
+                 (call $integer-lcm
+                       (call $exact-rational-numerator (local.get $x))
+                       (call $exact-rational-numerator (local.get $y)))
+                 (call $integer-gcd
+                       (call $exact-rational-denominator (local.get $x))
+                       (call $exact-rational-denominator (local.get $y)))))
 
      ;; $rational-eqv? : rational? rational? -> boolean?
      ;;   Compare canonical exact rationals by numerator and denominator.
