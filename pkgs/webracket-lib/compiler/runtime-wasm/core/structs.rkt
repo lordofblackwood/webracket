@@ -4950,17 +4950,17 @@
                      (else (global.get $string:struct-accessor:index-too-large))))
            (call $growable-array-add! (local.get $out)
                  (call $format/display
-                       (ref.i31 (i32.shl (local.get $index) (i32.const 1)))))
+                       (call $integer-from-i64
+                             (i64.extend_i32_u (local.get $index)))))
            (if (local.get $accessible-count)
                (then
                 (call $growable-array-add! (local.get $out)
                       (global.get $string:struct-accessor:maximum-allowed-index))
                 (call $growable-array-add! (local.get $out)
                       (call $format/display
-                            (ref.i31
-                             (i32.shl
-                              (i32.sub (local.get $accessible-count) (i32.const 1))
-                              (i32.const 1)))))))
+                            (call $integer-from-i64
+                                  (i64.extend_i32_u
+                                   (i32.sub (local.get $accessible-count) (i32.const 1))))))))
            (call $growable-array-add! (local.get $out)
                  (global.get $string:struct-accessor:structure-type))
            (call $growable-array-add! (local.get $out)
@@ -5015,12 +5015,13 @@
 
            ;; Get index and decode
            (local.set $index-fx (array.get $Args (local.get $args) (i32.const 1)))
-           (if (i32.or (i32.eqz (ref.test (ref i31) (local.get $index-fx)))
-                       (i32.ne (i32.and (i31.get_u (ref.cast (ref i31) (local.get $index-fx))) (i32.const 1)) (i32.const 0)))
+           (local.set $index
+                      (call $exact-nonnegative-integer->i32/saturating
+                            (local.get $index-fx)))
+           (if (i32.lt_s (local.get $index) (i32.const 0))
                (then (call $raise-struct-accessor:index
                            (local.get $who)
                            (local.get $index-fx))))
-           (local.set $index (i32.shr_u (i31.get_u (ref.cast (ref i31) (local.get $index-fx))) (i32.const 1)))
 
            ;; Type match - is $struct a subtype of $std
            (if (i32.eqz (call $struct-type-is-a?/i32
@@ -5223,17 +5224,17 @@
                      (else (global.get $string:struct-accessor:index-too-large))))
            (call $growable-array-add! (local.get $out)
                  (call $format/display
-                       (ref.i31 (i32.shl (local.get $index) (i32.const 1)))))
+                       (call $integer-from-i64
+                             (i64.extend_i32_u (local.get $index)))))
            (if (local.get $accessible-count)
                (then
                 (call $growable-array-add! (local.get $out)
                       (global.get $string:struct-accessor:maximum-allowed-index))
                 (call $growable-array-add! (local.get $out)
                       (call $format/display
-                            (ref.i31
-                             (i32.shl
-                              (i32.sub (local.get $accessible-count) (i32.const 1))
-                              (i32.const 1)))))))
+                            (call $integer-from-i64
+                                  (i64.extend_i32_u
+                                   (i32.sub (local.get $accessible-count) (i32.const 1))))))))
            (call $growable-array-add! (local.get $out)
                  (global.get $string:struct-accessor:structure-type))
            (call $growable-array-add! (local.get $out)
@@ -5266,7 +5267,8 @@
                  (global.get $string:struct-mutator:field-index))
            (call $growable-array-add! (local.get $out)
                  (call $format/display
-                       (ref.i31 (i32.shl (local.get $index) (i32.const 1)))))
+                       (call $integer-from-i64
+                             (i64.extend_i32_u (local.get $index)))))
            (local.set $message
                       (call $growable-array-of-strings->string (local.get $out)))
            (drop (call $raise
@@ -5320,16 +5322,13 @@
            (local.set $struct (ref.cast (ref $Struct) (local.get $target)))
            ;; index
            (local.set $index-fx (array.get $Args (local.get $args) (i32.const 1)))
-           (if (i32.or (i32.eqz (ref.test (ref i31) (local.get $index-fx)))
-                       (i32.ne (i32.and (i31.get_u (ref.cast (ref i31)
-                                                             (local.get $index-fx)))
-                                        (i32.const 1)) (i32.const 0)))
+           (local.set $index
+                      (call $exact-nonnegative-integer->i32/saturating
+                            (local.get $index-fx)))
+           (if (i32.lt_s (local.get $index) (i32.const 0))
                (then (call $raise-struct-mutator:index
                            (local.get $who)
                            (local.get $index-fx))))
-           (local.set $index (i32.shr_u (i31.get_u (ref.cast (ref i31)
-                                                             (local.get $index-fx)))
-                                        (i32.const 1)))
            ;; value to store
            (local.set $val (array.get $Args (local.get $args) (i32.const 2)))
 
@@ -5551,7 +5550,7 @@
            ; Note: This functions uses the internal representation of
            ;       a mutator procedure closure.
            (param $mutator-proc      (ref eq)) ;; closure
-           (param $field-pos-fx      (ref eq)) ;; fixnum
+           (param $field-pos-raw     (ref eq)) ;; exact-nonnegative-integer?
            (param $field/proc-name   (ref eq)) ;; symbol or #f
            (param $arg-contract-str  (ref eq)) ;; string/symbol/#f
            (param $realm             (ref eq)) ;; symbol
@@ -5576,6 +5575,7 @@
            (local $expected-contract (ref eq))
            (local $combine?         i32)
            (local $field-pos        i32)
+           (local $field-pos-fx     (ref eq))
 
            ;; --- Check mutator-proc is a closure ---
            (if (i32.eqz (ref.test (ref $StructMutatorProcedure) (local.get $mutator-proc)))
@@ -5589,13 +5589,12 @@
                            (local.get $mutator-proc))))
            (local.set $clos (ref.cast (ref $Closure) (local.get $mutator-proc)))
 
-           (if (ref.eq (call $exact-nonnegative-integer? (local.get $field-pos-fx))
-                       (global.get $false))
-               (then (call $raise-make-struct-field-mutator:field-pos
-                           (local.get $field-pos-fx))))
            (local.set $field-pos
-                      (i32.shr_u (i31.get_u (ref.cast (ref i31) (local.get $field-pos-fx)))
-                                  (i32.const 1)))
+                      (call $exact-nonnegative-integer->i32/saturating
+                            (local.get $field-pos-raw)))
+           (if (i32.lt_s (local.get $field-pos) (i32.const 0))
+               (then (call $raise-make-struct-field-mutator:field-pos
+                           (local.get $field-pos-raw))))
 
            ;; --- Extract fields ---
            (local.set $free           (struct.get $Closure $free (local.get $clos)))
@@ -5617,6 +5616,8 @@
                            (local.get $std)
                            (local.get $field-pos)
                            (local.get $accessible-count))))
+           (local.set $field-pos-fx
+                      (ref.i31 (i32.shl (local.get $field-pos) (i32.const 1))))
            (local.set $struct-name    (struct.get $StructType $name (local.get $std)))
            (local.set $field-name
                       (if (result (ref eq))
@@ -5873,7 +5874,7 @@
      (func $make-struct-field-accessor ; primitive, section 5.2, returns specialized accessor
            ;; Parameters
            (param $accessor-proc  (ref eq))   ;; closure produced by make-struct-accessor
-           (param $field-index-fx (ref eq))   ;; fixnum
+           (param $field-index-raw (ref eq))  ;; exact-nonnegative-integer?
            (param $name           (ref eq))   ;; symbol or #f
            (param $contract-str   (ref eq))   ;; string/symbol/#f (ignored)
            (param $realm          (ref eq))   ;; symbol
@@ -5890,6 +5891,7 @@
            (local $struct-name          (ref eq))
            (local $field-accessor-name  (ref eq))
            (local $field-index          i32)
+           (local $field-index-fx       (ref eq))
            (local $field-name           (ref eq))
            (local $contract-checked     (ref eq))
            (local $expected-contract    (ref eq))
@@ -5908,13 +5910,12 @@
                            (local.get $accessor-proc))))
            (local.set $accessor (ref.cast (ref $Closure) (local.get $accessor-proc)))
            ;; Check field-index is an exact nonnegative integer.
-           (if (ref.eq (call $exact-nonnegative-integer? (local.get $field-index-fx))
-                       (global.get $false))
-               (then (call $raise-make-struct-field-accessor:field-pos
-                           (local.get $field-index-fx))))
            (local.set $field-index
-                      (i32.shr_u (i31.get_u (ref.cast (ref i31) (local.get $field-index-fx)))
-                                  (i32.const 1)))
+                      (call $exact-nonnegative-integer->i32/saturating
+                            (local.get $field-index-raw)))
+           (if (i32.lt_s (local.get $field-index) (i32.const 0))
+               (then (call $raise-make-struct-field-accessor:field-pos
+                           (local.get $field-index-raw))))
            (local.set $field-name
                       (if (result (ref eq))
                           (ref.eq (local.get $name) (global.get $missing))
@@ -5966,6 +5967,8 @@
                            (local.get $std)
                            (local.get $field-index)
                            (local.get $accessible-count))))
+           (local.set $field-index-fx
+                      (ref.i31 (i32.shl (local.get $field-index) (i32.const 1))))
            (local.set $struct-name (struct.get $StructType $name (local.get $std)))
            (local.set $expected-contract
                       (if (result (ref eq))

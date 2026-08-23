@@ -23,6 +23,8 @@
 (define (struct-plain-given)
   (struct-plain))
 
+(define too-large-struct-index 536870912)
+
 (list
  (list "make-struct-type required argument errors are catchable with who"
        (and
@@ -571,6 +573,12 @@
              "index too large"
              "index: 2"
              "maximum allowed index: 1")
+            (catch-contract/contains?
+             (lambda () (p-ref p too-large-struct-index))
+             "p-ref"
+             "index too large"
+             "index: 536870912"
+             "maximum allowed index: 1")
             (let ()
               (p-set! p 0 9)
               (= (p-ref p 0) 9))
@@ -595,6 +603,12 @@
              "index: 2"
              "maximum allowed index: 1")
             (catch-contract/contains?
+             (lambda () (p-set! p too-large-struct-index 9))
+             "p-set!"
+             "index too large"
+             "index: 536870912"
+             "maximum allowed index: 1")
+            (catch-contract/contains?
              (lambda () (p-set! p 1 9))
              "p-set!"
              "cannot modify value of immutable field"
@@ -616,10 +630,22 @@
              "index: 2"
              "maximum allowed index: 1")
             (catch-contract/contains?
+             (lambda () (make-struct-field-accessor p-ref too-large-struct-index))
+             "make-struct-field-accessor"
+             "index too large"
+             "index: 536870912"
+             "maximum allowed index: 1")
+            (catch-contract/contains?
              (lambda () (make-struct-field-mutator p-set! 2))
              "make-struct-field-mutator"
              "index too large"
              "index: 2"
+             "maximum allowed index: 1")
+            (catch-contract/contains?
+             (lambda () (make-struct-field-mutator p-set! too-large-struct-index))
+             "make-struct-field-mutator"
+             "index too large"
+             "index: 536870912"
              "maximum allowed index: 1")
             (catch-contract/contains?
              (lambda () (make-struct-field-accessor z-ref 0))
