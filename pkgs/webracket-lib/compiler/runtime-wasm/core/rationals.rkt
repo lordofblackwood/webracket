@@ -205,6 +205,28 @@
            (call $integer-sign/i32
                  (call $exact-rational-numerator (local.get $x))))
 
+     ;; $exact-rational-half?/i32 : any/c -> i32
+     ;;   Return 1 when x is exactly 1/2, otherwise 0.
+     (func $exact-rational-half?/i32
+           (param $x (ref eq))
+           (result i32)
+
+           (if (ref.test (ref $Rational) (local.get $x))
+               (then
+                (return
+                 (i32.and
+                  (i32.eqz
+                   (call $integer-compare/i32
+                         (struct.get $Rational $num
+                                     (ref.cast (ref $Rational) (local.get $x)))
+                         (ref.i31 (i32.const 2))))
+                  (i32.eqz
+                   (call $integer-compare/i32
+                         (struct.get $Rational $den
+                                     (ref.cast (ref $Rational) (local.get $x)))
+                         (ref.i31 (i32.const 4))))))))
+           (i32.const 0))
+
      ;; $exact-rational-simplest-positive : exact-rational? exact-rational? -> exact-rational?
      ;;   Return the simplest rational in the positive interval [x, y].
      (func $exact-rational-simplest-positive

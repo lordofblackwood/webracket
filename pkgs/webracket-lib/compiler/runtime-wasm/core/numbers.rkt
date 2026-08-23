@@ -909,6 +909,24 @@
               (local $exactz i32)
               (local $exactw i32)
 
+              ;; Exact 1/2 exponent uses sqrt, which can return exact roots.
+              (if (call $exact-rational-half?/i32 (local.get $w))
+                  (then
+                   (if (call $exact-rational?/i32 (local.get $z))
+                       (then
+                        (if (i32.ge_s
+                             (call $exact-rational-sign/i32 (local.get $z))
+                             (i32.const 0))
+                            (then (return (call $sqrt (local.get $z)))))))
+                   (if (ref.test (ref $Flonum) (local.get $z))
+                       (then
+                        (local.set $zf64
+                                   (struct.get $Flonum $v
+                                               (ref.cast (ref $Flonum)
+                                                         (local.get $z))))
+                        (if (f64.ge (local.get $zf64) (f64.const 0.0))
+                            (then (return (call $sqrt (local.get $z)))))))))
+
               ;; Exact rational base with exact integer exponent.
               (if (i32.and
                    (call $exact-rational?/i32 (local.get $z))

@@ -923,6 +923,32 @@
             '(rationalize 1.2 0.1)
             #:gate? #t
             #:note "rationalize accepts finite flonum inputs and returns an inexact result.")
+   (nt-case 'expt-half-perfect-square
+            'real-math
+            '(expt 9 1/2)
+            #:gate? #t
+            #:note "expt with exact 1/2 delegates to exact sqrt for perfect squares.")
+   (nt-case 'expt-half-rational-perfect-square
+            'real-math
+            '(expt 9/16 1/2)
+            #:gate? #t
+            #:note "expt with exact 1/2 preserves exact rational square roots.")
+   (nt-case 'expt-half-nonperfect-inexact
+            'real-math
+            '(expt 2 1/2)
+            #:gate? #t
+            #:note "expt with exact 1/2 falls back to inexact sqrt when needed.")
+   (nt-case 'expt-half-bignum-perfect-square
+            'real-math
+            '(expt 18446744073709551616 1/2)
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "expt with exact 1/2 handles bignum perfect squares.")
+   (nt-case 'expt-half-flonum
+            'real-math
+            '(expt 2.0 1/2)
+            #:gate? #t
+            #:note "expt with exact 1/2 accepts nonnegative flonum bases.")
    (nt-case 'integer-length-bignum-two-to-53-plus-one
             'integer-bitwise
             '(integer-length 9007199254740993)
