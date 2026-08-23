@@ -196,6 +196,7 @@
   '($raise-string->number:bad-argument
     $raise-string->number:bad-radix
     $string->number:special-tail
+    $string->number:component
     $string->number:parse-fractional-part
     $string->number:parse-integer
     $string->number))
@@ -6089,6 +6090,73 @@
 
            (i32.const 0))
 
+     ;; string->number:component : string? i32 i32 i32 i32 -> number?/#f
+     ;;   Parse a real component slice with the parent radix and exactness.
+     (func $string->number:component
+           (param $s         (ref $String))
+           (param $start     i32)
+           (param $end       i32)
+           (param $radix     i32)
+           (param $exactness i32)
+           (result           (ref eq))
+
+           (local $src        (ref $I32Array))
+           (local $out        (ref $I32Array))
+           (local $prefix-len i32)
+           (local $slice-len  i32)
+
+           (if (i32.ge_u (local.get $start) (local.get $end))
+               (then (return (global.get $false))))
+
+           (local.set $src (struct.get $String $codepoints (local.get $s)))
+           (local.set $prefix-len
+                      (if (result i32)
+                          (i32.eq (local.get $exactness) (i32.const 0))
+                          (then (i32.const 0))
+                          (else (i32.const 2))))
+           (local.set $slice-len
+                      (i32.sub (local.get $end) (local.get $start)))
+           (local.set $out
+                      (array.new_default
+                       $I32Array
+                       (i32.add (local.get $prefix-len)
+                                (local.get $slice-len))))
+
+           (if (local.get $prefix-len)
+               (then
+                (array.set $I32Array
+                           (local.get $out)
+                           (i32.const 0)
+                           (i32.const 35))
+                (if (i32.eq (local.get $exactness) (i32.const 1))
+                    (then
+                     (array.set $I32Array
+                                (local.get $out)
+                                (i32.const 1)
+                                (i32.const 101)))
+                    (else
+                     (array.set $I32Array
+                                (local.get $out)
+                                (i32.const 1)
+                                (i32.const 105))))))
+
+           (array.copy $I32Array $I32Array
+                       (local.get $out)
+                       (local.get $prefix-len)
+                       (local.get $src)
+                       (local.get $start)
+                       (local.get $slice-len))
+
+           (call $string->number
+                 (struct.new $String
+                             (i32.const 0)
+                             (i32.const 1)
+                             (local.get $out))
+                 (ref.i31 (i32.shl (local.get $radix) (i32.const 1)))
+                 (global.get $missing)
+                 (global.get $missing)
+                 (global.get $missing)))
+
      ;; string->number:parse-fractional-part : string? i32 -> f64 i32
      ;;   Parse decimal digits into an inexact fractional value.
      (func $string->number:parse-fractional-part
@@ -6249,10 +6317,16 @@
            (local $arr      (ref $I32Array))
            (local $len      i32)
            (local $i        i32)
+           (local $body-start i32)
+           (local $tail     i32)
+           (local $split    i32)
+           (local $scan     i32)
            (local $neg      i32)
            (local $sign-seen i32)
            (local $cp       i32)
            (local $special  i32)
+           (local $real     (ref eq))
+           (local $imag     (ref eq))
            (local $int      (ref eq))
            (local $den      (ref eq))
            (local $frac-int (ref eq))
@@ -6397,6 +6471,138 @@
 
            (if (i32.eq (local.get $i) (local.get $len))
                (then (return (global.get $false))))
+
+           ;; Rectangular complex syntax: a+bi, a-bi, +bi, -bi, +i, -i.
+           (local.set $body-start (local.get $i))
+           (local.set $tail (i32.sub (local.get $len) (i32.const 1)))
+           (local.set $cp (call $i32array-ref (local.get $arr) (local.get $tail)))
+           (if (i32.or
+                (i32.eq (local.get $cp) (i32.const 105))
+                (i32.eq (local.get $cp) (i32.const 73)))
+               (then
+                (local.set $split (i32.const -1))
+                (local.set $scan
+                           (i32.add (local.get $body-start) (i32.const 1)))
+                (block $complex-scan-done
+                       (loop $complex-scan
+                             (br_if $complex-scan-done
+                                    (i32.ge_u (local.get $scan)
+                                              (local.get $tail)))
+                             (local.set $cp
+                                        (call $i32array-ref
+                                              (local.get $arr)
+                                              (local.get $scan)))
+                             (if (i32.or
+                                  (i32.eq (local.get $cp) (i32.const 43))
+                                  (i32.eq (local.get $cp) (i32.const 45)))
+                                 (then
+                                  (local.set $split (local.get $scan))
+                                  (br $complex-scan-done)))
+                             (local.set $scan
+                                        (i32.add (local.get $scan) (i32.const 1)))
+                             (br $complex-scan)))
+
+                (if (i32.lt_s (local.get $split) (i32.const 0))
+                    (then
+                     ;; Unsigned imaginary coefficients are not accepted.
+                     (local.set $cp
+                                (call $i32array-ref
+                                      (local.get $arr)
+                                      (local.get $body-start)))
+                     (if (i32.and
+                          (i32.ne (local.get $cp) (i32.const 43))
+                          (i32.ne (local.get $cp) (i32.const 45)))
+                         (then (return (global.get $false))))
+                     (if (i32.eq (i32.add (local.get $body-start) (i32.const 1))
+                                 (local.get $tail))
+                         (then
+                          (local.set $imag (global.get $one))
+                          (if (i32.eq (local.get $cp) (i32.const 45))
+                              (then
+                               (local.set $imag
+                                          (call $integer-sub/2
+                                                (ref.i31 (i32.const 0))
+                                                (local.get $imag)))))
+                          (if (i32.eq (local.get $exactness) (i32.const 2))
+                              (then
+                               (local.set $imag
+                                          (call $exact->inexact
+                                                (local.get $imag)))))
+                          (return
+                           (call $make-rectangular/canonical
+                                 (if (result (ref eq))
+                                     (i32.eq (local.get $exactness) (i32.const 2))
+                                     (then
+                                      (struct.new $Flonum
+                                                  (i32.const 0)
+                                                  (f64.const 0.0)))
+                                     (else (global.get $zero)))
+                                 (local.get $imag)))))
+                     (local.set $imag
+                                (call $string->number:component
+                                      (local.get $s)
+                                      (local.get $body-start)
+                                      (local.get $tail)
+                                      (local.get $radix)
+                                      (local.get $exactness)))
+                     (if (ref.eq (local.get $imag) (global.get $false))
+                         (then (return (global.get $false))))
+                     (return
+                      (call $make-rectangular/canonical
+                            (if (result (ref eq))
+                                (i32.eq (local.get $exactness) (i32.const 2))
+                                (then
+                                 (struct.new $Flonum
+                                             (i32.const 0)
+                                             (f64.const 0.0)))
+                                (else (global.get $zero)))
+                            (local.get $imag)))))
+
+                (local.set $real
+                           (call $string->number:component
+                                 (local.get $s)
+                                 (local.get $body-start)
+                                 (local.get $split)
+                                 (local.get $radix)
+                                 (local.get $exactness)))
+                (if (ref.eq (local.get $real) (global.get $false))
+                    (then (return (global.get $false))))
+                (if (i32.eq (i32.add (local.get $split) (i32.const 1))
+                            (local.get $tail))
+                    (then
+                     (local.set $imag (global.get $one))
+                     (local.set $cp
+                                (call $i32array-ref
+                                      (local.get $arr)
+                                      (local.get $split)))
+                     (if (i32.eq (local.get $cp) (i32.const 45))
+                         (then
+                          (local.set $imag
+                                     (call $integer-sub/2
+                                           (ref.i31 (i32.const 0))
+                                           (local.get $imag)))))
+                     (if (i32.eq (local.get $exactness) (i32.const 2))
+                         (then
+                          (local.set $imag
+                                     (call $exact->inexact
+                                           (local.get $imag)))))
+                     (return
+                      (call $make-rectangular/canonical
+                            (local.get $real)
+                            (local.get $imag)))))
+                (local.set $imag
+                           (call $string->number:component
+                                 (local.get $s)
+                                 (local.get $split)
+                                 (local.get $tail)
+                                 (local.get $radix)
+                                 (local.get $exactness)))
+                (if (ref.eq (local.get $imag) (global.get $false))
+                    (then (return (global.get $false))))
+                (return
+                 (call $make-rectangular/canonical
+                       (local.get $real)
+                       (local.get $imag)))))
 
            ;; Sign
            (local.set $neg       (i32.const 0))

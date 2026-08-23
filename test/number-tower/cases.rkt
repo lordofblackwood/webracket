@@ -315,6 +315,72 @@
             '(string->number "inf.0")
             #:gate? #t
             #:note "Infinity syntax must include an explicit sign.")
+   (nt-case 'string->number-rectangular-exact
+            'string-number
+            '(string->number "1+2i")
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "string->number parses rectangular complex syntax.")
+   (nt-case 'string->number-rectangular-negative-imag
+            'string-number
+            '(string->number "1-2i")
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "string->number parses negative imaginary components.")
+   (nt-case 'string->number-unit-imaginary
+            'string-number
+            '(string->number "+i")
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "Signed unit imaginary syntax parses as a complex value.")
+   (nt-case 'string->number-negative-unit-imaginary
+            'string-number
+            '(string->number "-i")
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "Negative signed unit imaginary syntax parses as a complex value.")
+   (nt-case 'string->number-signed-imaginary
+            'string-number
+            '(string->number "+2i")
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "Signed pure imaginary coefficients are accepted.")
+   (nt-case 'string->number-rational-complex
+            'string-number
+            '(string->number "1/2+3/4i")
+            #:gate? #t
+            #:note "Rectangular components reuse exact rational parsing.")
+   (nt-case 'string->number-radix-complex
+            'string-number
+            '(string->number "#x1+ai")
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "Source radix prefixes apply to rectangular components.")
+   (nt-case 'string->number-inexact-complex-prefix
+            'string-number
+            '(string->number "#i1+2i")
+            #:gate? #t
+            #:note "Inexact prefixes convert rectangular components to flonums.")
+   (nt-case 'string->number-exact-decimal-complex
+            'string-number
+            '(string->number "#e1.5+2.5i")
+            #:gate? #t
+            #:note "Exact prefixes convert decimal rectangular components to rationals.")
+   (nt-case 'string->number-inexact-imaginary-component
+            'string-number
+            '(string->number "1+2.5i")
+            #:gate? #t
+            #:note "An inexact rectangular component makes the complex value inexact.")
+   (nt-case 'string->number-infinity-imaginary-component
+            'string-number
+            '(string->number "1+inf.0i")
+            #:gate? #t
+            #:note "Rectangular imaginary components can use signed infinity syntax.")
+   (nt-case 'string->number-unsigned-imaginary-rejected
+            'string-number
+            '(string->number "2i")
+            #:gate? #t
+            #:note "Unsigned pure imaginary coefficients parse as #f.")
    (nt-case 'string->number-zero-denominator
             'string-number
             '(string->number "1/0")
