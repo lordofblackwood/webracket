@@ -709,6 +709,24 @@
                (and (number? z) (complex? z) (not (real? z)) (inexact? z)))
             #:gate? #t
             #:note "Unary complex atan uses the logarithmic branch formula.")
+   (nt-case 'complex-asinh-shape
+            'complex-transcendental
+            '(let ([z (asinh 1+2i)])
+               (and (number? z) (complex? z) (not (real? z)) (inexact? z)))
+            #:gate? #t
+            #:note "Complex asinh uses the logarithmic branch formula.")
+   (nt-case 'complex-acosh-shape
+            'complex-transcendental
+            '(let ([z (acosh 1+2i)])
+               (and (number? z) (complex? z) (not (real? z)) (inexact? z)))
+            #:gate? #t
+            #:note "Complex acosh uses the documented logarithmic formula.")
+   (nt-case 'complex-atanh-shape
+            'complex-transcendental
+            '(let ([z (atanh 1+2i)])
+               (and (number? z) (complex? z) (not (real? z)) (inexact? z)))
+            #:gate? #t
+            #:note "Complex atanh uses the logarithmic branch formula.")
    (nt-case 'asin-real-out-of-domain-exact
             'complex-transcendental
             '(let ([z (asin 2)])
@@ -727,6 +745,22 @@
                (and (number? z) (complex? z) (not (real? z)) (inexact? z)))
             #:gate? #t
             #:note "asin exits the real line for inexact values below -1.")
+   (nt-case 'acosh-exact-below-one
+            'complex-transcendental
+            '(let ([z (acosh 0)])
+               (and (number? z) (complex? z) (not (real? z)) (inexact? z)))
+            #:gate? #t
+            #:note "Exact acosh below 1 enters the complex plane.")
+   (nt-case 'acosh-flonum-below-one
+            'complex-transcendental
+            '(string=? (number->string (acosh 0.0)) "+nan.0")
+            #:gate? #t
+            #:note "Flonum acosh below 1 follows the flonum helper and returns NaN.")
+   (nt-case 'atanh-real-out-of-domain
+            'complex-transcendental
+            '(string=? (number->string (atanh 2)) "+nan.0")
+            #:gate? #t
+            #:note "Real atanh outside [-1,1] follows the flonum helper and returns NaN.")
    (nt-case 'complex-expt-exact-integer
             'complex-expt
             '(expt 1+2i 2)

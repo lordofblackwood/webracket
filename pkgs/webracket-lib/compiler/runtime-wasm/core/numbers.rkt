@@ -1815,6 +1815,9 @@
     $complex-sinh
     $complex-cosh
     $complex-tanh
+    $complex-asinh
+    $complex-acosh
+    $complex-atanh
     $sin
     $cos
     $tan
@@ -2091,7 +2094,7 @@
                (local $vals (ref $Values))
                (local $fl (ref $Flonum))
                (local $mf f64)
-	               (local $rf f64)
+               (local $rf f64)
 
                ;; Exact integers
                (local.set $n/exact
@@ -2124,19 +2127,19 @@
                                 (local.get $r)
                                 (local.get $m)))))))
 
-	               ;; Validate here so user-facing type errors preserve `modulo` as `who`.
-	               (if (ref.eq (call $integer? (local.get $n)) (global.get $false))
-	                   (then (call $raise-expected-integer
-	                               (global.get $symbol:modulo)
-	                               (local.get $n))
-	                         (unreachable)))
-	               (if (ref.eq (call $integer? (local.get $m)) (global.get $false))
-	                   (then (call $raise-expected-integer
-	                               (global.get $symbol:modulo)
-	                               (local.get $m))
-	                         (unreachable)))
-	               ;; Compute remainder; it validates the non-zero divisor.
-	               (local.set $r (call $remainder (local.get $n) (local.get $m)))
+               ;; Validate here so user-facing type errors preserve `modulo` as `who`.
+               (if (ref.eq (call $integer? (local.get $n)) (global.get $false))
+                   (then (call $raise-expected-integer
+                               (global.get $symbol:modulo)
+                               (local.get $n))
+                         (unreachable)))
+               (if (ref.eq (call $integer? (local.get $m)) (global.get $false))
+                   (then (call $raise-expected-integer
+                               (global.get $symbol:modulo)
+                               (local.get $m))
+                         (unreachable)))
+               ;; Compute remainder; it validates the non-zero divisor.
+               (local.set $r (call $remainder (local.get $n) (local.get $m)))
                ;; Convert m to f64 for sign checks; capture integer payload when fixnum.
                (if (ref.test (ref i31) (local.get $m))
                    (then
@@ -3429,6 +3432,62 @@
                     (call $complex-sinh (local.get $z))
                     (call $complex-cosh (local.get $z))))
 
+        ;; complex-asinh : number? -> number?
+        ;;   Compute asinh z as log(z + sqrt(z*z + 1)).
+        (func $complex-asinh
+              (param $z (ref eq))
+              (result (ref eq))
+              (call $log
+                    (call $+/2
+                          (local.get $z)
+                          (call $sqrt
+                                (call $+/2
+                                      (call $*/2 (local.get $z)
+                                                 (local.get $z))
+                                      (global.get $one))))
+                    (global.get $missing)))
+
+        ;; complex-acosh : number? -> number?
+        ;;   Compute acosh z as log(z + sqrt(z + 1) * sqrt(z - 1)).
+        (func $complex-acosh
+              (param $z (ref eq))
+              (result (ref eq))
+
+              (local $sqrt+ (ref eq))
+              (local $sqrt- (ref eq))
+
+              (local.set $sqrt+
+                         (call $sqrt
+                               (call $+/2 (local.get $z)
+                                          (global.get $one))))
+              (local.set $sqrt-
+                         (call $sqrt
+                               (call $-/2 (local.get $z)
+                                          (global.get $one))))
+              (call $log
+                    (call $+/2
+                          (local.get $z)
+                          (call $*/2 (local.get $sqrt+)
+                                     (local.get $sqrt-)))
+                    (global.get $missing)))
+
+        ;; complex-atanh : number? -> number?
+        ;;   Compute atanh z as (log(1 + z) - log(1 - z)) / 2.
+        (func $complex-atanh
+              (param $z (ref eq))
+              (result (ref eq))
+              (call $/2
+                    (call $-/2
+                          (call $log
+                                (call $+/2 (global.get $one)
+                                           (local.get $z))
+                                (global.get $missing))
+                          (call $log
+                                (call $-/2 (global.get $one)
+                                           (local.get $z))
+                                (global.get $missing)))
+                    (global.get $two)))
+
         ;; Trigonometric functions
         ;               name js            inbits outbits
         ,@(let ([ops '((sin  $js-raw-math-sin  0      0 $complex-sin)    ;  sin(0) = 0
@@ -3439,9 +3498,9 @@
                        (sinh  $js-raw-math-sinh  0      0 $complex-sinh) ;  sinh(0) = 0
                        (cosh  $js-raw-math-cosh  0      2 $complex-cosh) ;  cosh(0) = 1
                        (tanh  $js-raw-math-tanh  0      0 $complex-tanh) ;  tanh(0) = 0
-                       (asinh $js-raw-math-asinh 0      0 #f) ; asinh(0) = 0
-                       (acosh $js-raw-math-acosh 2      0 #f) ; acosh(1) = 0
-                       (atanh $js-raw-math-atanh 0      0 #f))]) ; atanh(0) = 0
+                       (asinh $js-raw-math-asinh 0      0 $complex-asinh) ; asinh(0) = 0
+                       (acosh $js-raw-math-acosh 2      0 $complex-acosh) ; acosh(1) = 0
+                       (atanh $js-raw-math-atanh 0      0 $complex-atanh))]) ; atanh(0) = 0
             ;; inbits and outbits are raw i31 fixnum encodings.
             ;; They mark trivial exact identities of trig functions
             ;; (e.g. sin 0 = 0, cos 0 = 1, acos 1 = 0).
@@ -3452,7 +3511,70 @@
               (define inbits  (caddr p))
               (define outbits (cadddr p))
               (define complex-helper (list-ref p 4))
-              (define out-of-real-domain? (memq name '(asin acos)))
+              (define exact-domain-check
+                (cond [(memq name '(asin acos)) 'abs-greater-than-one]
+                      [(eq? name 'acosh)        'less-than-one]
+                      [else                     #f]))
+              (define flonum-domain-check
+                (and (memq name '(asin acos)) 'abs-greater-than-one))
+              (define (fixnum-domain-forms check)
+                (case check
+                  [(abs-greater-than-one)
+                   `((if (f64.gt
+                          (f64.abs
+                           (f64.convert_i32_s
+                            (i32.shr_s (local.get $bits)
+                                       (i32.const 1))))
+                          (f64.const 1.0))
+                         (then
+                          (return
+                           (call ,complex-helper
+                                 (local.get $x))))))]
+                  [(less-than-one)
+                   `((if (f64.lt
+                          (f64.convert_i32_s
+                           (i32.shr_s (local.get $bits)
+                                      (i32.const 1)))
+                          (f64.const 1.0))
+                         (then
+                          (return
+                           (call ,complex-helper
+                                 (local.get $x))))))]
+                  [else '()]))
+              (define (flonum-domain-forms check)
+                (case check
+                  [(abs-greater-than-one)
+                   `((if (f64.gt (f64.abs (local.get $f64))
+                                  (f64.const 1.0))
+                         (then
+                          (return
+                           (call ,complex-helper
+                                 (local.get $x))))))]
+                  [else '()]))
+              (define (exact-rational-domain-forms check)
+                (case check
+                  [(abs-greater-than-one)
+                   `((if (i32.gt_s
+                          (call $exact-rational-compare/i32
+                                (call $exact-rational-abs
+                                      (local.get $x))
+                                (global.get $one))
+                          (i32.const 0))
+                         (then
+                          (return
+                           (call ,complex-helper
+                                 (local.get $x))))))]
+                  [(less-than-one)
+                   `((if (i32.lt_s
+                          (call $exact-rational-compare/i32
+                                (local.get $x)
+                                (global.get $one))
+                          (i32.const 0))
+                         (then
+                          (return
+                           (call ,complex-helper
+                                 (local.get $x))))))]
+                  [else '()]))
               `(func ,(string->symbol (format "$~a" name))
                      (type $Prim1)
                      (param $x (ref eq))
@@ -3477,18 +3599,7 @@
                               (then
                                (if (i32.eq (local.get $bits) (i32.const ,inbits))
                                    (then (return (ref.i31 (i32.const ,outbits)))))
-                               ,@(if out-of-real-domain?
-                                     `((if (f64.gt
-                                            (f64.abs
-                                             (f64.convert_i32_s
-                                              (i32.shr_s (local.get $bits)
-                                                         (i32.const 1))))
-                                            (f64.const 1.0))
-                                           (then
-                                            (return
-                                             (call ,complex-helper
-                                                   (local.get $x))))))
-                                     '())
+                               ,@(fixnum-domain-forms exact-domain-check)
                                (return (struct.new $Flonum
                                                    (i32.const 0)
                                                    (call ,js
@@ -3503,32 +3614,14 @@
                          (then
                           (local.set $fl (ref.cast (ref $Flonum) (local.get $x)))
                           (local.set $f64 (struct.get $Flonum $v (local.get $fl)))
-                          ,@(if out-of-real-domain?
-                                `((if (f64.gt (f64.abs (local.get $f64))
-                                               (f64.const 1.0))
-                                      (then
-                                       (return
-                                        (call ,complex-helper
-                                              (local.get $x))))))
-                                '())
+                          ,@(flonum-domain-forms flonum-domain-check)
                           (return (struct.new $Flonum
                                                (i32.const 0)
                                                (call ,js (local.get $f64))))))
 
                      (if (call $exact-rational?/i32 (local.get $x))
                          (then
-                          ,@(if out-of-real-domain?
-                                `((if (i32.gt_s
-                                       (call $exact-rational-compare/i32
-                                             (call $exact-rational-abs
-                                                   (local.get $x))
-                                             (global.get $one))
-                                       (i32.const 0))
-                                      (then
-                                       (return
-                                        (call ,complex-helper
-                                              (local.get $x))))))
-                                '())
+                          ,@(exact-rational-domain-forms exact-domain-check)
                           (return
                            (struct.new $Flonum
                                        (i32.const 0)

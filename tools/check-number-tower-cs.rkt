@@ -252,6 +252,59 @@
     (lambda (out)
       (display "#lang racket/base\n" out)
       (display "(require racket/math)\n" out)
+      (write
+       '(begin
+          (define (number-tower-float-complex? x)
+            (and (complex? x)
+                 (not (real? x))
+                 (flonum? (real-part x))
+                 (flonum? (imag-part x))))
+
+          (define (number-tower-flasinh x)
+            (log (+ x (sqrt (+ (* x x) 1.0)))))
+
+          (define (number-tower-flacosh x)
+            (if (< x 1.0)
+                +nan.0
+                (log (+ x (* (sqrt (+ x 1.0))
+                             (sqrt (- x 1.0)))))))
+
+          (define (number-tower-flatanh x)
+            (cond [(= x 1.0) +inf.0]
+                  [(= x -1.0) -inf.0]
+                  [(or (< x -1.0) (> x 1.0)) +nan.0]
+                  [else (* 0.5 (- (log (+ 1.0 x))
+                                  (log (- 1.0 x))))]))
+
+          (define (asinh x)
+            (cond [(flonum? x) (number-tower-flasinh x)]
+                  [(eqv? x 0) 0]
+                  [(real? x) (number-tower-flasinh (real->double-flonum x))]
+                  [(number-tower-float-complex? x)
+                   (log (+ x (sqrt (+ (* x x) 1.0))))]
+                  [else
+                   (log (+ x (sqrt (+ (* x x) 1))))]))
+
+          (define (acosh x)
+            (cond [(flonum? x) (number-tower-flacosh x)]
+                  [(eqv? x 1) 0]
+                  [(and (real? x) (>= x 1))
+                   (number-tower-flacosh (real->double-flonum x))]
+                  [(number-tower-float-complex? x)
+                   (log (+ x (* (sqrt (+ x 1.0)) (sqrt (- x 1.0)))))]
+                  [else
+                   (log (+ x (* (sqrt (+ x 1)) (sqrt (- x 1)))))]))
+
+          (define (atanh x)
+            (cond [(flonum? x) (number-tower-flatanh x)]
+                  [(eqv? x 0) 0]
+                  [(real? x) (number-tower-flatanh (real->double-flonum x))]
+                  [(number-tower-float-complex? x)
+                   (* 0.5 (- (log (+ 1.0 x)) (log (- 1.0 x))))]
+                  [else
+                   (* 1/2 (- (log (+ 1 x)) (log (- 1 x))))])))
+       out)
+      (newline out)
       (write `(begin
                 (write ,(cases-expression cases))
                 (newline))
