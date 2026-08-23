@@ -12,6 +12,7 @@
 ;;   Declare string constants used by semaphore helpers and semaphore errors.
 (define semaphore-runtime-string-constants
   '((semaphore? "semaphore?")
+    (semaphore-count-maximum ": internal counter has reached its maximum")
     (try-fail-thunk-or-false "(or/c (procedure-arity-includes/c 0) #f)")))
 
 ;; semaphore-promoted-runtime-helper-names : (listof symbol?)
@@ -46,13 +47,45 @@
                              (global.get $string:exact-nonnegative-integer?)
                              (local.get $count-raw))
                        (unreachable)))
+                  (if (i32.gt_s
+                       (call $integer-compare/i32
+                             (local.get $count-raw)
+                             (call $integer-from-i64 (i64.const 2147483647)))
+                       (i32.const 0))
+                      (then
+                       (call $raise-semaphore:count-maximum
+                             (global.get $symbol:make-semaphore))
+                       (unreachable)))
                   (local.set $count
-                             (i32.shr_s
-                              (i31.get_s (ref.cast (ref i31) (local.get $count-raw)))
-                              (i32.const 1)))))
+                             (call $exact-nonnegative-integer->i32/saturating
+                                   (local.get $count-raw)))))
              (struct.new $Semaphore
                          (i32.const 0)
                          (local.get $count)))))
+
+
+   ;; raise-semaphore:count-maximum : symbol? -> none
+   ;;   Raise a plain failure when a semaphore counter cannot be incremented.
+   (core-runtime-helper
+    '$raise-semaphore:count-maximum
+    "$raise-semaphore:count-maximum"
+    (lambda ()
+      `(func $raise-semaphore:count-maximum
+             (param $who (ref eq)) ;; symbol?
+
+             (local $message (ref $String))
+
+             (local.set $message
+                        (call $string-append/2
+                              (call $format/display (local.get $who))
+                              (global.get $string:semaphore-count-maximum)))
+             (call $raise
+                   (call $exn:fail/make
+                         (local.get $message)
+                         (call $current-continuation-marks
+                               (global.get $missing)))
+                   (global.get $true))
+             (unreachable))))
 
 
    ;; semaphore? : any/c -> boolean?
@@ -96,6 +129,7 @@
              (result          (ref eq))
        
              (local $sema (ref $Semaphore))
+             (local $count i32)
              (if (i32.eqz (ref.test (ref $Semaphore) (local.get $sema-raw)))
                  (then
                   (call $raise-argument-error1
@@ -104,10 +138,15 @@
                         (local.get $sema-raw))
                   (unreachable)))
              (local.set $sema (ref.cast (ref $Semaphore) (local.get $sema-raw)))
+             (local.set $count (struct.get $Semaphore $count (local.get $sema)))
+             (if (i32.eq (local.get $count) (i32.const 2147483647))
+                 (then
+                  (call $raise-semaphore:count-maximum
+                        (global.get $symbol:semaphore-post))
+                  (unreachable)))
              (struct.set $Semaphore $count
                          (local.get $sema)
-                         (i32.add (struct.get $Semaphore $count (local.get $sema))
-                                  (i32.const 1)))
+                         (i32.add (local.get $count) (i32.const 1)))
              (global.get $void))))
 
 
@@ -310,6 +349,7 @@
 ;;   Preserve the runtime emission order for semaphore helpers.
 (define semaphore-runtime-only-helper-names
   '($make-semaphore
+    $raise-semaphore:count-maximum
     $semaphore-post
     $semaphore-try-wait?
     $call-with-semaphore

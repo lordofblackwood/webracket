@@ -14,6 +14,18 @@
                    (string-contains? message needle))
                  needles))))
 
+(define (catch-fail/contains? thunk . needles)
+  (let ([message
+         (with-handlers ([exn:fail?
+                          (lambda (exn)
+                            (exn-message exn))])
+           (thunk)
+           #f)])
+    (and message
+         (andmap (lambda (needle)
+                   (string-contains? message needle))
+                 needles))))
+
 (struct semaphore-plain ())
 
 (list
@@ -113,6 +125,21 @@
         "call-with-semaphore"
         "(or/c (procedure-arity-includes/c 0) #f)"
         "given: #(struct semaphore-plain)"))
+ (list "make-semaphore accepts bignum exact counts"
+       (let ([s (make-semaphore 536870912)])
+         (and (equal? (semaphore? s) #t)
+              (equal? (semaphore-try-wait? s) #t)
+              (equal? (sync/timeout 0 s) s))))
+ (list "make-semaphore rejects counts beyond WebRacket maximum"
+       (catch-fail/contains?
+        (lambda () (make-semaphore 2147483648))
+        "make-semaphore"
+        "internal counter has reached its maximum"))
+ (list "semaphore-post rejects increments beyond WebRacket maximum"
+       (catch-fail/contains?
+        (lambda () (semaphore-post (make-semaphore 2147483647)))
+        "semaphore-post"
+        "internal counter has reached its maximum"))
  (list "sync still selects ready events"
        (and (equal? (sync always-evt) always-evt)
             (let ([s (make-semaphore 1)])
