@@ -61,6 +61,8 @@
     (parameterization? "parameterization?")
     (cache-configuration-index "(integer-in 0 7)")
     (current-print:procedure-arity-1 "(procedure-arity-includes/c 1)")
+    (print-syntax-width-value "(or/c 0 (and/c exact-integer? (>=/c 3)))")
+    (error-print-width-value "(and/c exact-integer? (>=/c 3))")
     (readtable-or-false "(or/c readtable? #f)")
     (current-environment-variables:environment-variables? "environment-variables?")))
 
@@ -1704,42 +1706,37 @@
                        (local.get $path))
            (global.get $void))
 
-     ;; print-syntax-width : [(or/c +inf.0 0 exact-integer>=3)] -> any/c
-     ;;   Bootstrap parameter for syntax-object printing. It accepts
-     ;;   exact fixnums 0 or >= 3, which covers the default and the
-     ;;   expander startup path; +inf.0 can be added with broader
-     ;;   numeric printer-parameter support.
+     ;; print-syntax-width : [(or/c 0 exact-integer>=3)] -> any/c
+     ;;   Bootstrap parameter for syntax-object printing. It accepts exact
+     ;;   integers 0 or >= 3. Racket also accepts +inf.0; WebRacket can add
+     ;;   that with broader numeric printer-parameter support.
      (func $print-syntax-width (type $Prim01)
            (param $v (ref eq)) ;; optional width, default = current value
            (result   (ref eq))
-
-           (local $raw i32)
-           (local $n   i32)
 
            (if (ref.eq (local.get $v) (global.get $missing))
                (then (return (call $parameter-value-or-global
                                    (global.get $prim:print-syntax-width)
                                    (global.get $print-syntax-width-value)))))
-           (if (i32.eqz (ref.test (ref i31) (local.get $v)))
+           (if (ref.eq (call $exact-integer? (local.get $v))
+                       (global.get $false))
                (then (call $raise-argument-error1
                            (global.get $symbol:print-syntax-width)
-                           (global.get $string:exact-nonnegative-integer?)
+                           (global.get $string:print-syntax-width-value)
                            (local.get $v))
                      (unreachable)))
-           (local.set $raw (i31.get_u (ref.cast (ref i31) (local.get $v))))
-           (if (i32.ne (i32.and (local.get $raw) (i32.const 1)) (i32.const 0))
-               (then (call $raise-argument-error1
-                           (global.get $symbol:print-syntax-width)
-                           (global.get $string:exact-nonnegative-integer?)
-                           (local.get $v))
-                     (unreachable)))
-           (local.set $n (i32.shr_u (local.get $raw) (i32.const 1)))
            (if (i32.and
-                (i32.ne (local.get $n) (i32.const 0))
-                (i32.lt_u (local.get $n) (i32.const 3)))
+                (i32.ne (call $integer-compare/i32
+                              (local.get $v)
+                              (global.get $zero))
+                        (i32.const 0))
+                (i32.lt_s (call $integer-compare/i32
+                                (local.get $v)
+                                (global.get $three))
+                          (i32.const 0)))
                (then (call $raise-argument-error1
                            (global.get $symbol:print-syntax-width)
-                           (global.get $string:exact-nonnegative-integer?)
+                           (global.get $string:print-syntax-width-value)
                            (local.get $v))
                      (unreachable)))
            (if (i32.eqz (ref.eq (global.get $current-parameterization-value)
@@ -1756,31 +1753,24 @@
            (param $v (ref eq)) ;; optional width, default = current value
            (result   (ref eq))
 
-           (local $raw i32)
-           (local $n   i32)
-
            (if (ref.eq (local.get $v) (global.get $missing))
                (then (return (call $parameter-value-or-global
                                    (global.get $prim:error-print-width)
                                    (global.get $error-print-width-value)))))
-           (if (i32.eqz (ref.test (ref i31) (local.get $v)))
+           (if (ref.eq (call $exact-integer? (local.get $v))
+                       (global.get $false))
                (then (call $raise-argument-error1
                            (global.get $symbol:error-print-width)
-                           (global.get $string:exact-nonnegative-integer?)
+                           (global.get $string:error-print-width-value)
                            (local.get $v))
                      (unreachable)))
-           (local.set $raw (i31.get_u (ref.cast (ref i31) (local.get $v))))
-           (if (i32.ne (i32.and (local.get $raw) (i32.const 1)) (i32.const 0))
+           (if (i32.lt_s (call $integer-compare/i32
+                               (local.get $v)
+                               (global.get $three))
+                         (i32.const 0))
                (then (call $raise-argument-error1
                            (global.get $symbol:error-print-width)
-                           (global.get $string:exact-nonnegative-integer?)
-                           (local.get $v))
-                     (unreachable)))
-           (local.set $n (i32.shr_u (local.get $raw) (i32.const 1)))
-           (if (i32.lt_u (local.get $n) (i32.const 3))
-               (then (call $raise-argument-error1
-                           (global.get $symbol:error-print-width)
-                           (global.get $string:exact-nonnegative-integer?)
+                           (global.get $string:error-print-width-value)
                            (local.get $v))
                      (unreachable)))
            (if (i32.eqz (ref.eq (global.get $current-parameterization-value)

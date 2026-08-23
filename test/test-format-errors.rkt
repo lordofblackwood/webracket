@@ -174,6 +174,13 @@
                         (equal? (format "~.a" '(1 2 3)) "(1..."))])
            (error-print-width old)
            ok)))
+ (list "format truncation accepts bignum error-print-width"
+       (let ([old (error-print-width)])
+         (error-print-width 536870912)
+         (let ([ok (and (equal? (format "~.a" "abcdef") "abcdef")
+                        (equal? (format "~e" "abcdef") "\"abcdef\""))])
+           (error-print-width old)
+           ok)))
  (list "format error-value directive uses Racket-style default printing"
        (and (equal? (format "~e" "abcdef") "\"abcdef\"")
             (equal? (format "~E" (string->symbol "a b")) "'|a b|")

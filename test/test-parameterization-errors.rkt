@@ -133,6 +133,28 @@
        (let ([old (current-print)])
          (and (void? (current-print (lambda (v) (void))))
               (void? (current-print old)))))
+ (list "printer width parameters accept bignums"
+       (let ([old-syntax (print-syntax-width)]
+             [old-error  (error-print-width)])
+         (let ([ok (and (void? (print-syntax-width 536870912))
+                        (equal? (print-syntax-width) 536870912)
+                        (void? (error-print-width 536870912))
+                        (equal? (error-print-width) 536870912))])
+           (print-syntax-width old-syntax)
+           (error-print-width old-error)
+           ok)))
+ (list "printer width parameter bounds are catchable"
+       (and
+        (catch-contract/contains?
+         (lambda () (print-syntax-width 2))
+         "print-syntax-width"
+         "(or/c 0 (and/c exact-integer? (>=/c 3)))"
+         "given: 2")
+        (catch-contract/contains?
+         (lambda () (error-print-width 2))
+         "error-print-width"
+         "(and/c exact-integer? (>=/c 3))"
+         "given: 2")))
  (list "reader and error handler parameters reject plain structs"
        (and
         (catch-contract/contains?
