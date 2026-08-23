@@ -18,6 +18,7 @@
   (apply catch-contract/contains? thunk needles))
 
 (define bignum-source-location-index 536870912)
+(define bignum-phase-level bignum-source-location-index)
 
 (define id-a (datum->syntax #f 'a))
 (define id-b (datum->syntax #f 'b))
@@ -146,8 +147,13 @@
        (and
         (equal? (identifier-binding id-a #f) #f)
         (equal? (identifier-binding id-a -1) #f)
+        (equal? (identifier-binding id-a bignum-phase-level) #f)
         (equal? (free-identifier=? id-a id-a #f #f) #t)
         (equal? (free-identifier=? id-a id-b -1 -1) #f)
+        (equal? (free-identifier=? id-a id-a bignum-phase-level bignum-phase-level) #t)
+        (equal? (free-identifier=? id-a id-b bignum-phase-level bignum-phase-level) #f)
         (equal? (bound-identifier=? id-a id-a #f) #t)
+        (equal? (bound-identifier=? id-a id-a bignum-phase-level) #t)
         (procedure? (make-syntax-delta-introducer id-a #f #f))
-        (procedure? (make-syntax-delta-introducer id-a #f -1)))))
+        (procedure? (make-syntax-delta-introducer id-a #f -1))
+        (procedure? (make-syntax-delta-introducer id-a #f bignum-phase-level)))))
