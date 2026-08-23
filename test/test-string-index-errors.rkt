@@ -109,6 +109,28 @@
          "ending index is out of range"
          "valid range: [0, 3]"
          "string: \"abc\"")))
+ (list "string take/drop bignum count errors are catchable with who"
+       (and
+        (catch-contract/contains? (lambda () (string-take "abc" too-large-string-index))
+                                  "string-take"
+                                  "index is out of range"
+                                  "valid range: [0, 3]"
+                                  "string: \"abc\"")
+        (catch-contract/contains? (lambda () (string-take-right "abc" too-large-string-index))
+                                  "string-take-right"
+                                  "index is out of range"
+                                  "valid range: [0, 3]"
+                                  "string: \"abc\"")
+        (catch-contract/contains? (lambda () (string-drop "abc" too-large-string-index))
+                                  "string-drop"
+                                  "index is out of range"
+                                  "valid range: [0, 3]"
+                                  "string: \"abc\"")
+        (catch-contract/contains? (lambda () (string-drop-right "abc" too-large-string-index))
+                                  "string-drop-right"
+                                  "index is out of range"
+                                  "valid range: [0, 3]"
+                                  "string: \"abc\"")))
  (list "string take/drop out-of-range errors are catchable with who"
        (and
         (catch-contract/contains? (lambda () (string-take "abc" 4))
