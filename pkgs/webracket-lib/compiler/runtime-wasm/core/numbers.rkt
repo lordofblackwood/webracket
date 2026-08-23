@@ -628,6 +628,19 @@
                                                  (f64.convert_i32_s
                                                   (i32.shr_s (local.get $bits)
                                                              (i32.const 1)))))))))
+              ;; Exact heap reals convert through the correctly-rounded path.
+              (if (ref.test (ref $Bignum) (local.get $x))
+                  (then
+                   (return
+                    (struct.new $Flonum
+                                (i32.const 0)
+                                (call $exact-rational->f64 (local.get $x))))))
+              (if (ref.test (ref $Rational) (local.get $x))
+                  (then
+                   (return
+                    (struct.new $Flonum
+                                (i32.const 0)
+                                (call $exact-rational->f64 (local.get $x))))))
 
               ;; Not a number
               (call $raise-expected-real (global.get $symbol:real->double-flonum) (local.get $x))

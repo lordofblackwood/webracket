@@ -253,6 +253,21 @@
             '(exact->inexact (/ -1 (expt 2 1075)))
             #:gate? #t
             #:note "Tiny negative exact rationals underflow to -0.0.")
+   (nt-case 'real->double-flonum-rational
+            'rational-conversion
+            '(real->double-flonum 1/2)
+            #:gate? #t
+            #:note "real->double-flonum accepts exact rationals.")
+   (nt-case 'real->double-flonum-bignum
+            'rational-conversion
+            '(real->double-flonum 9007199254740993)
+            #:gate? #t
+            #:note "real->double-flonum accepts exact bignums.")
+   (nt-case 'real->double-flonum-rational-double-round
+            'rational-conversion
+            '(real->double-flonum 2106270354592/12789239550964971)
+            #:gate? #t
+            #:note "real->double-flonum uses direct exact rational rounding.")
    (nt-case 'numerator-integer
             'rational-components
             '(numerator 5)
