@@ -21,6 +21,7 @@
     (treelist-valid-range "\n  valid range: [0, ")
     (treelist-valid-range-close "]")
     (treelist-length-line "\n  treelist length: ")
+    (treelist-length-too-large ": requested length is too large for WebRacket")
     (treelist-unary-procedure "(procedure-arity-includes/c 1)")
     (treelist-binary-procedure "(procedure-arity-includes/c 2)")))
 
@@ -65,25 +66,11 @@
                (param $x   (ref eq))
                (result i32)
 
-               (local $bits i32)
                (local $idx  i32)
 
-               (if (i32.eqz (ref.test (ref i31) (local.get $x)))
-                   (then
-                    (call $raise-argument-error1
-                          (local.get $who)
-                          (global.get $string:exact-nonnegative-integer?)
-                          (local.get $x))
-                    (unreachable)))
-               (local.set $bits (i31.get_s (ref.cast (ref i31) (local.get $x))))
-               (if (i32.and (local.get $bits) (i32.const 1))
-                   (then
-                    (call $raise-argument-error1
-                          (local.get $who)
-                          (global.get $string:exact-nonnegative-integer?)
-                          (local.get $x))
-                    (unreachable)))
-               (local.set $idx (i32.shr_s (local.get $bits) (i32.const 1)))
+               (local.set $idx
+                          (call $exact-nonnegative-integer->i32/saturating
+                                (local.get $x)))
                (if (i32.lt_s (local.get $idx) (i32.const 0))
                    (then
                     (call $raise-argument-error1
@@ -115,24 +102,25 @@
                      (global.get $string:treelist-index))
                (call $growable-array-add! (local.get $out)
                      (call $format/display
-                           (ref.i31 (i32.shl (local.get $i) (i32.const 1)))))
+                           (call $integer-from-i64
+                                 (i64.extend_i32_u (local.get $i)))))
                (if (i32.ge_s (local.get $max) (i32.const 0))
                    (then
                     (call $growable-array-add! (local.get $out)
                           (global.get $string:treelist-valid-range))
                     (call $growable-array-add! (local.get $out)
                           (call $format/display
-                                (ref.i31 (i32.shl (local.get $max) (i32.const 1)))))
+                                (call $integer-from-i64
+                                      (i64.extend_i32_u (local.get $max)))))
                     (call $growable-array-add! (local.get $out)
                           (global.get $string:treelist-valid-range-close))))
                (call $growable-array-add! (local.get $out)
                      (global.get $string:treelist-length-line))
                (call $growable-array-add! (local.get $out)
                      (call $format/display
-                           (ref.i31
-                            (i32.shl
-                             (struct.get $Treelist $size (local.get $tl))
-                             (i32.const 1)))))
+                           (call $integer-from-i64
+                                 (i64.extend_i32_u
+                                  (struct.get $Treelist $size (local.get $tl))))))
                (local.set $message
                           (call $growable-array-of-strings->string
                                 (local.get $out)))
@@ -194,12 +182,39 @@
                      (local.get $tl)
                      (local.get $i)
                      (i32.sub (local.get $len) (i32.const 1))))
-         (func $raise-make-treelist:bad-length
-               (param $n (ref eq))
-               (call $raise-argument-error1
-                     (global.get $symbol:make-treelist)
-                     (global.get $string:exact-nonnegative-integer?)
-                     (local.get $n)))
+         (func $raise-treelist-length-too-large/who
+               (param $who (ref eq))
+
+               (local $message (ref $String))
+
+               (local.set $message
+                          (call $string-append/2
+                                (call $format/display (local.get $who))
+                                (global.get $string:treelist-length-too-large)))
+               (call $raise
+                     (call $exn:fail/make
+                           (local.get $message)
+                           (call $current-continuation-marks
+                                 (global.get $missing)))
+                     (global.get $true))
+               (unreachable))
+         (func $treelist-count/i32
+               (param $who (ref eq))
+               (param $x   (ref eq))
+               (result i32)
+
+               (local $n i32)
+
+               (local.set $n
+                          (call $treelist-index/i32
+                                (local.get $who)
+                                (local.get $x)))
+               (if (i32.gt_s (local.get $n) (i32.const 536870911))
+                   (then
+                    (call $raise-treelist-length-too-large/who
+                          (local.get $who))
+                    (unreachable)))
+               (local.get $n))
 
      ))
 
@@ -5668,24 +5683,16 @@
     "$make-treelist"
     (lambda ()
       `(func $make-treelist (type $Prim12)
-             (param $k-fx (ref eq))  ;; fixnum
+             (param $k-raw (ref eq)) ;; exact-nonnegative-integer?
              (param $val  (ref eq))  ;; optional, defaults to #f
              (result (ref eq))
 
              (local $k i32)
-             (local $k/s i32)
              (local $fill (ref eq))
-             (if (i32.eqz (ref.test (ref i31) (local.get $k-fx)))
-                 (then (call $raise-make-treelist:bad-length (local.get $k-fx))
-                       (unreachable)))
-             (local.set $k/s
-                        (i32.shr_s
-                         (i31.get_s (ref.cast (ref i31) (local.get $k-fx)))
-                         (i32.const 1)))
-             (if (i32.lt_s (local.get $k/s) (i32.const 0))
-                 (then (call $raise-make-treelist:bad-length (local.get $k-fx))
-                       (unreachable)))
-             (local.set $k (local.get $k/s))
+             (local.set $k
+                        (call $treelist-count/i32
+                              (global.get $symbol:make-treelist)
+                              (local.get $k-raw)))
              (local.set $fill
                         (if (result (ref eq))
                             (ref.eq (local.get $val) (global.get $missing))

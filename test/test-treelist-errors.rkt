@@ -14,9 +14,22 @@
 	                   (string-contains? message needle))
 	                 needles))))
 
+(define (catch-fail/contains? thunk . needles)
+  (let ([message
+         (with-handlers ([exn:fail?
+                          (lambda (exn)
+                            (exn-message exn))])
+           (thunk)
+           #f)])
+    (and message
+         (andmap (lambda (needle)
+                   (string-contains? message needle))
+                 needles))))
+
 (struct treelist-plain ())
 
 (define treelist-plain-given "given: #(struct treelist-plain)")
+(define too-large-treelist-index 536870912)
 
 (list
  (list "treelist index range errors are catchable with range details"
@@ -50,6 +63,38 @@
            "index: 2"
            "valid range: [0, 1]"
            "treelist length: 2"))))
+ (list "treelist bignum indexes are catchable range errors"
+       (let ([tl (treelist 1 2)])
+         (and
+          (catch-contract/contains?
+           (lambda () (treelist-ref tl too-large-treelist-index))
+           "treelist-ref"
+           "index is out of range"
+           "index: 536870912"
+           "treelist length: 2")
+          (catch-contract/contains?
+           (lambda () (treelist-insert tl too-large-treelist-index 'x))
+           "treelist-insert"
+           "index is out of range"
+           "index: 536870912"
+           "treelist length: 2")
+          (catch-contract/contains?
+           (lambda () (treelist-take tl too-large-treelist-index))
+           "treelist-take"
+           "index is out of range"
+           "index: 536870912"
+           "treelist length: 2")
+          (catch-contract/contains?
+           (lambda () (treelist-sublist tl 0 too-large-treelist-index))
+           "treelist-sublist"
+           "index is out of range"
+           "index: 536870912"
+           "treelist length: 2"))))
+ (list "make-treelist bignum length fails catchably"
+       (catch-fail/contains?
+        (lambda () (make-treelist too-large-treelist-index 'x))
+        "make-treelist"
+        "requested length is too large for WebRacket"))
  (list "negative treelist indexes preserve the public contract"
        (let ([tl (treelist 1 2)])
          (and
