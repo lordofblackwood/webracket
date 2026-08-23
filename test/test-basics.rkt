@@ -1865,10 +1865,10 @@
                                     (string-contains? message who)
                                     (string-contains? message expected))))])
                       (and (catch-contract/who+expected? "make-string"
-                                                         "valid-string-length?"
+                                                         "exact-nonnegative-integer?"
                                                          (lambda () (make-string -1)))
                            (catch-contract/who+expected? "make-string"
-                                                         "valid-string-length?"
+                                                         "exact-nonnegative-integer?"
                                                          (lambda () (make-string #\a)))
                            (catch-contract/who+expected? "make-string"
                                                          "char?"

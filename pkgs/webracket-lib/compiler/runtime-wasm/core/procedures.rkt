@@ -4376,10 +4376,9 @@
                      (unreachable)))
            (if (ref.eq (call $procedure? (local.get $proc)) (global.get $false))
                (then (return (global.get $false))))
-           ;; Step 3: check whether k is included in the stored arity field.
-           (if (call $procedure-arity-field-includes?/i32
-                     (struct.get $Procedure $arity
-                                 (ref.cast (ref $Procedure) (local.get $proc)))
+           ;; Step 3: check whether k is included in the effective arity.
+           (if (call $procedure-arity-includes?/checked/i32
+                     (ref.cast (ref $Procedure) (local.get $proc))
                      (local.get $k-i32))
                (then (return (global.get $true)))
                (else (return (global.get $false))))
@@ -4390,6 +4389,19 @@
            (param $k-i32   i32)
            ; (param $kws-ok? (ref eq))          ;; we don't use this yet
            (result         i32)
+
+           (local $delegate (ref eq))
+
+           (local.set $delegate (global.get $false))
+           (if (ref.test (ref $Struct) (local.get $proc))
+               (then
+                (local.set $delegate (call $struct-procedure-delegate
+                                           (local.get $proc)))
+                (if (ref.test (ref $Procedure) (local.get $delegate))
+                    (then (return_call $procedure-arity-includes?/checked/i32
+                                       (ref.cast (ref $Procedure)
+                                                 (local.get $delegate))
+                                       (local.get $k-i32))))))
 
            ;; Step 1: inspect the stored arity representation directly.
            (call $procedure-arity-field-includes?/i32
