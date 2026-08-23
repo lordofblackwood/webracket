@@ -3914,8 +3914,13 @@
               (local $bits i32)
               (local $n/fx i32)
               (local $len i32)
+              (local $bn (ref $Bignum))
+              (local $limbs (ref $I32Array))
+              (local $top i32)
+              (local $len64 i64)
+              (local $pos (ref eq))
 
-              ;; Validate: must be a fixnum exact integer; otherwise raise.
+              ;; Validate: must be an exact integer; otherwise raise.
               (if (ref.eq (call $exact-integer? (local.get $n)) (global.get $false))
                   (then (call $raise-expected-exact-integer
                               (global.get $symbol:integer-length)
@@ -3959,8 +3964,34 @@
                         ;; This branch is unreachable after $exact-integer? validation.
                         (unreachable))))
                   (else
-                   ;; This branch is unreachable after $exact-integer? validation.
-                   (unreachable))))
+                   (local.set $bn (ref.cast (ref $Bignum) (local.get $n)))
+                   (if (i32.lt_s (struct.get $Bignum $sign (local.get $bn))
+                                 (i32.const 0))
+                       (then
+                        (local.set $pos
+                                   (call $integer-negate
+                                         (call $integer-add/2
+                                               (local.get $n)
+                                               (global.get $one))))
+                        (return (call $integer-length (local.get $pos)))))
+                   (local.set $limbs (struct.get $Bignum $limbs
+                                                 (local.get $bn)))
+                   (local.set $len (array.len (local.get $limbs)))
+                   (local.set $top
+                              (array.get $I32Array
+                                         (local.get $limbs)
+                                         (i32.sub (local.get $len) (i32.const 1))))
+                   (local.set $len64
+                              (i64.add
+                               (i64.mul
+                                (i64.extend_i32_u
+                                 (i32.sub (local.get $len) (i32.const 1)))
+                                (i64.const 32))
+                               (i64.extend_i32_u
+                                (i32.sub
+                                 (i32.const 32)
+                                 (i32.clz (local.get $top))))))
+                   (call $integer-from-i64 (local.get $len64)))))
 
 
 

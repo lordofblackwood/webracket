@@ -741,7 +741,27 @@
             '(lcm 18446744073709551616 4294967296)
             #:comparison 'ignore-fixnum-width
             #:gate? #t
-            #:note "lcm can use exact quotient with a multi-limb gcd.")))
+            #:note "lcm can use exact quotient with a multi-limb gcd.")
+   (nt-case 'integer-length-bignum-two-to-53-plus-one
+            'integer-bitwise
+            '(integer-length 9007199254740993)
+            #:gate? #t
+            #:note "integer-length accepts positive bignums near the f64 precision boundary.")
+   (nt-case 'integer-length-bignum-power-of-two
+            'integer-bitwise
+            '(integer-length 18446744073709551616)
+            #:gate? #t
+            #:note "integer-length handles positive multi-limb powers of two.")
+   (nt-case 'integer-length-negative-bignum-power-of-two
+            'integer-bitwise
+            '(integer-length -18446744073709551616)
+            #:gate? #t
+            #:note "integer-length of negative powers follows infinite two's-complement.")
+   (nt-case 'integer-length-negative-bignum-neighbor
+            'integer-bitwise
+            '(integer-length -18446744073709551617)
+            #:gate? #t
+            #:note "integer-length distinguishes the neighbor below a negative power of two.")))
 
 ;; number-tower-groups : -> (listof symbol?)
 ;;   Return the distinct oracle groups in stable display order.
