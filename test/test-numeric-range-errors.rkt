@@ -14,6 +14,8 @@
                    (string-contains? message needle))
                  needles))))
 
+(define too-large-fixnum 536870912)
+
 (list
  (list "order-of-magnitude range errors are catchable with who"
        (and
@@ -51,6 +53,26 @@
          "given: -1")
         (catch-contract/contains?
          (lambda () (bitwise-bit-field 7 2 1))
+         "bitwise-bit-field"
+         "ending index is smaller than starting index")))
+ (list "bitwise-bit-field handles bignum operands and indexes"
+       (and
+        (equal? (bitwise-bit-field too-large-fixnum 0 30)
+                too-large-fixnum)
+        (equal? (bitwise-bit-field too-large-fixnum 29 30)
+                1)
+        (equal? (bitwise-bit-field (- too-large-fixnum) 0 30)
+                too-large-fixnum)
+        (equal? (bitwise-bit-set? -1 too-large-fixnum)
+                #t)
+        (equal? (bitwise-bit-set? 13 too-large-fixnum)
+                #f)
+        (equal? (bitwise-bit-field 13 too-large-fixnum too-large-fixnum)
+                0)
+        (equal? (bitwise-bit-field -1 too-large-fixnum (+ too-large-fixnum 1))
+                1)
+        (catch-contract/contains?
+         (lambda () (bitwise-bit-field 7 (+ too-large-fixnum 1) too-large-fixnum))
          "bitwise-bit-field"
          "ending index is smaller than starting index")))
  (list "bitwise type errors are catchable with who"

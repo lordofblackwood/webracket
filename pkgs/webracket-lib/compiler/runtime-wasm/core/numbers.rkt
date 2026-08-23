@@ -5407,7 +5407,7 @@
               ;; --- Fixnum n case ---
               (if (ref.test (ref i31) (local.get $n))
                   (then
-                   (local.set $n/fx (i31.get_u (ref.cast (ref i31) (local.get $n))))
+                   (local.set $n/fx (i31.get_s (ref.cast (ref i31) (local.get $n))))
                    (local.set $n/i  (i32.shr_s (local.get $n/fx) (i32.const 1)))
                    (return
                     (if (result (ref eq)) (i32.ge_u (local.get $m/i) (i32.const 30))
@@ -5507,23 +5507,18 @@
               (unreachable))
 
 
-        ;; NOTE: Only supports fixnum arguments; start/end must be
-        ;; non-negative fixnums and `end` must be >= `start`.
         (func $bitwise-bit-field (type $Prim3)
               (param $n     (ref eq))
               (param $start (ref eq))
               (param $end   (ref eq))
               (result       (ref eq))
 
-              (local $n/fx     i32)
-              (local $start/fx i32)
-              (local $end/fx   i32)
-              (local $n/i      i32)
               (local $start/i  i32)
               (local $end/i    i32)
               (local $width    i32)
-              (local $mask     i32)
-              (local $shifted  i32)
+              (local $i        i32)
+              (local $pos      i32)
+              (local $result   (ref eq))
 
               ;; --- Validate inputs ---
               (if (ref.eq (call $exact-integer? (local.get $n)) (global.get $false))
@@ -5542,33 +5537,59 @@
                               (local.get $end))
                         (unreachable)))
 
-              ;; --- Extract values ---
-              (local.set $n/fx     (i31.get_s (ref.cast (ref i31) (local.get $n))))
-              (local.set $start/fx (i31.get_s (ref.cast (ref i31) (local.get $start))))
-              (local.set $end/fx   (i31.get_s (ref.cast (ref i31) (local.get $end))))
-              (local.set $n/i      (i32.shr_s (local.get $n/fx) (i32.const 1)))
-              (local.set $start/i  (i32.shr_s (local.get $start/fx) (i32.const 1)))
-              (local.set $end/i    (i32.shr_s (local.get $end/fx) (i32.const 1)))
-
-              (if (i32.lt_s (local.get $end/i) (local.get $start/i))
+              (if (i32.lt_s (call $integer-compare/i32
+                                   (local.get $end)
+                                   (local.get $start))
+                             (i32.const 0))
                   (then (call $raise-arguments-error
                               (global.get $symbol:bitwise-bit-field)
                               (global.get $string:bitwise-bit-field:end-before-start)
                               (array.new_fixed $Args 0))
                         (unreachable)))
 
-              ;; --- Compute width and mask ---
-              (local.set $width (i32.sub (local.get $end/i) (local.get $start/i)))
-              (local.set $mask
-                        (if (result i32) (i32.ge_u (local.get $width) (i32.const 30))
-                            (then (i32.const -1))
-                            (else (i32.sub (i32.shl (i32.const 1) (local.get $width))
-                                           (i32.const 1)))))
+              ;; --- Extract values ---
+              (local.set $start/i
+                         (call $exact-nonnegative-integer->i32/saturating
+                               (local.get $start)))
+              (if (i32.lt_s (local.get $start/i) (i32.const 0))
+                  (then (call $raise-expected-exact-nonnegative-integer
+                              (global.get $symbol:bitwise-bit-field)
+                              (local.get $start))
+                        (unreachable)))
+              (local.set $end/i
+                         (call $exact-nonnegative-integer->i32/saturating
+                               (local.get $end)))
+              (if (i32.lt_s (local.get $end/i) (i32.const 0))
+                  (then (call $raise-expected-exact-nonnegative-integer
+                              (global.get $symbol:bitwise-bit-field)
+                              (local.get $end))
+                        (unreachable)))
 
-              ;; --- Shift and mask ---
-              (local.set $shifted (i32.shr_s (local.get $n/i) (local.get $start/i)))
-              (ref.i31 (i32.shl (i32.and (local.get $shifted) (local.get $mask))
-                                 (i32.const 1))))
+              (local.set $width (i32.sub (local.get $end/i) (local.get $start/i)))
+              (if (i32.eqz (local.get $width))
+                  (then (return (ref.i31 (i32.const 0)))))
+
+              (local.set $result (ref.i31 (i32.const 0)))
+              (block $done
+                     (loop $loop
+                           (br_if $done (i32.ge_u (local.get $i) (local.get $width)))
+                           (local.set $pos (i32.add (local.get $start/i) (local.get $i)))
+                           (if (ref.eq
+                                (call $bitwise-bit-set?
+                                      (local.get $n)
+                                      (call $integer-from-i64
+                                            (i64.extend_i32_u (local.get $pos))))
+                                (global.get $true))
+                               (then
+                                (local.set $result
+                                           (call $integer-bitwise-ior/2
+                                                 (local.get $result)
+                                                 (call $u64-shl->integer
+                                                       (i64.const 1)
+                                                       (local.get $i))))))
+                           (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                           (br $loop)))
+              (local.get $result))
 
 
         (func $arithmetic-shift (type $Prim2)
