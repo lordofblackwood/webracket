@@ -691,6 +691,24 @@
                (and (number? z) (complex? z) (not (real? z)) (inexact? z)))
             #:gate? #t
             #:note "Complex tanh uses sinh/cosh division.")
+   (nt-case 'complex-asin-shape
+            'complex-transcendental
+            '(let ([z (asin 1+2i)])
+               (and (number? z) (complex? z) (not (real? z)) (inexact? z)))
+            #:gate? #t
+            #:note "Complex asin uses the logarithmic branch formula.")
+   (nt-case 'complex-acos-shape
+            'complex-transcendental
+            '(let ([z (acos 1+2i)])
+               (and (number? z) (complex? z) (not (real? z)) (inexact? z)))
+            #:gate? #t
+            #:note "Complex acos uses pi/2 minus complex asin.")
+   (nt-case 'complex-atan-shape
+            'complex-transcendental
+            '(let ([z (atan 1+2i)])
+               (and (number? z) (complex? z) (not (real? z)) (inexact? z)))
+            #:gate? #t
+            #:note "Unary complex atan uses the logarithmic branch formula.")
    (nt-case 'complex-expt-exact-integer
             'complex-expt
             '(expt 1+2i 2)

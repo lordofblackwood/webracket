@@ -1806,6 +1806,9 @@
     $magnitude
     $angle
     $conjugate
+    $complex-asin
+    $complex-acos
+    $complex-atan
     $complex-sin
     $complex-cos
     $complex-tan
@@ -3257,6 +3260,80 @@
                     (local.get $z))
               (unreachable))
 
+        ;; complex-asin : number? -> number?
+        ;;   Compute asin z as -i * log(i*z + sqrt(1 - z*z)).
+        (func $complex-asin
+              (param $z (ref eq))
+              (result (ref eq))
+
+              (local $i   (ref eq))
+              (local $-i  (ref eq))
+              (local $iz  (ref eq))
+              (local $rad (ref eq))
+
+              (local.set $i
+                         (call $make-rectangular/canonical
+                               (global.get $zero)
+                               (global.get $one)))
+              (local.set $-i
+                         (call $make-rectangular/canonical
+                               (global.get $zero)
+                               (ref.i31 (i32.const -2))))
+              (local.set $iz (call $*/2 (local.get $i) (local.get $z)))
+              (local.set $rad
+                         (call $sqrt
+                               (call $-/2
+                                     (global.get $one)
+                                     (call $*/2 (local.get $z)
+                                                (local.get $z)))))
+              (call $*/2
+                    (local.get $-i)
+                    (call $log
+                          (call $+/2 (local.get $iz) (local.get $rad))
+                          (global.get $missing))))
+
+        ;; complex-acos : number? -> number?
+        ;;   Compute acos z as pi/2 - asin z.
+        (func $complex-acos
+              (param $z (ref eq))
+              (result (ref eq))
+              (call $-/2
+                    (struct.new $Flonum
+                                (i32.const 0)
+                                (f64.const 1.5707963267948966))
+                    (call $complex-asin (local.get $z))))
+
+        ;; complex-atan : number? -> number?
+        ;;   Compute atan z as (log(1+i*z) - log(1-i*z)) / (2*i).
+        (func $complex-atan
+              (param $z (ref eq))
+              (result (ref eq))
+
+              (local $i     (ref eq))
+              (local $two-i (ref eq))
+              (local $iz    (ref eq))
+
+              (local.set $i
+                         (call $make-rectangular/canonical
+                               (global.get $zero)
+                               (global.get $one)))
+              (local.set $two-i
+                         (call $make-rectangular/canonical
+                               (global.get $zero)
+                               (global.get $two)))
+              (local.set $iz (call $*/2 (local.get $i) (local.get $z)))
+              (call $/2
+                    (call $-/2
+                          (call $log
+                                (call $+/2 (global.get $one)
+                                           (local.get $iz))
+                                (global.get $missing))
+                          (call $log
+                                (call $-/2 (global.get $one)
+                                           (local.get $iz))
+                                (global.get $missing)))
+                    (local.get $two-i)))
+
         ;; complex-sin : complex? -> number?
         ;;   Compute sin(a+bi).
         (func $complex-sin
@@ -3357,8 +3434,8 @@
         ,@(let ([ops '((sin  $js-raw-math-sin  0      0 $complex-sin)    ;  sin(0) = 0
                        (cos  $js-raw-math-cos  0      2 $complex-cos)    ;  cos(0) = 1
                        (tan  $js-raw-math-tan  0      0 $complex-tan)    ;  tan(0) = 0
-                       (asin $js-raw-math-asin 0      0 #f)    ; asin(0) = 0
-                       (acos $js-raw-math-acos 2      0 #f)    ; acos(1) = 0
+                       (asin $js-raw-math-asin 0      0 $complex-asin)    ; asin(0) = 0
+                       (acos $js-raw-math-acos 2      0 $complex-acos)    ; acos(1) = 0
                        (sinh  $js-raw-math-sinh  0      0 $complex-sinh) ;  sinh(0) = 0
                        (cosh  $js-raw-math-cosh  0      2 $complex-cosh) ;  cosh(0) = 1
                        (tanh  $js-raw-math-tanh  0      0 $complex-tanh) ;  tanh(0) = 0
@@ -3440,6 +3517,14 @@
               (local $y/f64 f64)
               (local $x/f64 f64)
               (local $y-exact i32)
+
+              (if (ref.eq (local.get $x) (global.get $missing))
+                  (then
+                   (if (ref.test (ref $Complex) (local.get $y))
+                       (then
+                        (return
+                         (call $complex-atan
+                               (local.get $y)))))))
 
               ;; Decode y. In the one-argument case this is the ordinary
               ;; unary atan input; with x present, Racket computes atan2(y, x).
