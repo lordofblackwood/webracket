@@ -14,6 +14,7 @@
          default-webracket-racket-path
          query-number-tower-cs-info
          validate-number-tower-cs-info!
+         run-number-tower-cases
          run-number-tower-oracle
          number-tower-self-check-mismatch-detected?
          print-number-tower-summary
@@ -481,24 +482,18 @@
      (parameterize ([current-environment-variables env])
        (thunk)))))
 
-;; run-number-tower-oracle :
-;;   keyword args -> number-tower-summary?
-;;   Run selected CS/WebRacket cases and return a comparison summary.
-(define (run-number-tower-oracle #:cs-path [cs-path (default-racket-cs-path)]
-                                 #:webracket-racket-path [webracket-racket-path
-                                                          (default-webracket-racket-path)]
-                                 #:groups [groups '()]
-                                 #:ids [ids '()]
-                                 #:include-non-gates? [include-non-gates? #f]
-                                 #:self-check-mismatch? [self-check-mismatch? #f])
+;; run-number-tower-cases :
+;;   (listof number-tower-case?) keyword args -> number-tower-summary?
+;;   Run explicit CS/WebRacket cases and return a comparison summary.
+(define (run-number-tower-cases cases
+                                #:cs-path [cs-path (default-racket-cs-path)]
+                                #:webracket-racket-path [webracket-racket-path
+                                                         (default-webracket-racket-path)]
+                                #:self-check-mismatch? [self-check-mismatch? #f])
   (define cs-info (query-number-tower-cs-info cs-path))
   (validate-number-tower-cs-info! cs-info)
-  (define cases
-    (select-number-tower-cases #:groups groups
-                               #:ids ids
-                               #:include-non-gates? include-non-gates?))
   (when (null? cases)
-    (error 'run-number-tower-oracle "no number-tower cases selected"))
+    (error 'run-number-tower-cases "no number-tower cases selected"))
   (run-with-fresh-racket-env
    (lambda ()
      (call-with-temp-directory
@@ -522,6 +517,25 @@
                   (hash-ref wr-records id '(missing-webracket-record))))
             (make-outcome c cs-record wr-record)))
         (number-tower-summary cs-info outcomes))))))
+
+;; run-number-tower-oracle :
+;;   keyword args -> number-tower-summary?
+;;   Run selected CS/WebRacket cases and return a comparison summary.
+(define (run-number-tower-oracle #:cs-path [cs-path (default-racket-cs-path)]
+                                 #:webracket-racket-path [webracket-racket-path
+                                                          (default-webracket-racket-path)]
+                                 #:groups [groups '()]
+                                 #:ids [ids '()]
+                                 #:include-non-gates? [include-non-gates? #f]
+                                 #:self-check-mismatch? [self-check-mismatch? #f])
+  (define cases
+    (select-number-tower-cases #:groups groups
+                               #:ids ids
+                               #:include-non-gates? include-non-gates?))
+  (run-number-tower-cases cases
+                          #:cs-path cs-path
+                          #:webracket-racket-path webracket-racket-path
+                          #:self-check-mismatch? self-check-mismatch?))
 
 ;; summary-failure-count : number-tower-summary? -> exact-nonnegative-integer?
 ;;   Count enabled-gate failures.
