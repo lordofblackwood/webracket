@@ -1168,6 +1168,126 @@
                        (local.get $x)
                        (local.get $yc))))
 
+     ;; $integer-nonnegative-bit-length/i32 : exact-nonnegative-integer? -> i32
+     ;;   Return the number of bits in x's finite magnitude.
+     (func $integer-nonnegative-bit-length/i32
+           (param $x (ref eq))
+           (result i32)
+
+           (local $bits  i32)
+           (local $limbs (ref $I32Array))
+           (local $len   i32)
+           (local $top   i32)
+
+           (if (ref.test (ref i31) (local.get $x))
+               (then
+                (local.set $bits
+                           (i32.shr_s
+                            (i31.get_s (ref.cast (ref i31) (local.get $x)))
+                            (i32.const 1)))
+                (if (i32.eqz (local.get $bits))
+                    (then (return (i32.const 0))))
+                (return
+                 (i32.sub (i32.const 32)
+                          (i32.clz (local.get $bits))))))
+           (local.set $limbs
+                      (struct.get $Bignum $limbs
+                                  (ref.cast (ref $Bignum) (local.get $x))))
+           (local.set $len (array.len (local.get $limbs)))
+           (local.set $top
+                      (array.get $I32Array
+                                 (local.get $limbs)
+                                 (i32.sub (local.get $len) (i32.const 1))))
+           (i32.add
+            (i32.mul (i32.sub (local.get $len) (i32.const 1))
+                     (i32.const 32))
+            (i32.sub (i32.const 32) (i32.clz (local.get $top)))))
+
+     ;; $integer-sqrt/exact : exact-nonnegative-integer? -> exact-nonnegative-integer?
+     ;;   Compute the exact floor square root by binary search.
+     (func $integer-sqrt/exact
+           (param $n (ref eq))
+           (result (ref eq))
+
+           (local $bits  i32)
+           (local $shift i32)
+           (local $low   (ref eq))
+           (local $high  (ref eq))
+           (local $mid   (ref eq))
+           (local $sum   (ref eq))
+           (local $sq    (ref eq))
+           (local $vals  (ref $Values))
+
+           (local.set $low  (ref.i31 (i32.const 0)))
+           (local.set $high (ref.i31 (i32.const 2)))
+           (local.set $mid  (ref.i31 (i32.const 0)))
+           (local.set $sum  (ref.i31 (i32.const 0)))
+           (local.set $sq   (ref.i31 (i32.const 0)))
+           (local.set $bits (call $integer-nonnegative-bit-length/i32
+                                  (local.get $n)))
+           (local.set $shift
+                      (i32.shr_u
+                       (i32.add (local.get $bits) (i32.const 1))
+                       (i32.const 1)))
+           (local.set $high
+                      (call $u64-shl->integer
+                            (i64.const 1)
+                            (local.get $shift)))
+           (block $done
+                  (loop $loop
+                        (br_if $done
+                               (i32.ge_s
+                                (call $integer-compare/i32
+                                      (call $integer-add/2
+                                            (local.get $low)
+                                            (ref.i31 (i32.const 2)))
+                                      (local.get $high))
+                                (i32.const 0)))
+                        (local.set $sum
+                                   (call $integer-add/2
+                                         (local.get $low)
+                                         (local.get $high)))
+                        (local.set $vals
+                                   (call $integer-divmod
+                                         (local.get $sum)
+                                         (ref.i31 (i32.const 4))))
+                        (local.set $mid
+                                   (array.get $Values
+                                              (local.get $vals)
+                                              (i32.const 0)))
+                        (local.set $sq
+                                   (call $integer-mul/2
+                                         (local.get $mid)
+                                         (local.get $mid)))
+                        (if (i32.le_s
+                             (call $integer-compare/i32
+                                   (local.get $sq)
+                                   (local.get $n))
+                             (i32.const 0))
+                            (then (local.set $low (local.get $mid)))
+                            (else (local.set $high (local.get $mid))))
+                        (br $loop)))
+           (local.get $low))
+
+     ;; $integer-sqrt/remainder/exact : exact-nonnegative-integer? -> values
+     ;;   Return integer square root and exact remainder.
+     (func $integer-sqrt/remainder/exact
+           (param $n (ref eq))
+           (result (ref $Values))
+
+           (local $s  (ref eq))
+           (local $sq (ref eq))
+
+           (local.set $s  (call $integer-sqrt/exact (local.get $n)))
+           (local.set $sq (call $integer-mul/2
+                                (local.get $s)
+                                (local.get $s)))
+           (array.new_fixed $Values 2
+                            (local.get $s)
+                            (call $integer-sub/2
+                                  (local.get $n)
+                                  (local.get $sq))))
+
      ;; $bignum-divmod-u32 : bignum? i32 -> values exact-integer? exact-integer?
      ;;   Divide a positive bignum magnitude by a nonzero unsigned 32-bit limb.
      (func $bignum-divmod-u32

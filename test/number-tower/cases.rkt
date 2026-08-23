@@ -825,6 +825,26 @@
             #:comparison 'ignore-fixnum-width
             #:gate? #t
             #:note "lcm can use exact quotient with a multi-limb gcd.")
+   (nt-case 'integer-sqrt-bignum-perfect-square
+            'integer-root
+            '(integer-sqrt 81129638414606681695789005144064)
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "integer-sqrt handles exact bignum perfect squares.")
+   (nt-case 'integer-sqrt-bignum-nonperfect
+            'integer-root
+            '(integer-sqrt 81129638414606681695789005156409)
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "integer-sqrt floors non-perfect bignum roots.")
+   (nt-case 'integer-sqrt-remainder-bignum-invariant
+            'integer-root
+            '(let-values ([(s r) (integer-sqrt/remainder
+                                  81129638414606681695789005156409)])
+               (and (= s 9007199254740992)
+                    (= r 12345)))
+            #:gate? #t
+            #:note "integer-sqrt/remainder preserves s^2+r=n for bignums.")
    (nt-case 'integer-length-bignum-two-to-53-plus-one
             'integer-bitwise
             '(integer-length 9007199254740993)

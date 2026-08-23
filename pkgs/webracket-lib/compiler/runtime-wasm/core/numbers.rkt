@@ -678,6 +678,7 @@
               (local $fl (ref $Flonum))
               (local $f64 f64)
               (local $i32 i32)
+              (local $bn (ref $Bignum))
 
               ;; Fixnum case
               (if (ref.test (ref i31) (local.get $n))
@@ -697,6 +698,15 @@
                                    (global.get $symbol:integer-sqrt)
                                    (local.get $n))
                              (unreachable)))))
+
+              ;; Positive bignum case
+              (if (ref.test (ref $Bignum) (local.get $n))
+                  (then
+                   (local.set $bn (ref.cast (ref $Bignum) (local.get $n)))
+                   (if (i32.gt_s (struct.get $Bignum $sign (local.get $bn))
+                                 (i32.const 0))
+                       (then (return (call $integer-sqrt/exact
+                                           (local.get $n)))))))
 
               ;; Flonum case
               (if (ref.test (ref $Flonum) (local.get $n))
@@ -731,6 +741,7 @@
               (local $remf f64)
               (local $sq i32)
               (local $rem i32)
+              (local $bn (ref $Bignum))
 
               ;; Fixnum case
               (if (ref.test (ref i31) (local.get $n))
@@ -757,6 +768,15 @@
                                    (global.get $symbol:integer-sqrt/remainder)
                                    (local.get $n))
                              (unreachable))))))
+
+              ;; Positive bignum case
+              (if (ref.test (ref $Bignum) (local.get $n))
+                  (then
+                   (local.set $bn (ref.cast (ref $Bignum) (local.get $n)))
+                   (if (i32.gt_s (struct.get $Bignum $sign (local.get $bn))
+                                 (i32.const 0))
+                       (then (return (call $integer-sqrt/remainder/exact
+                                           (local.get $n)))))))
 
               ;; Flonum case
               (if (ref.test (ref $Flonum) (local.get $n))
