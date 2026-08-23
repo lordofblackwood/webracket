@@ -3085,9 +3085,6 @@
                (local $char      i32)
                (local $bs        (ref $Bytes))
 
-               (local $raw-start i32)
-               (local $raw-end   i32)
-
                ;; Check and cast $str
                (if (ref.test (ref $String) (local.get $str))
                    (then (local.set $s (ref.cast (ref $String) (local.get $str))))
@@ -3097,29 +3094,21 @@
                (local.set $cp  (struct.get $String $codepoints (local.get $s)))
                (local.set $len (array.len (local.get $cp)))
                ;; Decode start
-               (if (ref.test (ref i31) (local.get $start-raw))
-                   (then (local.set $raw-start (i31.get_s (ref.cast (ref i31) (local.get $start-raw))))
-                         (if (i32.eq (local.get $raw-start) (i32.const ,(immediate-rep #f)))
-                             (then (local.set $start (i32.const 0)))  ;; #f => use 0
-                             (else
-                              (if (i32.ne (i32.and (local.get $raw-start) (i32.const 1)) (i32.const 0))
-                                  (then (call $raise-string->bytes/utf8 (local.get $start-raw))))
-                              (local.set $start (i32.shr_s (local.get $raw-start) (i32.const 1)))
-                              (if (i32.lt_s (local.get $start) (i32.const 0))
-                                  (then (call $raise-string->bytes/utf8 (local.get $start-raw)))))))
-                   (else (call $raise-string->bytes/utf8 (local.get $start-raw))))  ;; not a fixnum
+               (if (ref.eq (local.get $start-raw) (global.get $false))
+                   (then (local.set $start (i32.const 0)))
+                   (else
+                    (local.set $start
+                               (call $string-index/i32/who
+                                     (global.get $symbol:string->bytes/utf-8)
+                                     (local.get $start-raw)))))
                ;; Decode end
-               (if (ref.test (ref i31) (local.get $end-raw))
-                   (then  (local.set $raw-end (i31.get_s (ref.cast (ref i31) (local.get $end-raw))))
-                          (if (i32.eq (local.get $raw-end) (i32.const ,(immediate-rep #f))) ; #f
-                              (then (local.set $end (local.get $len)))  ;; #f => use length
-                              (else
-                               (if (i32.ne (i32.and (local.get $raw-end) (i32.const 1)) (i32.const 0))
-                                   (then (call $raise-string->bytes/utf8 (local.get $end-raw))))
-                               (local.set $end (i32.shr_s (local.get $raw-end) (i32.const 1)))
-                               (if (i32.lt_s (local.get $end) (i32.const 0))
-                                   (then (call $raise-string->bytes/utf8 (local.get $end-raw)))))))
-                   (else (call $raise-string->bytes/utf8 (local.get $end-raw))))
+               (if (ref.eq (local.get $end-raw) (global.get $false))
+                   (then (local.set $end (local.get $len)))
+                   (else
+                    (local.set $end
+                               (call $string-index/i32/who
+                                     (global.get $symbol:string->bytes/utf-8)
+                                     (local.get $end-raw)))))
                ;; Bounds check
                (if (i32.or (i32.gt_u (local.get $start) (local.get $end))
                            (i32.gt_u (local.get $end) (local.get $len)))
@@ -3197,8 +3186,8 @@
 
          (func $string-utf-8-length (type $Prim13)
                (param $str       (ref eq))
-               (param $start-raw (ref eq))   ;; fixnum or $missing
-               (param $end-raw   (ref eq))   ;; fixnum or $missing
+               (param $start-raw (ref eq))   ;; optional exact nonnegative integer, default = 0
+               (param $end-raw   (ref eq))   ;; optional exact nonnegative integer, default = string length
                (result (ref eq))
 
                (local $s     (ref null $String))
@@ -3209,8 +3198,6 @@
                (local $i     i32)
                (local $char  i32)
                (local $total i32)
-               (local $raw-start i32)
-               (local $raw-end   i32)
 
                ;; --- Type check for string ---
                (if (ref.test (ref $String) (local.get $str))
@@ -3224,37 +3211,19 @@
                ;; --- Decode start ---
                (if (ref.eq (local.get $start-raw) (global.get $missing))
                    (then (local.set $start (i32.const 0)))
-                   (else (if (ref.test (ref i31) (local.get $start-raw))
-                             (then (local.set $raw-start (i31.get_s (ref.cast (ref i31) (local.get $start-raw))))
-                                   (if (i32.ne (i32.and (local.get $raw-start) (i32.const 1)) (i32.const 0))
-                                       (then (call $raise-string-utf-8-length:bad-argument
-                                                   (global.get $string:exact-nonnegative-integer?)
-                                                   (local.get $start-raw))))
-                                   (local.set $start (i32.shr_s (local.get $raw-start) (i32.const 1)))
-                                   (if (i32.lt_s (local.get $start) (i32.const 0))
-                                       (then (call $raise-string-utf-8-length:bad-argument
-                                                   (global.get $string:exact-nonnegative-integer?)
-                                                   (local.get $start-raw)))))
-                             (else (call $raise-string-utf-8-length:bad-argument
-                                         (global.get $string:exact-nonnegative-integer?)
-                                         (local.get $start-raw))))))
+                   (else
+                    (local.set $start
+                               (call $string-index/i32/who
+                                     (global.get $symbol:string-utf-8-length)
+                                     (local.get $start-raw)))))
                ;; --- Decode end ---
                (if (ref.eq (local.get $end-raw) (global.get $missing))
                    (then (local.set $end (local.get $len)))
-                   (else (if (ref.test (ref i31) (local.get $end-raw))
-                             (then (local.set $raw-end (i31.get_s (ref.cast (ref i31) (local.get $end-raw))))
-                                   (if (i32.ne (i32.and (local.get $raw-end) (i32.const 1)) (i32.const 0))
-                                       (then (call $raise-string-utf-8-length:bad-argument
-                                                   (global.get $string:exact-nonnegative-integer?)
-                                                   (local.get $end-raw))))
-                                   (local.set $end (i32.shr_s (local.get $raw-end) (i32.const 1)))
-                                   (if (i32.lt_s (local.get $end) (i32.const 0))
-                                       (then (call $raise-string-utf-8-length:bad-argument
-                                                   (global.get $string:exact-nonnegative-integer?)
-                                                   (local.get $end-raw)))))
-                             (else (call $raise-string-utf-8-length:bad-argument
-                                         (global.get $string:exact-nonnegative-integer?)
-                                         (local.get $end-raw))))))
+                   (else
+                    (local.set $end
+                               (call $string-index/i32/who
+                                     (global.get $symbol:string-utf-8-length)
+                                     (local.get $end-raw)))))
                ;; --- Range check ---
                (if (i32.or (i32.gt_u (local.get $start) (local.get $end))
                            (i32.gt_u (local.get $end) (local.get $len)))

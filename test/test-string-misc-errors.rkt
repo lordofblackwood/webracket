@@ -14,6 +14,8 @@
                    (string-contains? message needle))
                  needles))))
 
+(define too-large-string-index 536870912)
+
 (list
  (list "string->immutable-string type errors are catchable with who"
        (catch-contract/contains?
@@ -94,6 +96,28 @@
          "list->string"
          "list?"
          "given: '(#\\a . 42)")))
+ (list "string UTF-8 bignum range errors are catchable with who"
+       (and
+        (catch-contract/contains?
+         (lambda () (string->bytes/utf-8 "abc" #f too-large-string-index))
+         "string->bytes/utf-8"
+         "starting index is out of range"
+         "valid range: [0, 3]")
+        (catch-contract/contains?
+         (lambda () (string->bytes/utf-8 "abc" #f 0 too-large-string-index))
+         "string->bytes/utf-8"
+         "ending index is out of range"
+         "valid range: [0, 3]")
+        (catch-contract/contains?
+         (lambda () (string-utf-8-length "abc" too-large-string-index))
+         "string-utf-8-length"
+         "starting index is out of range"
+         "valid range: [0, 3]")
+        (catch-contract/contains?
+         (lambda () (string-utf-8-length "abc" 0 too-large-string-index))
+         "string-utf-8-length"
+         "ending index is out of range"
+         "valid range: [0, 3]")))
  (list "string->immutable-string success still works"
        (equal? (string->immutable-string "abc") "abc"))
  (list "string case conversion success still works"
