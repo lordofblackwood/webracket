@@ -151,6 +151,67 @@
             '(number->string -1/10 16)
             #:gate? #t
             #:note "Rational number->string preserves signs and radix.")
+   (nt-case 'rational-add
+            'rational-arithmetic
+            '(+ 1/3 1/6)
+            #:gate? #t
+            #:note "Exact rational addition must normalize.")
+   (nt-case 'rational-subtract
+            'rational-arithmetic
+            '(- 1/2 2/3)
+            #:gate? #t
+            #:note "Exact rational subtraction must normalize signs.")
+   (nt-case 'rational-multiply
+            'rational-arithmetic
+            '(* 2/3 9/4)
+            #:gate? #t
+            #:note "Exact rational multiplication must normalize.")
+   (nt-case 'integer-division-rational
+            'rational-arithmetic
+            '(/ 1 2)
+            #:gate? #t
+            #:note "Exact integer / can produce a rational.")
+   (nt-case 'rational-divide
+            'rational-arithmetic
+            '(/ 3/4 9/10)
+            #:gate? #t
+            #:note "Exact rational division must normalize.")
+   (nt-case 'bignum-rational-divide
+            'rational-arithmetic
+            '(/ 9007199254740993 2)
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "Exact division can preserve a bignum numerator.")
+   (nt-case 'rational-equal-comparison
+            'rational-arithmetic
+            '(= 2/4 1/2)
+            #:gate? #t
+            #:note "Exact rational equality compares normalized value.")
+   (nt-case 'rational-less-than
+            'rational-arithmetic
+            '(< 1/3 1/2)
+            #:gate? #t
+            #:note "Exact rational ordering compares by value.")
+   (nt-case 'rational-greater-than-negative
+            'rational-arithmetic
+            '(> -1/3 -1/2)
+            #:gate? #t
+            #:note "Exact rational ordering handles negative values.")
+   (nt-case 'rational-zero-predicate
+            'rational-arithmetic
+            '(zero? 1/2)
+            #:gate? #t
+            #:note "Canonical non-integer rationals are nonzero.")
+   (nt-case 'rational-positive-predicate
+            'rational-arithmetic
+            '(positive? 1/2)
+            #:gate? #t
+            #:note "Rational positivity follows the numerator sign.")
+   (nt-case 'rational-negative-predicate
+            'rational-arithmetic
+            '(negative? -1/2)
+            #:gate? #t
+            #:note "Rational negativity follows the numerator sign.")
    (nt-case 'rectangular-literal
             'complex-basic
             1+2i

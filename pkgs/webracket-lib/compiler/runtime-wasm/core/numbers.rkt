@@ -646,6 +646,9 @@
                ;; Canonical bignums never represent zero.
                (if (ref.test (ref $Bignum) (local.get $x))
                    (then (return (global.get $false))))
+               ;; Canonical rationals never represent zero.
+               (if (ref.test (ref $Rational) (local.get $x))
+                   (then (return (global.get $false))))
                ;; Not a number
                (call $raise-expected-number/who
                      (global.get $symbol:zero?)
@@ -1007,6 +1010,7 @@
                (local $x/fx i32)
                (local $x/fl (ref $Flonum))
                (local $x/bn (ref $Bignum))
+               (local $x/rat (ref $Rational))
 
                ;; If x is a fixnum, check if it's > 0
                (if (ref.test (ref i31) (local.get $x))
@@ -1039,6 +1043,17 @@
                         (then (return (global.get $true)))
                         (else (return (global.get $false))))))
 
+               ;; If x is a rational, the numerator sign determines positivity.
+               (if (ref.test (ref $Rational) (local.get $x))
+                   (then
+                    (local.set $x/rat (ref.cast (ref $Rational) (local.get $x)))
+                    (if (i32.gt_s
+                         (call $integer-sign/i32
+                               (struct.get $Rational $num (local.get $x/rat)))
+                         (i32.const 0))
+                        (then (return (global.get $true)))
+                        (else (return (global.get $false))))))
+
                ;; Not a number
                (call $raise-expected-real
                      (global.get $symbol:positive?)
@@ -1052,6 +1067,7 @@
                (local $x/fx i32)
                (local $x/fl (ref $Flonum))
                (local $x/bn (ref $Bignum))
+               (local $x/rat (ref $Rational))
 
                ;; If x is a fixnum, check if it's < 0
                (if (ref.test (ref i31) (local.get $x))
@@ -1080,6 +1096,17 @@
                     (local.set $x/bn (ref.cast (ref $Bignum) (local.get $x)))
                     (if (i32.lt_s (struct.get $Bignum $sign (local.get $x/bn))
                                   (i32.const 0))
+                        (then (return (global.get $true)))
+                        (else (return (global.get $false))))))
+
+               ;; If x is a rational, the numerator sign determines negativity.
+               (if (ref.test (ref $Rational) (local.get $x))
+                   (then
+                    (local.set $x/rat (ref.cast (ref $Rational) (local.get $x)))
+                    (if (i32.lt_s
+                         (call $integer-sign/i32
+                               (struct.get $Rational $num (local.get $x/rat)))
+                         (i32.const 0))
                         (then (return (global.get $true)))
                         (else (return (global.get $false))))))
 
@@ -2597,11 +2624,54 @@
    'generic-arithmetic-runtime-only-helpers
    `(
          ,@(let ()
-             (define (binop $op $who $flop $intop)
+             (define (binop $op $who $flop $intop $ratop)
                `(func ,$op (type $Prim2)
                       (param $x (ref eq))
                       (param $y (ref eq))
                       (result   (ref eq))
+
+                      (local $x/is-rat i32)
+                      (local $y/is-rat i32)
+
+                      (local.set $x/is-rat (ref.test (ref $Rational) (local.get $x)))
+                      (local.set $y/is-rat (ref.test (ref $Rational) (local.get $y)))
+                      (if (i32.or (local.get $x/is-rat) (local.get $y/is-rat))
+                          (then
+                           (if (i32.and
+                                (call $exact-rational?/i32 (local.get $x))
+                                (call $exact-rational?/i32 (local.get $y)))
+                               (then (return (call ,$ratop
+                                                   (local.get $x)
+                                                   (local.get $y)))))
+                           (if (i32.and (local.get $x/is-rat)
+                                        (call $fl?/i32 (local.get $y)))
+                               (then
+                                (return
+                                 (call ,$flop
+                                       (struct.new $Flonum
+                                                   (i32.const 0)
+                                                   (call $exact-rational->f64
+                                                         (local.get $x)))
+                                       (local.get $y)))))
+                           (if (i32.and (call $fl?/i32 (local.get $x))
+                                        (local.get $y/is-rat))
+                               (then
+                                (return
+                                 (call ,$flop
+                                       (local.get $x)
+                                       (struct.new $Flonum
+                                                   (i32.const 0)
+                                                   (call $exact-rational->f64
+                                                         (local.get $y)))))))
+                           (if (local.get $x/is-rat)
+                               (then (call $raise-expected-number/who
+                                           (global.get ,$who)
+                                           (local.get $y))
+                                     (unreachable))
+                               (else (call $raise-expected-number/who
+                                           (global.get ,$who)
+                                           (local.get $x))
+                                     (unreachable)))))
 
                       (if (result (ref eq))
                           (call $fx?/i32 (local.get $x))
@@ -2693,9 +2763,9 @@
                                                           (global.get ,$who)
                                                           (local.get $x))
                                                     (unreachable)))))))))
-            (list (binop '$+/2 '$symbol:+ '$fl+ '$integer-add/2)
-                  (binop '$-/2 '$symbol:- '$fl- '$integer-sub/2)
-                  (binop '$*/2 '$symbol:* '$fl* '$integer-mul/2)))
+            (list (binop '$+/2 '$symbol:+ '$fl+ '$integer-add/2 '$exact-rational-add/2)
+                  (binop '$-/2 '$symbol:- '$fl- '$integer-sub/2 '$exact-rational-sub/2)
+                  (binop '$*/2 '$symbol:* '$fl* '$integer-mul/2 '$exact-rational-mul/2)))
 
         (func $+ (type $Prim>=0)
                (param $xs0 (ref eq)) (result (ref eq))
@@ -2788,50 +2858,55 @@
 
                (local $x/fl (ref $Flonum))
                (local $y/fl (ref $Flonum))
-               (local $xi i32) (local $yi i32) (local $r i32)
-               ;; --- Check that $x is a number ---
-               ; Note: $x is not a number if: it is not a fixnum and not a flonum
-               (if (i32.and
-                    (i32.eqz (call $fx?/i32 (local.get $x)))
-                    (i32.eqz (ref.test (ref $Flonum) (local.get $x))))
+               (local $x/exact i32)
+               (local $y/exact i32)
+               (local $x/inexact i32)
+               (local $y/inexact i32)
+
+               (local.set $x/exact (call $exact-rational?/i32 (local.get $x)))
+               (local.set $y/exact (call $exact-rational?/i32 (local.get $y)))
+               (local.set $x/inexact (ref.test (ref $Flonum) (local.get $x)))
+               (local.set $y/inexact (ref.test (ref $Flonum) (local.get $y)))
+
+               (if (i32.eqz (i32.or (local.get $x/exact) (local.get $x/inexact)))
                    (then (call $raise-expected-number/who
                                (global.get $symbol:/)
                                (local.get $x))
                          (unreachable)))
-               ;; --- Check that $y is a number ---
-               (if (i32.and
-                    (i32.eqz (call $fx?/i32 (local.get $y)))
-                    (i32.eqz (ref.test (ref $Flonum) (local.get $y))))
+               (if (i32.eqz (i32.or (local.get $y/exact) (local.get $y/inexact)))
                    (then (call $raise-expected-number/who
                                (global.get $symbol:/)
                                (local.get $y))
                          (unreachable)))
-               ;; --- Both fixnums? try exact division ---
-               (if (result (ref eq))
-                   (i32.and (call $fx?/i32 (local.get $x))
-                            (call $fx?/i32 (local.get $y)))
-                   (then (local.set $xi ,(Half `(i31.get_s (ref.cast i31ref (local.get $x)))))
-                         (local.set $yi ,(Half `(i31.get_s (ref.cast i31ref (local.get $y)))))
-                         (if (i32.eqz (local.get $yi))
-                             (then (call $raise-division-by-zero) (unreachable)))
-                         (local.set $r (i32.rem_s (local.get $xi) (local.get $yi)))
-                         (if (result (ref eq))
-                             (i32.eqz (local.get $r))
-                             (then (ref.i31 ,(Double `(i32.div_s (local.get $xi) (local.get $yi)))))
-                             (else (local.set $x/fl (call $fx->fl/precise (local.get $x)))
-                                   (local.set $y/fl (call $fx->fl/precise (local.get $y)))
-                                   (call $fl/ (local.get $x/fl) (local.get $y/fl)))))
-                   (else (local.set $x/fl
-                                    (if (result (ref $Flonum))
-                                        (ref.test (ref $Flonum) (local.get $x))
-                                        (then (ref.cast (ref $Flonum) (local.get $x)))
-                                        (else (call $fx->fl/precise (local.get $x)))))
-                         (local.set $y/fl
-                                    (if (result (ref $Flonum))
-                                        (ref.test (ref $Flonum) (local.get $y))
-                                        (then (ref.cast (ref $Flonum) (local.get $y)))
-                                        (else (call $fx->fl/precise (local.get $y)))))
-                         (call $fl/ (local.get $x/fl) (local.get $y/fl)))))
+
+               (if (local.get $y/exact)
+                   (then
+                    (if (call $exact-rational-zero?/i32 (local.get $y))
+                        (then (call $raise-division-by-zero) (unreachable)))))
+               (if (i32.and (local.get $x/exact) (local.get $y/exact))
+                   (then
+                    (return
+                     (call $exact-rational-div/2
+                           (local.get $x)
+                           (local.get $y)))))
+
+               (local.set $x/fl
+                          (if (result (ref $Flonum))
+                              (local.get $x/inexact)
+                              (then (ref.cast (ref $Flonum) (local.get $x)))
+                              (else (struct.new $Flonum
+                                                (i32.const 0)
+                                                (call $exact-rational->f64
+                                                      (local.get $x))))))
+               (local.set $y/fl
+                          (if (result (ref $Flonum))
+                              (local.get $y/inexact)
+                              (then (ref.cast (ref $Flonum) (local.get $y)))
+                              (else (struct.new $Flonum
+                                                (i32.const 0)
+                                                (call $exact-rational->f64
+                                                      (local.get $y))))))
+               (call $fl/ (local.get $x/fl) (local.get $y/fl)))
 
         (func $/ (type $Prim>=1)
                (param $a1   (ref eq))
@@ -3032,6 +3107,8 @@
                       (local $y/is-fx i32)
                       (local $x/is-big i32)
                       (local $y/is-big i32)
+                      (local $x/is-rat i32)
+                      (local $y/is-rat i32)
                       (local $x/is-fl i32)
                       (local $y/is-fl i32)
                       (local $cmp/i32 i32)
@@ -3041,10 +3118,14 @@
                       (local.set $x/is-fx (call $fx?/i32 (local.get $x)))
                       ;; --- Check if x is a bignum ---
                       (local.set $x/is-big (ref.test (ref $Bignum) (local.get $x)))
+                      ;; --- Check if x is an exact rational ---
+                      (local.set $x/is-rat (ref.test (ref $Rational) (local.get $x)))
                       ;; --- Check if y is a fixnum ---
                       (local.set $y/is-fx (call $fx?/i32 (local.get $y)))
                       ;; --- Check if y is a bignum ---
                       (local.set $y/is-big (ref.test (ref $Bignum) (local.get $y)))
+                      ;; --- Check if y is an exact rational ---
+                      (local.set $y/is-rat (ref.test (ref $Rational) (local.get $y)))
                       ;; --- If both are exact integers, compare without flonum conversion. ---
                       (if (i32.and
                            (i32.or (local.get $x/is-fx) (local.get $x/is-big))
@@ -3055,12 +3136,26 @@
                                             (local.get $x)
                                             (local.get $y)))
                            ,@(cmp-result->boolean who)))
+                      ;; --- Exact rational pairs compare by cross multiplication. ---
+                      (if (i32.and
+                           (i32.or (i32.or (local.get $x/is-fx) (local.get $x/is-big))
+                                   (local.get $x/is-rat))
+                           (i32.or (i32.or (local.get $y/is-fx) (local.get $y/is-big))
+                                   (local.get $y/is-rat)))
+                          (then
+                           (local.set $cmp/i32
+                                      (call $exact-rational-compare/i32
+                                            (local.get $x)
+                                            (local.get $y)))
+                           ,@(cmp-result->boolean who)))
                       ;; --- Check if x is a flonum ---
                       (local.set $x/is-fl (ref.test (ref $Flonum) (local.get $x)))
                       ;; --- Raise if x is not a number ---
                       (if (i32.eqz
                            (i32.or
-                            (i32.or (local.get $x/is-fx) (local.get $x/is-big))
+                            (i32.or
+                             (i32.or (local.get $x/is-fx) (local.get $x/is-big))
+                             (local.get $x/is-rat))
                             (local.get $x/is-fl)))
                           (then ,@(raise-expected expected who `(local.get $x))))
                       ;; --- Check if y is a flonum ---
@@ -3068,7 +3163,9 @@
                       ;; --- Raise if y is not a number ---
                       (if (i32.eqz
                            (i32.or
-                            (i32.or (local.get $y/is-fx) (local.get $y/is-big))
+                            (i32.or
+                             (i32.or (local.get $y/is-fx) (local.get $y/is-big))
+                             (local.get $y/is-rat))
                             (local.get $y/is-fl)))
                           (then ,@(raise-expected expected who `(local.get $y))))
                       ;; --- Exact integer/flonum mixed cases compare exactly. ---
@@ -3093,8 +3190,25 @@
                                (then
                                 (local.set $cmp/i32
                                            (i32.sub (i32.const 0)
-                                                    (local.get $cmp/i32)))))
+                                                   (local.get $cmp/i32)))))
                            ,@(cmp-result->boolean who)))
+                      ;; --- Rational/flonum mixed cases use inexact comparison for now. ---
+                      (if (i32.and (local.get $x/is-rat) (local.get $y/is-fl))
+                          (then
+                           (return
+                            (call ,flcmp
+                                  (struct.new $Flonum
+                                              (i32.const 0)
+                                              (call $exact-rational->f64 (local.get $x)))
+                                  (ref.cast (ref $Flonum) (local.get $y))))))
+                      (if (i32.and (local.get $x/is-fl) (local.get $y/is-rat))
+                          (then
+                           (return
+                            (call ,flcmp
+                                  (ref.cast (ref $Flonum) (local.get $x))
+                                  (struct.new $Flonum
+                                              (i32.const 0)
+                                              (call $exact-rational->f64 (local.get $y)))))))
                       ;; --- If both are fixnums, use fx< ---
                       (if (i32.and (local.get $x/is-fx) (local.get $y/is-fx))
                           (then (return (call ,fxcmp (local.get $x) (local.get $y)))))
@@ -3154,6 +3268,8 @@
                       (local $curr    (ref eq))
                       (local $res     (ref eq))
                       (local $x/is-fx i32)
+                      (local $x/is-big i32)
+                      (local $x/is-rat i32)
                       (local $x/is-fl i32)
 
                       (local.set $xs
@@ -3167,8 +3283,15 @@
                       ;; Single argument: ensure it is a number and return #t.
                       (if (ref.eq (local.get $xs) (global.get $null))
                           (then (local.set $x/is-fx (call $fx?/i32 (local.get $x0)))
+                                (local.set $x/is-big (ref.test (ref $Bignum) (local.get $x0)))
+                                (local.set $x/is-rat (ref.test (ref $Rational) (local.get $x0)))
                                 (local.set $x/is-fl (ref.test (ref $Flonum) (local.get $x0)))
-                                (if (i32.eqz (i32.or (local.get $x/is-fx) (local.get $x/is-fl)))
+                                (if (i32.eqz
+                                     (i32.or
+                                      (i32.or
+                                       (i32.or (local.get $x/is-fx) (local.get $x/is-big))
+                                       (local.get $x/is-rat))
+                                      (local.get $x/is-fl)))
                                     (then ,@(raise-expected expected who `(local.get $x0))))
                                 (return ,(Imm #t))))
 
