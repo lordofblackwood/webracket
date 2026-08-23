@@ -1496,27 +1496,11 @@
                                (global.get $symbol:vector-extend)
                                (local.get $v))))
 
-               (if (ref.test (ref i31) (local.get $new-size))
-                   (then (local.set $ns (i31.get_s (ref.cast (ref i31) (local.get $new-size))))
-                         (if (i32.and (local.get $ns) (i32.const 1))
-                             (then (call $raise-argument-error1
-                                         (global.get $symbol:vector-extend)
-                                         (global.get $string:exact-nonnegative-integer?)
-                                         (local.get $new-size))
-                                   (unreachable)))
-                         (local.set $ns (i32.shr_s (local.get $ns) (i32.const 1))))
-                   (else (call $raise-argument-error1
-                               (global.get $symbol:vector-extend)
-                               (global.get $string:exact-nonnegative-integer?)
-                               (local.get $new-size))
-                         (unreachable)))
-
-               (if (i32.lt_s (local.get $ns) (i32.const 0))
-                   (then (call $raise-argument-error1
-                               (global.get $symbol:vector-extend)
-                               (global.get $string:exact-nonnegative-integer?)
-                               (local.get $new-size))
-                         (unreachable)))
+               (local.set $ns
+                          (call $vector-length/i32/who
+                                (global.get $symbol:vector-extend)
+                                (local.get $new-size)
+                                (global.get $string:exact-nonnegative-integer?)))
 
                (local.set $fill (if (result (ref eq))
                                     (ref.eq (local.get $val) (global.get $missing))

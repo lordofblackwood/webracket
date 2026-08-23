@@ -64,7 +64,11 @@
          "vector-extend"
          "new length is shorter than existing length"
          "new length: 1"
-         "existing length: 2")))
+         "existing length: 2")
+        (catch-fail/contains?
+         (lambda () (vector-extend '#(a b) 536870912))
+         "vector-extend"
+         "requested length is too large for WebRacket")))
  (list "build-vector length errors are catchable with who"
        (and
         (catch-contract/contains?
