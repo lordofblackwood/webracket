@@ -1598,6 +1598,8 @@
     $sub1
     $sqr
     $exact-rational-sqrt/real
+    $real-negative-sign?/i32
+    $complex-sqrt
     $sqrt
     $abs
     $round
@@ -2283,6 +2285,67 @@
                      (local.get $sqrt-num)
                      (local.get $sqrt-den)))
 
+         ;; real-negative-sign?/i32 : real? -> i32
+         ;;   Return 1 for negative exact reals and negative-signed flonums.
+         (func $real-negative-sign?/i32
+               (param $x (ref eq))
+               (result i32)
+
+               (if (ref.test (ref $Flonum) (local.get $x))
+                   (then
+                    (return
+                     (call $flonum-negative-sign?/i32
+                           (struct.get $Flonum $v
+                                       (ref.cast (ref $Flonum) (local.get $x)))))))
+               (if (call $exact-rational?/i32 (local.get $x))
+                   (then
+                    (return
+                     (i32.lt_s
+                      (call $exact-rational-compare/i32
+                            (local.get $x)
+                            (global.get $zero))
+                      (i32.const 0)))))
+               (i32.const 0))
+
+         ;; complex-sqrt : complex? -> number?
+         ;;   Compute the principal square root using exact components when possible.
+         (func $complex-sqrt
+               (param $z (ref $Complex))
+               (result (ref eq))
+
+               (local $a    (ref eq))
+               (local $b    (ref eq))
+               (local $r    (ref eq))
+               (local $u    (ref eq))
+               (local $v    (ref eq))
+               (local $imag (ref eq))
+
+               (local.set $a (struct.get $Complex $real (local.get $z)))
+               (local.set $b (struct.get $Complex $imag (local.get $z)))
+               (local.set $r (call $magnitude (local.get $z)))
+               (local.set $u
+                          (call $sqrt
+                                (call $/2
+                                      (call $+/2
+                                            (local.get $r)
+                                            (local.get $a))
+                                      (global.get $two))))
+               (local.set $v
+                          (call $sqrt
+                                (call $/2
+                                      (call $-/2
+                                            (local.get $r)
+                                            (local.get $a))
+                                      (global.get $two))))
+               (local.set $imag
+                          (if (result (ref eq))
+                              (call $real-negative-sign?/i32 (local.get $b))
+                              (then (call $real-negate (local.get $v)))
+                              (else (local.get $v))))
+               (call $make-rectangular/canonical
+                     (local.get $u)
+                     (local.get $imag)))
+
          (func $sqrt (type $Prim1)
                (param $x (ref eq))
                (result (ref eq))
@@ -2290,10 +2353,23 @@
                (local $bits i32)
                (local $fl (ref $Flonum))
                (local $f64 f64)
+               (local $cmp/i32 i32)
 
                ;; Exact rational case
                (if (call $exact-rational?/i32 (local.get $x))
                    (then
+                    (local.set $cmp/i32
+                               (call $exact-rational-compare/i32
+                                     (local.get $x)
+                                     (global.get $zero)))
+                    (if (i32.lt_s (local.get $cmp/i32) (i32.const 0))
+                        (then
+                         (return
+                          (call $make-rectangular/canonical
+                                (global.get $zero)
+                                (call $sqrt
+                                      (call $exact-rational-abs
+                                            (local.get $x)))))))
                     (return
                      (call $exact-rational-sqrt/real
                            (local.get $x)))))
@@ -2324,9 +2400,27 @@
                    (then
                     (local.set $fl (ref.cast (ref $Flonum) (local.get $x)))
                     (local.set $f64 (struct.get $Flonum $v (local.get $fl)))
+                    (if (f64.lt (local.get $f64) (f64.const 0.0))
+                        (then
+                         (return
+                          (call $make-rectangular/canonical
+                                (struct.new $Flonum
+                                            (i32.const 0)
+                                            (f64.const 0.0))
+                                (struct.new $Flonum
+                                            (i32.const 0)
+                                            (call $js-raw-math-sqrt
+                                                  (f64.abs (local.get $f64))))))))
                     (return (struct.new $Flonum
                                         (i32.const 0)
                                         (call $js-raw-math-sqrt (local.get $f64))))))
+
+               ;; Complex case
+               (if (ref.test (ref $Complex) (local.get $x))
+                   (then
+                    (return
+                     (call $complex-sqrt
+                           (ref.cast (ref $Complex) (local.get $x))))))
 
                ;; Not a number
                (call $raise-expected-number/who

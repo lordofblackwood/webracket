@@ -585,6 +585,41 @@
                 (eqv-hash-code (make-rectangular 1 2)))
             #:gate? #t
             #:note "eqv-hash-code is stable across eqv complex values.")
+   (nt-case 'sqrt-negative-perfect-square
+            'complex-root
+            '(sqrt -4)
+            #:gate? #t
+            #:note "Negative exact square roots become exact imaginary values.")
+   (nt-case 'sqrt-negative-non-square
+            'complex-root
+            '(sqrt -2)
+            #:gate? #t
+            #:note "Negative non-square exact roots become inexact complex values.")
+   (nt-case 'sqrt-negative-rational-perfect-square
+            'complex-root
+            '(sqrt -1/4)
+            #:gate? #t
+            #:note "Negative exact rational perfect squares preserve exactness.")
+   (nt-case 'sqrt-negative-flonum
+            'complex-root
+            '(sqrt -4.0)
+            #:gate? #t
+            #:note "Negative flonum roots produce inexact complex values.")
+   (nt-case 'sqrt-complex-exact-3-4
+            'complex-root
+            '(sqrt 3+4i)
+            #:gate? #t
+            #:note "Complex square roots can remain exact.")
+   (nt-case 'sqrt-complex-negative-zero-imag
+            'complex-root
+            '(sqrt (make-rectangular -1 -0.0))
+            #:gate? #t
+            #:note "Complex sqrt follows the imaginary signed-zero branch.")
+   (nt-case 'sqrt-complex-positive-real-negative-zero-imag
+            'complex-root
+            '(sqrt (make-rectangular 4 -0.0))
+            #:gate? #t
+            #:note "Complex sqrt preserves negative zero imaginary components.")
    (nt-case 'positive-nan
             'real-special-values
             +nan.0
