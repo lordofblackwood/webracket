@@ -4112,6 +4112,7 @@
     $/
     $rational-argument->exact
     $rational-abs/argument
+    $exact-zero-value?/i32
     $gcd/2
     $gcd
     $lcm/2
@@ -4764,6 +4765,17 @@
                                       (local.get $result)))))
               (local.get $result))
 
+        ;; $exact-zero-value?/i32 : any/c -> i32
+        ;;   Return 1 when x is exactly zero, otherwise 0.
+        (func $exact-zero-value?/i32
+              (param $x (ref eq))
+              (result i32)
+
+              (if (call $exact-rational?/i32 (local.get $x))
+                  (then (return (call $exact-rational-zero?/i32
+                                      (local.get $x)))))
+              (i32.const 0))
+
         (func $gcd/2 (type $Prim2)
               (param $n (ref eq))
               (param $m (ref eq))
@@ -4823,18 +4835,25 @@
                (result (ref eq))
 
                (local $inexact? i32)
+               (local $exact-zero? i32)
                (local $r        (ref eq))
 
                (local.set $inexact?
                           (i32.or
                            (ref.test (ref $Flonum) (local.get $n))
                            (ref.test (ref $Flonum) (local.get $m))))
+               (local.set $exact-zero?
+                          (i32.or
+                           (call $exact-zero-value?/i32 (local.get $n))
+                           (call $exact-zero-value?/i32 (local.get $m))))
                (local.set $n (call $rational-argument->exact
                                    (global.get $symbol:lcm)
                                    (local.get $n)))
                (local.set $m (call $rational-argument->exact
                                    (global.get $symbol:lcm)
                                    (local.get $m)))
+               (if (local.get $exact-zero?)
+                   (then (return ,(Imm 0))))
                (local.set $r (call $exact-rational-lcm/2
                                    (local.get $n)
                                    (local.get $m)))
