@@ -2952,6 +2952,11 @@
 
               (local $x-exact         (ref eq))
               (local $tolerance-exact (ref eq))
+              (local $x-f64           f64)
+              (local $tolerance-f64   f64)
+              (local $delta-f64       f64)
+              (local $lo-f64          f64)
+              (local $hi-f64          f64)
               (local $result          (ref eq))
               (local $inexact?        i32)
 
@@ -2962,6 +2967,66 @@
                          (i32.or
                           (ref.test (ref $Flonum) (local.get $x))
                           (ref.test (ref $Flonum) (local.get $tolerance))))
+              (if (local.get $inexact?)
+                  (then
+                   (local.set $x-f64
+                              (call $real->f64/checked
+                                    (global.get $symbol:rationalize)
+                                    (local.get $x)))
+                   (local.set $tolerance-f64
+                              (call $real->f64/checked
+                                    (global.get $symbol:rationalize)
+                                    (local.get $tolerance)))
+                   (if (f64.ne (local.get $x-f64) (local.get $x-f64))
+                       (then (call $raise-expected-rational
+                                   (global.get $symbol:rationalize)
+                                   (local.get $x))
+                             (unreachable)))
+                   (if (f64.ne (local.get $tolerance-f64)
+                               (local.get $tolerance-f64))
+                       (then (call $raise-expected-rational
+                                   (global.get $symbol:rationalize)
+                                   (local.get $tolerance))
+                             (unreachable)))
+                   (if (f64.eq (f64.abs (local.get $x-f64))
+                               (f64.const +inf))
+                       (then (call $raise-expected-rational
+                                   (global.get $symbol:rationalize)
+                                   (local.get $x))
+                             (unreachable)))
+                   (if (f64.eq (f64.abs (local.get $tolerance-f64))
+                               (f64.const +inf))
+                       (then (call $raise-expected-rational
+                                   (global.get $symbol:rationalize)
+                                   (local.get $tolerance))
+                             (unreachable)))
+                   (local.set $delta-f64 (f64.abs (local.get $tolerance-f64)))
+                   (local.set $lo-f64
+                              (f64.sub (local.get $x-f64)
+                                       (local.get $delta-f64)))
+                   (local.set $hi-f64
+                              (f64.add (local.get $x-f64)
+                                       (local.get $delta-f64)))
+                   (if (f64.eq (f64.abs (local.get $lo-f64))
+                               (f64.const +inf))
+                       (then (call $raise-expected-rational
+                                   (global.get $symbol:rationalize)
+                                   (local.get $x))
+                             (unreachable)))
+                   (if (f64.eq (f64.abs (local.get $hi-f64))
+                               (f64.const +inf))
+                       (then (call $raise-expected-rational
+                                   (global.get $symbol:rationalize)
+                                   (local.get $x))
+                             (unreachable)))
+                   (local.set $result
+                              (call $exact-rational-simplest-between
+                                    (call $f64->exact-rational
+                                          (local.get $lo-f64))
+                                    (call $f64->exact-rational
+                                          (local.get $hi-f64))))
+                   (return (call $exact->inexact
+                                 (local.get $result)))))
               (local.set $x-exact
                          (call $rational-argument->exact
                                (global.get $symbol:rationalize)
