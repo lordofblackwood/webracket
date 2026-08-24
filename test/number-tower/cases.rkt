@@ -1400,6 +1400,49 @@
             #:comparison 'ignore-fixnum-width
             #:gate? #t
             #:note "Bignum multiplication uses the large-operand square path correctly.")
+   (nt-case 'bignum-mul-karatsuba-opposite-differences
+            'integer-arithmetic
+            '(let* ([low-width 544]
+                    [high-width 512]
+                    [low (- (arithmetic-shift 1 low-width) 1)]
+                    [high (- (arithmetic-shift 1 high-width) 1)]
+                    [x (+ low (arithmetic-shift high low-width))]
+                    [y (+ 1 (arithmetic-shift high low-width))])
+               (* x y))
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "Karatsuba handles opposite-signed high-minus-low difference products.")
+   (nt-case 'bignum-square-karatsuba-threshold
+            'integer-arithmetic
+            '(let ([x (- (arithmetic-shift 1 2048) 1)])
+               (* x x))
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "Karatsuba squaring handles a dense 64-limb operand.")
+   (nt-case 'bignum-mul-toom3-negative-minus-one-evaluation
+            'integer-arithmetic
+            '(let* ([chunk-width 1408]
+                    [high-width 1376]
+                    [chunk-base (arithmetic-shift 1 chunk-width)]
+                    [mid (- chunk-base 1)]
+                    [top (arithmetic-shift 1 high-width)]
+                    [x (+ 1
+                          (arithmetic-shift mid chunk-width)
+                          (arithmetic-shift top (* 2 chunk-width)))]
+                    [y (+ 7
+                          (arithmetic-shift (- chunk-base 3) chunk-width)
+                          (arithmetic-shift top (* 2 chunk-width)))])
+               (* x y))
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "Toom-3 preserves signed values produced by evaluation at -1.")
+   (nt-case 'bignum-mul-toom3-negative-result
+            'integer-arithmetic
+            '(* (- (- (arithmetic-shift 1 4160) 1))
+                (- (arithmetic-shift 1 4128) 123456789))
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "Toom-3 applies the final product sign after magnitude interpolation.")
    (nt-case 'bignum-mul-sparse-power-left
             'integer-arithmetic
             '(* (arithmetic-shift 1 130) 123456789)

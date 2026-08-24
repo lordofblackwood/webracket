@@ -6,12 +6,45 @@
 
 (require "../core-helper.rkt")
 
+;; read-bignum-threshold : string? exact-positive-integer? -> exact-positive-integer?
+;;   Read a private compile-time multiplication tuning threshold.
+(define (read-bignum-threshold name default)
+  (define configured (getenv name))
+  (cond
+    [(not configured) default]
+    [(let ([value (string->number configured)])
+       (and (exact-positive-integer? value) value))
+     => values]
+    [else
+     (error 'bignum-core-runtime-helpers
+            "expected ~a to be an exact positive integer, got ~e"
+            name
+            configured)]))
+
+;; These values are private compiler tuning controls. The measurement tool
+;; recompiles the runtime with overrides while locating stable crossovers.
+;; The current WebRacket measurements select Karatsuba at 128 limbs and keep
+;; Toom-3 disabled: its generic evaluation/interpolation allocation overhead
+;; does not repay itself through 16384 limbs without a workspace implementation.
+(define bignum-mul-karatsuba-threshold
+  (read-bignum-threshold "WEBRACKET_BIGNUM_MUL_KARATSUBA_THRESHOLD" 128))
+(define bignum-mul-toom3-threshold
+  (read-bignum-threshold "WEBRACKET_BIGNUM_MUL_TOOM3_THRESHOLD" 2147483647))
+(define bignum-sqr-basecase-threshold
+  (read-bignum-threshold "WEBRACKET_BIGNUM_SQR_BASECASE_THRESHOLD" 128))
+(define bignum-sqr-karatsuba-threshold
+  (read-bignum-threshold "WEBRACKET_BIGNUM_SQR_KARATSUBA_THRESHOLD" 128))
+(define bignum-sqr-toom3-threshold
+  (read-bignum-threshold "WEBRACKET_BIGNUM_SQR_TOOM3_THRESHOLD" 2147483647))
+(define bignum-mul-max-balance-ratio
+  (read-bignum-threshold "WEBRACKET_BIGNUM_MUL_MAX_BALANCE_RATIO" 2))
+
 ;; bignum-core-runtime-helpers : (listof core-runtime-helper?)
 ;;   Runtime support for exact integers outside the i31 fixnum range.
 (define bignum-core-runtime-helpers
   (function-forms->runtime-helpers
    'bignum-core-runtime-helpers
-   '(
+   `(
      ;; $integer-from-i64 : i64 -> exact-integer?
      ;;   Build a canonical exact integer from a signed 64-bit value.
      (func $integer-from-i64
@@ -493,9 +526,9 @@
                  (local.get $sign)
                  (local.get $out)))
 
-     ;; $bignum-square : bignum? -> exact-integer?
+     ;; $bignum-square-basecase : bignum? -> exact-integer?
      ;;   Square a bignum magnitude using one multiply for each off-diagonal pair.
-     (func $bignum-square
+     (func $bignum-square-basecase
            (param $b (ref $Bignum))
            (result (ref eq))
 
@@ -804,8 +837,428 @@
                  (local.get $shift)
                  (local.get $sign)))
 
+     ;; $bignum-limb-slice : bignum? exact-nonnegative-integer? exact-nonnegative-integer? -> exact-nonnegative-integer?
+     ;;   Copy a zero-extended little-endian limb range as a canonical magnitude.
+     (func $bignum-limb-slice
+           (param $b     (ref $Bignum))
+           (param $start i32)
+           (param $count i32)
+           (result (ref eq))
+
+           (local $limbs     (ref $I32Array))
+           (local $len       i32)
+           (local $available i32)
+           (local $copy-len  i32)
+           (local $out       (ref $I32Array))
+
+           (if (i32.eqz (local.get $count))
+               (then (return (ref.i31 (i32.const 0)))))
+           (local.set $limbs (struct.get $Bignum $limbs (local.get $b)))
+           (local.set $len (array.len (local.get $limbs)))
+           (local.set $out
+                      (array.new_default $I32Array (local.get $count)))
+           (if (i32.ge_u (local.get $start) (local.get $len))
+               (then
+                (return
+                 (call $bignum-normalize (i32.const 1) (local.get $out)))))
+           (local.set $available
+                      (i32.sub (local.get $len) (local.get $start)))
+           (local.set $copy-len
+                      (select (local.get $available)
+                              (local.get $count)
+                              (i32.lt_u (local.get $available)
+                                        (local.get $count))))
+           (array.copy $I32Array $I32Array
+                       (local.get $out)   (i32.const 0)
+                       (local.get $limbs) (local.get $start)
+                       (local.get $copy-len))
+           (call $bignum-normalize (i32.const 1) (local.get $out)))
+
+     ;; $integer-shl-by-i32 : exact-integer? exact-nonnegative-integer? -> exact-integer?
+     ;;   Shift an exact integer left while preserving its sign.
+     (func $integer-shl-by-i32
+           (param $x     (ref eq))
+           (param $shift i32)
+           (result (ref eq))
+
+           (if (call $integer-zero?/i32 (local.get $x))
+               (then (return (local.get $x))))
+           (call $integer-shl-by-i32/sign
+                 (local.get $x)
+                 (local.get $shift)
+                 (call $integer-sign/i32 (local.get $x))))
+
+     ;; $integer-divexact-by-i32 : exact-integer? exact-positive-integer? -> exact-integer?
+     ;;   Divide by a small positive divisor that is known to divide exactly.
+     (func $integer-divexact-by-i32
+           (param $n (ref eq))
+           (param $d i32)
+           (result (ref eq))
+
+           (local $vals (ref $Values))
+           (local $q    (ref eq))
+           (local $r    (ref eq))
+
+           (local.set $vals
+                      (call $integer-divmod
+                            (local.get $n)
+                            (ref.i31
+                             (i32.shl (local.get $d) (i32.const 1)))))
+           (local.set $q (array.get $Values (local.get $vals) (i32.const 0)))
+           (local.set $r (array.get $Values (local.get $vals) (i32.const 1)))
+           (if (i32.eqz (call $integer-zero?/i32 (local.get $r)))
+               (then (unreachable)))
+           (local.get $q))
+
+     ;; $bignum-mul-karatsuba-magnitude : bignum? bignum? -> exact-nonnegative-integer?
+     ;;   Multiply magnitudes with the three-product Karatsuba identity.
+     (func $bignum-mul-karatsuba-magnitude
+           (param $a (ref $Bignum))
+           (param $b (ref $Bignum))
+           (result (ref eq))
+
+           (local $a-len  i32)
+           (local $b-len  i32)
+           (local $max-len i32)
+           (local $k      i32)
+           (local $bits   i32)
+           (local $x0     (ref eq))
+           (local $x1     (ref eq))
+           (local $y0     (ref eq))
+           (local $y1     (ref eq))
+           (local $z0     (ref eq))
+           (local $z2     (ref eq))
+           (local $d      (ref eq))
+           (local $mid    (ref eq))
+           (local $result (ref eq))
+
+           (local.set $a-len
+                      (array.len
+                       (struct.get $Bignum $limbs (local.get $a))))
+           (local.set $b-len
+                      (array.len
+                       (struct.get $Bignum $limbs (local.get $b))))
+           (local.set $max-len
+                      (select (local.get $a-len)
+                              (local.get $b-len)
+                              (i32.gt_u (local.get $a-len)
+                                        (local.get $b-len))))
+           (local.set $k
+                      (i32.div_u
+                       (i32.add (local.get $max-len) (i32.const 1))
+                       (i32.const 2)))
+           (local.set $bits
+                      (i32.mul (local.get $k) (i32.const 32)))
+           (local.set $x0
+                      (call $bignum-limb-slice
+                            (local.get $a) (i32.const 0) (local.get $k)))
+           (local.set $x1
+                      (call $bignum-limb-slice
+                            (local.get $a) (local.get $k) (local.get $k)))
+           (local.set $y0
+                      (call $bignum-limb-slice
+                            (local.get $b) (i32.const 0) (local.get $k)))
+           (local.set $y1
+                      (call $bignum-limb-slice
+                            (local.get $b) (local.get $k) (local.get $k)))
+           (local.set $z0
+                      (call $integer-mul/2 (local.get $x0) (local.get $y0)))
+           (local.set $z2
+                      (call $integer-mul/2 (local.get $x1) (local.get $y1)))
+           (local.set $d
+                      (call $integer-mul/2
+                            (call $integer-sub/2
+                                  (local.get $x1) (local.get $x0))
+                            (call $integer-sub/2
+                                  (local.get $y1) (local.get $y0))))
+           (local.set $mid
+                      (call $integer-sub/2
+                            (call $integer-add/2
+                                  (local.get $z0) (local.get $z2))
+                            (local.get $d)))
+           (local.set $result (local.get $z0))
+           (local.set $result
+                      (call $integer-add/2
+                            (local.get $result)
+                            (call $integer-shl-by-i32
+                                  (local.get $mid) (local.get $bits))))
+           (local.set $result
+                      (call $integer-add/2
+                            (local.get $result)
+                            (call $integer-shl-by-i32
+                                  (local.get $z2)
+                                  (i32.mul (local.get $bits) (i32.const 2)))))
+           (local.get $result))
+
+     ;; $bignum-square-karatsuba : bignum? -> exact-nonnegative-integer?
+     ;;   Square a magnitude with Karatsuba's three-square identity.
+     (func $bignum-square-karatsuba
+           (param $b (ref $Bignum))
+           (result (ref eq))
+
+           (local $len    i32)
+           (local $k      i32)
+           (local $bits   i32)
+           (local $x0     (ref eq))
+           (local $x1     (ref eq))
+           (local $z0     (ref eq))
+           (local $z2     (ref eq))
+           (local $d      (ref eq))
+           (local $mid    (ref eq))
+           (local $result (ref eq))
+
+           (local.set $len
+                      (array.len
+                       (struct.get $Bignum $limbs (local.get $b))))
+           (local.set $k
+                      (i32.div_u
+                       (i32.add (local.get $len) (i32.const 1))
+                       (i32.const 2)))
+           (local.set $bits
+                      (i32.mul (local.get $k) (i32.const 32)))
+           (local.set $x0
+                      (call $bignum-limb-slice
+                            (local.get $b) (i32.const 0) (local.get $k)))
+           (local.set $x1
+                      (call $bignum-limb-slice
+                            (local.get $b) (local.get $k) (local.get $k)))
+           (local.set $z0
+                      (call $integer-mul/2 (local.get $x0) (local.get $x0)))
+           (local.set $z2
+                      (call $integer-mul/2 (local.get $x1) (local.get $x1)))
+           (local.set $d
+                      (call $integer-mul/2
+                            (call $integer-sub/2
+                                  (local.get $x1) (local.get $x0))
+                            (call $integer-sub/2
+                                  (local.get $x1) (local.get $x0))))
+           (local.set $mid
+                      (call $integer-sub/2
+                            (call $integer-add/2
+                                  (local.get $z0) (local.get $z2))
+                            (local.get $d)))
+           (local.set $result (local.get $z0))
+           (local.set $result
+                      (call $integer-add/2
+                            (local.get $result)
+                            (call $integer-shl-by-i32
+                                  (local.get $mid) (local.get $bits))))
+           (local.set $result
+                      (call $integer-add/2
+                            (local.get $result)
+                            (call $integer-shl-by-i32
+                                  (local.get $z2)
+                                  (i32.mul (local.get $bits) (i32.const 2)))))
+           (local.get $result))
+
+     ;; $bignum-mul-toom3-magnitude : bignum? bignum? -> exact-nonnegative-integer?
+     ;;   Multiply magnitudes by evaluating and interpolating a three-way split.
+     (func $bignum-mul-toom3-magnitude
+           (param $a (ref $Bignum))
+           (param $b (ref $Bignum))
+           (result (ref eq))
+
+           (local $a-len  i32)
+           (local $b-len  i32)
+           (local $max-len i32)
+           (local $k      i32)
+           (local $bits   i32)
+           (local $x0     (ref eq))
+           (local $x1     (ref eq))
+           (local $x2     (ref eq))
+           (local $y0     (ref eq))
+           (local $y1     (ref eq))
+           (local $y2     (ref eq))
+           (local $p1     (ref eq))
+           (local $pm1    (ref eq))
+           (local $p2     (ref eq))
+           (local $q1     (ref eq))
+           (local $qm1    (ref eq))
+           (local $q2     (ref eq))
+           (local $q0     (ref eq))
+           (local $q4     (ref eq))
+           (local $s1     (ref eq))
+           (local $sm1    (ref eq))
+           (local $w1     (ref eq))
+           (local $w2     (ref eq))
+           (local $w3     (ref eq))
+           (local $odd    (ref eq))
+           (local $t      (ref eq))
+           (local $result (ref eq))
+
+           (local.set $a-len
+                      (array.len
+                       (struct.get $Bignum $limbs (local.get $a))))
+           (local.set $b-len
+                      (array.len
+                       (struct.get $Bignum $limbs (local.get $b))))
+           (local.set $max-len
+                      (select (local.get $a-len)
+                              (local.get $b-len)
+                              (i32.gt_u (local.get $a-len)
+                                        (local.get $b-len))))
+           (local.set $k
+                      (i32.div_u
+                       (i32.add (local.get $max-len) (i32.const 2))
+                       (i32.const 3)))
+           (local.set $bits
+                      (i32.mul (local.get $k) (i32.const 32)))
+           (local.set $x0
+                      (call $bignum-limb-slice
+                            (local.get $a) (i32.const 0) (local.get $k)))
+           (local.set $x1
+                      (call $bignum-limb-slice
+                            (local.get $a) (local.get $k) (local.get $k)))
+           (local.set $x2
+                      (call $bignum-limb-slice
+                            (local.get $a)
+                            (i32.mul (local.get $k) (i32.const 2))
+                            (local.get $k)))
+           (local.set $y0
+                      (call $bignum-limb-slice
+                            (local.get $b) (i32.const 0) (local.get $k)))
+           (local.set $y1
+                      (call $bignum-limb-slice
+                            (local.get $b) (local.get $k) (local.get $k)))
+           (local.set $y2
+                      (call $bignum-limb-slice
+                            (local.get $b)
+                            (i32.mul (local.get $k) (i32.const 2))
+                            (local.get $k)))
+           (local.set $q0
+                      (call $integer-mul/2 (local.get $x0) (local.get $y0)))
+           (local.set $q4
+                      (call $integer-mul/2 (local.get $x2) (local.get $y2)))
+           (local.set $p1
+                      (call $integer-add/2
+                            (call $integer-add/2
+                                  (local.get $x0) (local.get $x1))
+                            (local.get $x2)))
+           (local.set $q1
+                      (call $integer-mul/2
+                            (local.get $p1)
+                            (call $integer-add/2
+                                  (call $integer-add/2
+                                        (local.get $y0) (local.get $y1))
+                                  (local.get $y2))))
+           (local.set $pm1
+                      (call $integer-add/2
+                            (call $integer-sub/2
+                                  (local.get $x0) (local.get $x1))
+                            (local.get $x2)))
+           (local.set $qm1
+                      (call $integer-mul/2
+                            (local.get $pm1)
+                            (call $integer-add/2
+                                  (call $integer-sub/2
+                                        (local.get $y0) (local.get $y1))
+                                  (local.get $y2))))
+           (local.set $p2
+                      (call $integer-add/2
+                            (call $integer-add/2
+                                  (local.get $x0)
+                                  (call $integer-shl-by-i32
+                                        (local.get $x1) (i32.const 1)))
+                            (call $integer-shl-by-i32
+                                  (local.get $x2) (i32.const 2))))
+           (local.set $q2
+                      (call $integer-mul/2
+                            (local.get $p2)
+                            (call $integer-add/2
+                                  (call $integer-add/2
+                                        (local.get $y0)
+                                        (call $integer-shl-by-i32
+                                              (local.get $y1) (i32.const 1)))
+                                  (call $integer-shl-by-i32
+                                        (local.get $y2) (i32.const 2)))))
+           (local.set $s1
+                      (call $integer-sub/2
+                            (call $integer-sub/2
+                                  (local.get $q1) (local.get $q0))
+                            (local.get $q4)))
+           (local.set $sm1
+                      (call $integer-sub/2
+                            (call $integer-sub/2
+                                  (local.get $qm1) (local.get $q0))
+                            (local.get $q4)))
+           (local.set $w2
+                      (call $integer-divexact-by-i32
+                            (call $integer-add/2
+                                  (local.get $s1) (local.get $sm1))
+                            (i32.const 2)))
+           (local.set $odd
+                      (call $integer-divexact-by-i32
+                            (call $integer-sub/2
+                                  (local.get $s1) (local.get $sm1))
+                            (i32.const 2)))
+           (local.set $t
+                      (call $integer-divexact-by-i32
+                            (call $integer-sub/2
+                                  (call $integer-sub/2
+                                        (call $integer-sub/2
+                                              (local.get $q2) (local.get $q0))
+                                        (call $integer-shl-by-i32
+                                              (local.get $q4) (i32.const 4)))
+                                  (call $integer-shl-by-i32
+                                        (local.get $w2) (i32.const 2)))
+                            (i32.const 2)))
+           (local.set $w3
+                      (call $integer-divexact-by-i32
+                            (call $integer-sub/2
+                                  (local.get $t) (local.get $odd))
+                            (i32.const 3)))
+           (local.set $w1
+                      (call $integer-sub/2
+                            (local.get $odd) (local.get $w3)))
+           (local.set $result (local.get $q0))
+           (local.set $result
+                      (call $integer-add/2
+                            (local.get $result)
+                            (call $integer-shl-by-i32
+                                  (local.get $w1) (local.get $bits))))
+           (local.set $result
+                      (call $integer-add/2
+                            (local.get $result)
+                            (call $integer-shl-by-i32
+                                  (local.get $w2)
+                                  (i32.mul (local.get $bits) (i32.const 2)))))
+           (local.set $result
+                      (call $integer-add/2
+                            (local.get $result)
+                            (call $integer-shl-by-i32
+                                  (local.get $w3)
+                                  (i32.mul (local.get $bits) (i32.const 3)))))
+           (call $integer-add/2
+                 (local.get $result)
+                 (call $integer-shl-by-i32
+                       (local.get $q4)
+                       (i32.mul (local.get $bits) (i32.const 4)))))
+
+     ;; $bignum-square : bignum? -> exact-nonnegative-integer?
+     ;;   Select the tuned square algorithm for a bignum magnitude.
+     (func $bignum-square
+           (param $b (ref $Bignum))
+           (result (ref eq))
+
+           (local $len i32)
+
+           (local.set $len
+                      (array.len
+                       (struct.get $Bignum $limbs (local.get $b))))
+           (if (i32.ge_u (local.get $len)
+                         (i32.const ,bignum-sqr-toom3-threshold))
+               (then
+                (return
+                 (call $bignum-mul-toom3-magnitude
+                       (local.get $b) (local.get $b)))))
+           (if (i32.ge_u (local.get $len)
+                         (i32.const ,bignum-sqr-karatsuba-threshold))
+               (then
+                (return (call $bignum-square-karatsuba (local.get $b)))))
+           (call $bignum-square-basecase (local.get $b)))
+
      ;; $bignum-mul : bignum? bignum? -> exact-integer?
-     ;;   Multiply two signed canonical bignums with schoolbook limbs.
+     ;;   Select a tuned multiplication algorithm for signed canonical bignums.
      (func $bignum-mul
            (param $a (ref $Bignum))
            (param $b (ref $Bignum))
@@ -817,6 +1270,8 @@
            (local $large-limbs (ref $I32Array))
            (local $a-len i32)
            (local $b-len i32)
+           (local $min-len i32)
+           (local $max-len i32)
            (local $small-len i32)
            (local $large-len i32)
            (local $out-len i32)
@@ -835,6 +1290,16 @@
            (local.set $b-limbs (struct.get $Bignum $limbs (local.get $b)))
            (local.set $a-len (array.len (local.get $a-limbs)))
            (local.set $b-len (array.len (local.get $b-limbs)))
+           (local.set $min-len
+                      (select (local.get $a-len)
+                              (local.get $b-len)
+                              (i32.lt_u (local.get $a-len)
+                                        (local.get $b-len))))
+           (local.set $max-len
+                      (select (local.get $a-len)
+                              (local.get $b-len)
+                              (i32.gt_u (local.get $a-len)
+                                        (local.get $b-len))))
            (local.set $sign
                       (select (i32.const 1)
                               (i32.const -1)
@@ -879,7 +1344,8 @@
            ;; Smaller equal operands are not consistently faster with the
            ;; square-specific carry bookkeeping.
            (if (i32.and
-                (i32.ge_u (local.get $a-len) (i32.const 64))
+                (i32.ge_u (local.get $a-len)
+                          (i32.const ,bignum-sqr-basecase-threshold))
                 (i32.and
                  (i32.gt_s (local.get $sign) (i32.const 0))
                  (i32.eqz
@@ -889,6 +1355,33 @@
                (then
                 (return
                  (call $bignum-square (local.get $a)))))
+           ;; Recursive algorithms are only selected for comparably sized
+           ;; operands. Rectangular schoolbook multiplication remains the
+           ;; baseline for unbalanced inputs until separately tuned.
+           (if (i32.and
+                (i32.le_u (local.get $max-len)
+                          (i32.mul (local.get $min-len)
+                                   (i32.const ,bignum-mul-max-balance-ratio)))
+                (i32.ge_u (local.get $max-len)
+                          (i32.const ,bignum-mul-toom3-threshold)))
+               (then
+                (return
+                 (call $integer-apply-sign
+                       (call $bignum-mul-toom3-magnitude
+                             (local.get $a) (local.get $b))
+                       (local.get $sign)))))
+           (if (i32.and
+                (i32.le_u (local.get $max-len)
+                          (i32.mul (local.get $min-len)
+                                   (i32.const ,bignum-mul-max-balance-ratio)))
+                (i32.ge_u (local.get $max-len)
+                          (i32.const ,bignum-mul-karatsuba-threshold)))
+               (then
+                (return
+                 (call $integer-apply-sign
+                       (call $bignum-mul-karatsuba-magnitude
+                             (local.get $a) (local.get $b))
+                       (local.get $sign)))))
            (local.set $small-limbs (local.get $a-limbs))
            (local.set $small-len   (local.get $a-len))
            (local.set $large-limbs (local.get $b-limbs))

@@ -24,6 +24,17 @@
          racket/string
          "check-number-tower-cs.rkt")
 
+(provide (struct-out bench-case)
+         bignum-mul-cases
+         dense-bignum-mul-cases
+         benchmark-expression
+         make-benchmark-directory
+         run-webracket-benchmark
+         run-cs-benchmark
+         check-checksums!
+         default-webracket-racket-path
+         default-racket-cs-path)
+
 
 ;;; Benchmark Model
 
@@ -98,6 +109,24 @@
                '(- (arithmetic-shift 1 4096) 987654321)
                '(- (arithmetic-shift 1 4096) 987654322)
                "Large same-width neighboring operands for square comparisons.")))
+
+;; dense-bignum-mul-cases : (listof exact-positive-integer?) -> (listof bench-case?)
+;;   Build balanced dense multiplication and square cases at selected limb widths.
+(define (dense-bignum-mul-cases limb-counts)
+  (append*
+   (for/list ([limbs (in-list limb-counts)])
+     (define bits (* limbs 32))
+     (define lhs `(- (arithmetic-shift 1 ,bits) 123456789))
+     (define rhs `(- (arithmetic-shift 1 ,bits) 987654321))
+     (list
+      (bench-case (string->symbol (format "dense-mul-~a-limbs" limbs))
+                  lhs
+                  rhs
+                  "Dense balanced multiplication at a requested limb width.")
+      (bench-case (string->symbol (format "dense-square-~a-limbs" limbs))
+                  lhs
+                  lhs
+                  "Dense balanced square at a requested limb width.")))))
 
 
 ;;; Repository Paths
@@ -378,6 +407,18 @@
             (and (not (string=? trimmed ""))
                  (string->symbol trimmed)))))
 
+;; parse-limb-list : string? -> (listof exact-positive-integer?)
+;;   Parse comma-separated requested bignum limb widths.
+(define (parse-limb-list s)
+  (for/list ([part (in-list (string-split s ","))]
+             #:unless (string=? (string-trim part) ""))
+    (define value (string->number (string-trim part)))
+    (unless (exact-positive-integer? value)
+      (error 'measure-bignum-mul
+             "expected a positive exact limb count, got ~e"
+             part))
+    value))
+
 
 ;;; Main
 
@@ -390,6 +431,7 @@
   (define include-cs? #t)
   (define keep-temp? #f)
   (define case-ids '())
+  (define limb-counts '())
   (define list-cases? #f)
   (define racket-path (default-webracket-racket-path))
   (define cs-path (default-racket-cs-path))
@@ -414,7 +456,11 @@
                     (set! list-cases? #t)]
    #:multi
    [("--case") id "Run one case id or comma-separated case ids"
-              (set! case-ids (append case-ids (parse-symbol-list id)))])
+              (set! case-ids (append case-ids (parse-symbol-list id)))]
+   [("--limbs") counts
+                "Run generated dense multiply and square cases at comma-separated limb widths"
+                (set! limb-counts
+                      (append limb-counts (parse-limb-list counts)))])
   (unless (and (exact-positive-integer? reps)
                (exact-nonnegative-integer? warmup-reps)
                (exact-positive-integer? timeout-seconds))
@@ -425,7 +471,13 @@
      (for ([c (in-list bignum-mul-cases)])
        (printf "~a\t~a\n" (bench-case-id c) (bench-case-note c)))]
     [else
-     (define cases (selected-bignum-mul-cases case-ids))
+     (when (and (pair? limb-counts) (pair? case-ids))
+       (error 'measure-bignum-mul
+              "--limbs selects generated cases and cannot be combined with --case"))
+     (define cases
+       (if (pair? limb-counts)
+           (dense-bignum-mul-cases limb-counts)
+           (selected-bignum-mul-cases case-ids)))
      (define expr (benchmark-expression reps warmup-reps cases))
      (define work-dir (make-benchmark-directory))
      (with-handlers ([exn:fail?
