@@ -634,6 +634,130 @@
                           (real->double-flonum (- upper)))))
             #:gate? #t
             #:note "Bignum-to-f64 conversion must inspect all integer bits and round once.")
+   (nt-case 'bignum-f64-halfway-even-retained
+            'rational-conversion
+            '(let* ([base (arithmetic-shift 1 95)]
+                    [half (arithmetic-shift 1 42)]
+                    [ulp  (arithmetic-shift 1 43)]
+                    [below (+ base half -1)]
+                    [tie (+ base half)]
+                    [above (+ base half 1)]
+                    [upper (+ base ulp)])
+               (and (eqv? (exact->inexact below) (exact->inexact base))
+                    (eqv? (real->double-flonum below)
+                          (real->double-flonum base))
+                    (eqv? (exact->inexact tie) (exact->inexact base))
+                    (eqv? (real->double-flonum tie)
+                          (real->double-flonum base))
+                    (eqv? (exact->inexact above) (exact->inexact upper))
+                    (eqv? (real->double-flonum above)
+                          (real->double-flonum upper))
+                    (eqv? (exact->inexact (- below))
+                          (exact->inexact (- base)))
+                    (eqv? (real->double-flonum (- below))
+                          (real->double-flonum (- base)))
+                    (eqv? (exact->inexact (- tie))
+                          (exact->inexact (- base)))
+                    (eqv? (real->double-flonum (- tie))
+                          (real->double-flonum (- base)))
+                    (eqv? (exact->inexact (- above))
+                          (exact->inexact (- upper)))
+                    (eqv? (real->double-flonum (- above))
+                          (real->double-flonum (- upper)))))
+            #:gate? #t
+            #:note "Bignum-to-f64 rounds below, at, and above an even halfway point.")
+   (nt-case 'bignum-f64-halfway-odd-retained
+            'rational-conversion
+            '(let* ([base (arithmetic-shift 1 95)]
+                    [half (arithmetic-shift 1 42)]
+                    [ulp  (arithmetic-shift 1 43)]
+                    [lower (+ base ulp)]
+                    [upper (+ base (* 2 ulp))]
+                    [below (+ lower half -1)]
+                    [tie (+ lower half)]
+                    [above (+ lower half 1)])
+               (and (eqv? (exact->inexact below) (exact->inexact lower))
+                    (eqv? (real->double-flonum below)
+                          (real->double-flonum lower))
+                    (eqv? (exact->inexact tie) (exact->inexact upper))
+                    (eqv? (real->double-flonum tie)
+                          (real->double-flonum upper))
+                    (eqv? (exact->inexact above) (exact->inexact upper))
+                    (eqv? (real->double-flonum above)
+                          (real->double-flonum upper))
+                    (eqv? (exact->inexact (- below))
+                          (exact->inexact (- lower)))
+                    (eqv? (real->double-flonum (- below))
+                          (real->double-flonum (- lower)))
+                    (eqv? (exact->inexact (- tie))
+                          (exact->inexact (- upper)))
+                    (eqv? (real->double-flonum (- tie))
+                          (real->double-flonum (- upper)))
+                    (eqv? (exact->inexact (- above))
+                          (exact->inexact (- upper)))
+                    (eqv? (real->double-flonum (- above))
+                          (real->double-flonum (- upper)))))
+            #:gate? #t
+            #:note "Bignum-to-f64 ties round away from an odd retained significand.")
+   (nt-case 'bignum-f64-significand-carry
+            'rational-conversion
+            '(let* ([next-binade (arithmetic-shift 1 96)]
+                    [ulp (arithmetic-shift 1 43)]
+                    [half (arithmetic-shift 1 42)]
+                    [lower (- next-binade ulp)]
+                    [below (- next-binade half 1)]
+                    [tie (- next-binade half)])
+               (and (eqv? (exact->inexact below)
+                          (exact->inexact lower))
+                    (eqv? (real->double-flonum below)
+                          (real->double-flonum lower))
+                    (eqv? (exact->inexact tie)
+                          (exact->inexact next-binade))
+                    (eqv? (real->double-flonum tie)
+                          (real->double-flonum next-binade))
+                    (eqv? (exact->inexact (- below))
+                          (exact->inexact (- lower)))
+                    (eqv? (real->double-flonum (- below))
+                          (real->double-flonum (- lower)))
+                    (eqv? (exact->inexact (- tie))
+                          (exact->inexact (- next-binade)))
+                    (eqv? (real->double-flonum (- tie))
+                          (real->double-flonum (- next-binade)))))
+            #:gate? #t
+            #:note "Bignum-to-f64 handles a carry out of an all-one retained significand.")
+   (nt-case 'bignum-f64-overflow-boundary
+            'rational-conversion
+            '(let* ([two^1024 (arithmetic-shift 1 1024)]
+                    [max-finite (- two^1024 (arithmetic-shift 1 971))]
+                    [below-inf (- two^1024 (arithmetic-shift 1 970) 1)]
+                    [to-inf (- two^1024 (arithmetic-shift 1 970))])
+               (and (eqv? (exact->inexact below-inf)
+                          (exact->inexact max-finite))
+                    (eqv? (real->double-flonum below-inf)
+                          (real->double-flonum max-finite))
+                    (eqv? (exact->inexact to-inf) +inf.0)
+                    (eqv? (real->double-flonum to-inf) +inf.0)
+                    (eqv? (exact->inexact (- below-inf))
+                          (exact->inexact (- max-finite)))
+                    (eqv? (real->double-flonum (- below-inf))
+                          (real->double-flonum (- max-finite)))
+                    (eqv? (exact->inexact (- to-inf)) -inf.0)
+                    (eqv? (real->double-flonum (- to-inf)) -inf.0)))
+            #:gate? #t
+            #:note "Bignum-to-f64 distinguishes maximum finite results from infinity.")
+   (nt-case 'bignum-f64-mixed-inexact-arithmetic
+            'rational-conversion
+            '(let* ([x (+ (arithmetic-shift 1 95)
+                          (arithmetic-shift 1 42)
+                          1)]
+                    [upper (+ (arithmetic-shift 1 95)
+                              (arithmetic-shift 1 43))])
+               (and (eqv? (+ x 0.0) (exact->inexact upper))
+                    (eqv? (+ (- x) 0.0) (exact->inexact (- upper)))
+                    (eqv? (- 0.0 x) (exact->inexact (- upper)))
+                    (eqv? (* x 1.0) (exact->inexact upper))))
+            #:gate? #t
+            #:note "Mixed exact/inexact arithmetic uses the same one-round bignum conversion.")
    (nt-case 'exact->inexact-rational-double-round
             'rational-conversion
             '(exact->inexact 2106270354592/12789239550964971)
