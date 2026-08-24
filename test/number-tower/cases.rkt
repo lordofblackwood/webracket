@@ -617,6 +617,23 @@
             '(exact->inexact 9007199254740993)
             #:gate? #t
             #:note "exact->inexact converts bignums using f64 rounding.")
+   (nt-case 'exact->inexact-bignum-rounds-once
+            'rational-conversion
+            '(let* ([x (+ (arithmetic-shift 1 95)
+                          (arithmetic-shift 1 42)
+                          1)]
+                    [upper (+ (arithmetic-shift 1 95)
+                              (arithmetic-shift 1 43))])
+               (and (eqv? (exact->inexact x)
+                          (exact->inexact upper))
+                    (eqv? (exact->inexact (- x))
+                          (exact->inexact (- upper)))
+                    (eqv? (real->double-flonum x)
+                          (real->double-flonum upper))
+                    (eqv? (real->double-flonum (- x))
+                          (real->double-flonum (- upper)))))
+            #:gate? #t
+            #:note "Bignum-to-f64 conversion must inspect all integer bits and round once.")
    (nt-case 'exact->inexact-rational-double-round
             'rational-conversion
             '(exact->inexact 2106270354592/12789239550964971)
@@ -1744,6 +1761,17 @@
                     (= r -1)))
             #:gate? #t
             #:note "quotient/remainder handles signed multi-limb division.")
+   (nt-case 'bignum-divmod-qhat-clamp-regression
+            'integer-division
+            '(let* ([n (arithmetic-shift 1 95)]
+                    [d (+ (arithmetic-shift 1 63) 1)])
+               (let-values ([(q r) (quotient/remainder n d)])
+                 (and (= q 4294967295)
+                      (= r 9223372032559808513)
+                      (= n (+ (* q d) r))
+                      (< (abs r) (abs d)))))
+            #:gate? #t
+            #:note "Multi-limb divmod must keep the clamped qhat remainder below the divisor.")
    (nt-case 'bignum-quotient-remainder-non-power-divisor
             'integer-division
             '(let-values ([(q r) (quotient/remainder 123456789012345678901234567890
