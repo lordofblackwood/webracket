@@ -1190,12 +1190,20 @@
      ;;; Exact Rational Arithmetic
      ;;;
 
-     ;; Addition uses the common-denominator formula:
+     ;; Addition first removes the gcd of the denominators:
      ;;
-     ;;     a/b + c/d = (a*d + c*b) / (b*d)
+     ;;     g  = gcd(b,d)
+     ;;     b1 = b/g
+     ;;     d1 = d/g
+     ;;     t  = a*d1 + c*b1
+     ;;     h  = gcd(abs(t),g)
+     ;;
+     ;; Then the reduced result is
+     ;;
+     ;;     (t/h) / (b1*(d/h))
 
      ;; $exact-rational-add/2 : exact-rational? exact-rational? -> exact-rational?
-     ;;   Add exact rational values and normalize the result.
+     ;;   Add exact rational values after cancelling shared denominator factors.
      (func $exact-rational-add/2
            (param $x (ref eq))
            (param $y (ref eq))
@@ -1205,6 +1213,12 @@
            (local $x-den (ref eq))
            (local $y-num (ref eq))
            (local $y-den (ref eq))
+           (local $g     (ref eq))
+           (local $b1    (ref eq))
+           (local $d1    (ref eq))
+           (local $t     (ref eq))
+           (local $h     (ref eq))
+           (local $vals  (ref $Values))
 
            ;; Extract integer numerators and denominators; integers use den = 1.
            (local.set $x-num (call $exact-rational-numerator (local.get $x)))
@@ -1212,19 +1226,70 @@
            (local.set $y-num (call $exact-rational-numerator (local.get $y)))
            (local.set $y-den (call $exact-rational-denominator (local.get $y)))
 
-           ;; Normalize the cross-multiplied numerator over the common denominator.
-           (call $rational-normalize
-                 (call $integer-add/2
-                       (call $integer-mul/2 (local.get $x-num) (local.get $y-den))
-                       (call $integer-mul/2 (local.get $y-num) (local.get $x-den)))
-                 (call $integer-mul/2 (local.get $x-den) (local.get $y-den))))
+           ;; Split the denominators into coprime pieces around their gcd.
+           (local.set $g (call $integer-gcd
+                               (local.get $x-den)
+                               (local.get $y-den)))
+           (local.set $vals (call $integer-divmod
+                                  (local.get $x-den)
+                                  (local.get $g)))
+           (local.set $b1 (array.get $Values
+                                     (local.get $vals)
+                                     (i32.const 0)))
+           (local.set $vals (call $integer-divmod
+                                  (local.get $y-den)
+                                  (local.get $g)))
+           (local.set $d1 (array.get $Values
+                                     (local.get $vals)
+                                     (i32.const 0)))
 
-     ;; Subtraction is the same common-denominator formula with subtraction:
+           ;; Build the reduced cross numerator using b1 and d1.
+           (local.set $t
+                      (call $integer-add/2
+                            (call $integer-mul/2
+                                  (local.get $x-num)
+                                  (local.get $d1))
+                            (call $integer-mul/2
+                                  (local.get $y-num)
+                                  (local.get $b1))))
+
+           ;; Remove any factor of g that survived in the new numerator.
+           (local.set $h (call $integer-gcd
+                               (call $integer-abs (local.get $t))
+                               (local.get $g)))
+           (local.set $vals (call $integer-divmod
+                                  (local.get $t)
+                                  (local.get $h)))
+           (local.set $t (array.get $Values
+                                    (local.get $vals)
+                                    (i32.const 0)))
+           (local.set $vals (call $integer-divmod
+                                  (local.get $y-den)
+                                  (local.get $h)))
+
+           ;; Normalize the reduced numerator over b1*(d/h).
+           (call $rational-normalize
+                 (local.get $t)
+                 (call $integer-mul/2
+                       (local.get $b1)
+                       (array.get $Values
+                                  (local.get $vals)
+                                  (i32.const 0)))))
+
+     ;; Subtraction uses the same reduced-denominator formula as addition:
      ;;
-     ;;     a/b - c/d = (a*d - c*b) / (b*d)
+     ;;     g  = gcd(b,d)
+     ;;     b1 = b/g
+     ;;     d1 = d/g
+     ;;     t  = a*d1 - c*b1
+     ;;     h  = gcd(abs(t),g)
+     ;;
+     ;; and returns
+     ;;
+     ;;     (t/h) / (b1*(d/h))
 
      ;; $exact-rational-sub/2 : exact-rational? exact-rational? -> exact-rational?
-     ;;   Subtract exact rational values and normalize the result.
+     ;;   Subtract exact rational values after cancelling shared denominator factors.
      (func $exact-rational-sub/2
            (param $x (ref eq))
            (param $y (ref eq))
@@ -1234,6 +1299,12 @@
            (local $x-den (ref eq))
            (local $y-num (ref eq))
            (local $y-den (ref eq))
+           (local $g     (ref eq))
+           (local $b1    (ref eq))
+           (local $d1    (ref eq))
+           (local $t     (ref eq))
+           (local $h     (ref eq))
+           (local $vals  (ref $Values))
 
            ;; Extract integer numerators and denominators; integers use den = 1.
            (local.set $x-num (call $exact-rational-numerator (local.get $x)))
@@ -1241,78 +1312,282 @@
            (local.set $y-num (call $exact-rational-numerator (local.get $y)))
            (local.set $y-den (call $exact-rational-denominator (local.get $y)))
 
-           ;; Normalize the cross-multiplied numerator over the common denominator.
-           (call $rational-normalize
-                 (call $integer-sub/2
-                       (call $integer-mul/2 (local.get $x-num) (local.get $y-den))
-                       (call $integer-mul/2 (local.get $y-num) (local.get $x-den)))
-                 (call $integer-mul/2 (local.get $x-den) (local.get $y-den))))
+           ;; Split the denominators into coprime pieces around their gcd.
+           (local.set $g (call $integer-gcd
+                               (local.get $x-den)
+                               (local.get $y-den)))
+           (local.set $vals (call $integer-divmod
+                                  (local.get $x-den)
+                                  (local.get $g)))
+           (local.set $b1 (array.get $Values
+                                     (local.get $vals)
+                                     (i32.const 0)))
+           (local.set $vals (call $integer-divmod
+                                  (local.get $y-den)
+                                  (local.get $g)))
+           (local.set $d1 (array.get $Values
+                                     (local.get $vals)
+                                     (i32.const 0)))
 
-     ;; Multiplication multiplies tops and bottoms:
+           ;; Build the reduced cross numerator using b1 and d1.
+           (local.set $t
+                      (call $integer-sub/2
+                            (call $integer-mul/2
+                                  (local.get $x-num)
+                                  (local.get $d1))
+                            (call $integer-mul/2
+                                  (local.get $y-num)
+                                  (local.get $b1))))
+
+           ;; Remove any factor of g that survived in the new numerator.
+           (local.set $h (call $integer-gcd
+                               (call $integer-abs (local.get $t))
+                               (local.get $g)))
+           (local.set $vals (call $integer-divmod
+                                  (local.get $t)
+                                  (local.get $h)))
+           (local.set $t (array.get $Values
+                                    (local.get $vals)
+                                    (i32.const 0)))
+           (local.set $vals (call $integer-divmod
+                                  (local.get $y-den)
+                                  (local.get $h)))
+
+           ;; Normalize the reduced numerator over b1*(d/h).
+           (call $rational-normalize
+                 (local.get $t)
+                 (call $integer-mul/2
+                       (local.get $b1)
+                       (array.get $Values
+                                  (local.get $vals)
+                                  (i32.const 0)))))
+
+     ;; Multiplication cross-cancels before multiplying:
      ;;
-     ;;     (a/b) * (c/d) = (a*c) / (b*d)
+     ;;     g1 = gcd(abs(a),d)
+     ;;     g2 = gcd(abs(c),b)
+     ;;
+     ;; so the products are
+     ;;
+     ;;     ((a/g1)*(c/g2)) / ((b/g2)*(d/g1))
 
      ;; $exact-rational-mul/2 : exact-rational? exact-rational? -> exact-rational?
-     ;;   Multiply exact rational values and normalize the result.
+     ;;   Multiply exact rational values after cross-cancelling factors.
      (func $exact-rational-mul/2
            (param $x (ref eq))
            (param $y (ref eq))
            (result (ref eq))
 
+           (local $x-num (ref eq))
+           (local $x-den (ref eq))
+           (local $y-num (ref eq))
+           (local $y-den (ref eq))
+           (local $g1    (ref eq))
+           (local $g2    (ref eq))
+           (local $a1    (ref eq))
+           (local $b1    (ref eq))
+           (local $c1    (ref eq))
+           (local $d1    (ref eq))
+           (local $vals  (ref $Values))
+
+           ;; Extract integer numerators and denominators; integers use den = 1.
+           (local.set $x-num (call $exact-rational-numerator (local.get $x)))
+           (local.set $x-den (call $exact-rational-denominator (local.get $x)))
+           (local.set $y-num (call $exact-rational-numerator (local.get $y)))
+           (local.set $y-den (call $exact-rational-denominator (local.get $y)))
+
+           ;; Cancel numerator factors against the opposite denominators.
+           (local.set $g1 (call $integer-gcd
+                                (call $integer-abs (local.get $x-num))
+                                (local.get $y-den)))
+           (local.set $g2 (call $integer-gcd
+                                (call $integer-abs (local.get $y-num))
+                                (local.get $x-den)))
+
+           ;; Divide each cancelled component before building products.
+           (local.set $vals (call $integer-divmod
+                                  (local.get $x-num)
+                                  (local.get $g1)))
+           (local.set $a1 (array.get $Values
+                                     (local.get $vals)
+                                     (i32.const 0)))
+           (local.set $vals (call $integer-divmod
+                                  (local.get $y-den)
+                                  (local.get $g1)))
+           (local.set $d1 (array.get $Values
+                                     (local.get $vals)
+                                     (i32.const 0)))
+           (local.set $vals (call $integer-divmod
+                                  (local.get $y-num)
+                                  (local.get $g2)))
+           (local.set $c1 (array.get $Values
+                                     (local.get $vals)
+                                     (i32.const 0)))
+           (local.set $vals (call $integer-divmod
+                                  (local.get $x-den)
+                                  (local.get $g2)))
+           (local.set $b1 (array.get $Values
+                                     (local.get $vals)
+                                     (i32.const 0)))
+
            ;; Normalize after multiplying so integers and reduced rationals collapse.
            (call $rational-normalize
                  (call $integer-mul/2
-                       (call $exact-rational-numerator (local.get $x))
-                       (call $exact-rational-numerator (local.get $y)))
+                       (local.get $a1)
+                       (local.get $c1))
                  (call $integer-mul/2
-                       (call $exact-rational-denominator (local.get $x))
-                       (call $exact-rational-denominator (local.get $y)))))
+                       (local.get $b1)
+                       (local.get $d1))))
 
-     ;; Division multiplies by the reciprocal:
+     ;; Division multiplies by the reciprocal, but first cross-cancels:
      ;;
-     ;;     (a/b) / (c/d) = (a*d) / (b*c)
+     ;;     g1 = gcd(abs(a),abs(c))
+     ;;     g2 = gcd(d,b)
+     ;;
+     ;; so the products are
+     ;;
+     ;;     ((a/g1)*(d/g2)) / ((b/g2)*(c/g1))
 
      ;; $exact-rational-div/2 : exact-rational? exact-rational? -> exact-rational?
-     ;;   Divide exact rational values and normalize the result.
+     ;;   Divide exact rational values after cross-cancelling factors.
      (func $exact-rational-div/2
            (param $x (ref eq))
            (param $y (ref eq))
            (result (ref eq))
 
+           (local $x-num (ref eq))
+           (local $x-den (ref eq))
+           (local $y-num (ref eq))
+           (local $y-den (ref eq))
+           (local $g1    (ref eq))
+           (local $g2    (ref eq))
+           (local $a1    (ref eq))
+           (local $b1    (ref eq))
+           (local $c1    (ref eq))
+           (local $d1    (ref eq))
+           (local $vals  (ref $Values))
+
            ;; Division by exact zero is an error.
            (if (call $exact-rational-zero?/i32 (local.get $y))
                (then (call $raise-division-by-zero) (unreachable)))
 
-           ;; Normalize after multiplying by the reciprocal.
+           ;; Extract integer numerators and denominators; integers use den = 1.
+           (local.set $x-num (call $exact-rational-numerator (local.get $x)))
+           (local.set $x-den (call $exact-rational-denominator (local.get $x)))
+           (local.set $y-num (call $exact-rational-numerator (local.get $y)))
+           (local.set $y-den (call $exact-rational-denominator (local.get $y)))
+
+           ;; Cancel numerator and reciprocal factors before multiplying.
+           (local.set $g1 (call $integer-gcd
+                                (call $integer-abs (local.get $x-num))
+                                (call $integer-abs (local.get $y-num))))
+           (local.set $g2 (call $integer-gcd
+                                (local.get $y-den)
+                                (local.get $x-den)))
+
+           ;; Divide each cancelled component before building products.
+           (local.set $vals (call $integer-divmod
+                                  (local.get $x-num)
+                                  (local.get $g1)))
+           (local.set $a1 (array.get $Values
+                                     (local.get $vals)
+                                     (i32.const 0)))
+           (local.set $vals (call $integer-divmod
+                                  (local.get $y-num)
+                                  (local.get $g1)))
+           (local.set $c1 (array.get $Values
+                                     (local.get $vals)
+                                     (i32.const 0)))
+           (local.set $vals (call $integer-divmod
+                                  (local.get $x-den)
+                                  (local.get $g2)))
+           (local.set $b1 (array.get $Values
+                                     (local.get $vals)
+                                     (i32.const 0)))
+           (local.set $vals (call $integer-divmod
+                                  (local.get $y-den)
+                                  (local.get $g2)))
+           (local.set $d1 (array.get $Values
+                                     (local.get $vals)
+                                     (i32.const 0)))
+
+           ;; Normalize after multiplying by the reduced reciprocal.
            (call $rational-normalize
                  (call $integer-mul/2
-                       (call $exact-rational-numerator (local.get $x))
-                       (call $exact-rational-denominator (local.get $y)))
+                       (local.get $a1)
+                       (local.get $d1))
                  (call $integer-mul/2
-                       (call $exact-rational-denominator (local.get $x))
-                       (call $exact-rational-numerator (local.get $y)))))
+                       (local.get $b1)
+                       (local.get $c1))))
 
      ;; Comparison avoids division by cross multiplication:
      ;;
-     ;;     a/b < c/d  iff  a*d < c*b
+     ;;     a/b < c/d  iff  a*(d/g) < c*(b/g)
+     ;;
+     ;; where
+     ;;
+     ;;     g = gcd(b,d)
      ;;
      ;; This is safe because canonical denominators are positive.
 
      ;; $exact-rational-compare/i32 : exact-rational? exact-rational? -> integer?
-     ;;   Compare exact rationals, returning -1, 0, or 1.
+     ;;   Compare exact rationals with reduced cross products.
      (func $exact-rational-compare/i32
            (param $x (ref eq))
            (param $y (ref eq))
            (result i32)
 
-           ;; Compare the two cross products as exact integers.
+           (local $x-num  (ref eq))
+           (local $x-den  (ref eq))
+           (local $y-num  (ref eq))
+           (local $y-den  (ref eq))
+           (local $g      (ref eq))
+           (local $x-sign i32)
+           (local $y-sign i32)
+           (local $vals   (ref $Values))
+
+           ;; Extract integer numerators and denominators; integers use den = 1.
+           (local.set $x-num (call $exact-rational-numerator (local.get $x)))
+           (local.set $x-den (call $exact-rational-denominator (local.get $x)))
+           (local.set $y-num (call $exact-rational-numerator (local.get $y)))
+           (local.set $y-den (call $exact-rational-denominator (local.get $y)))
+
+           ;; Different signs determine the ordering without multiplication.
+           (local.set $x-sign (call $integer-sign/i32 (local.get $x-num)))
+           (local.set $y-sign (call $integer-sign/i32 (local.get $y-num)))
+           (if (i32.ne (local.get $x-sign) (local.get $y-sign))
+               (then
+                (return
+                 (select
+                  (i32.const -1)
+                  (i32.const 1)
+                  (i32.lt_s (local.get $x-sign) (local.get $y-sign))))))
+
+           ;; Divide out the denominator gcd before cross multiplication.
+           (local.set $g (call $integer-gcd
+                               (local.get $x-den)
+                               (local.get $y-den)))
+           (local.set $vals (call $integer-divmod
+                                  (local.get $y-den)
+                                  (local.get $g)))
+           (local.set $y-den (array.get $Values
+                                        (local.get $vals)
+                                        (i32.const 0)))
+           (local.set $vals (call $integer-divmod
+                                  (local.get $x-den)
+                                  (local.get $g)))
+           (local.set $x-den (array.get $Values
+                                        (local.get $vals)
+                                        (i32.const 0)))
+
+           ;; Compare the reduced cross products as exact integers.
            (call $integer-compare/i32
                  (call $integer-mul/2
-                       (call $exact-rational-numerator (local.get $x))
-                       (call $exact-rational-denominator (local.get $y)))
+                       (local.get $x-num)
+                       (local.get $y-den))
                  (call $integer-mul/2
-                       (call $exact-rational-numerator (local.get $y))
-                       (call $exact-rational-denominator (local.get $x)))))
+                       (local.get $y-num)
+                       (local.get $x-den))))
 
      ;; For exact rationals,
      ;;
