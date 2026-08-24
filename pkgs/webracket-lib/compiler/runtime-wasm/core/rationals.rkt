@@ -175,7 +175,7 @@
            (local.set $num (local.get $num0))
            (local.set $den (local.get $den0))
            (if (call $integer-zero?/i32 (local.get $den))
-               (then (unreachable)))
+               (then (call $raise-division-by-zero) (unreachable)))
 
            ;; Keep the sign in the numerator by making the denominator positive.
            (if (i32.lt_s (call $integer-sign/i32 (local.get $den))

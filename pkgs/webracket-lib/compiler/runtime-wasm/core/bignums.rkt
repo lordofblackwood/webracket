@@ -41,9 +41,15 @@
 
 (provide bignum-core-runtime-helpers
          bignum-core-runtime-helper-forms
-         bignum-runtime-only-helpers)
+         bignum-runtime-only-helpers
+         bignum-runtime-string-constants)
 
 (require "../core-helper.rkt")
+
+;; bignum-runtime-string-constants : (listof (list/c symbol? string?))
+;;   Declare messages used by bignum runtime errors.
+(define bignum-runtime-string-constants
+  '((bignum-size-too-large "bignum result is too large")))
 
 ;;;
 ;;; Thresholds for the multiplication algorithms
@@ -139,8 +145,23 @@
      ;;; Checked Size Arithmetic
      ;;;
 
+     ;; $raise-bignum-size-too-large : -> none
+     ;;   Raise a language error for an oversized bignum result.
+     (func $raise-bignum-size-too-large
+           (local $message (ref eq))
+
+           (local.set $message
+                      (global.get $string:bignum-size-too-large))
+           (call $raise
+                 (call $exn:fail/make
+                       (local.get $message)
+                       (call $current-continuation-marks
+                             (global.get $missing)))
+                 (global.get $true))
+           (unreachable))
+
      ;; $bignum-size-add/i32 : i32 i32 -> i32
-     ;;   Add two internal nonnegative sizes, trapping before i32 wraparound.
+     ;;   Add two internal nonnegative sizes, raising before i32 wraparound.
      (func $bignum-size-add/i32
            (param $a i32)
            (param $b i32)
@@ -155,11 +176,11 @@
                        (i64.extend_i32_u (local.get $b))))
            (if (i64.gt_u (local.get $sum)
                          (i64.const 2147483647))
-               (then (unreachable)))
+               (then (call $raise-bignum-size-too-large) (unreachable)))
            (i32.wrap_i64 (local.get $sum)))
 
      ;; $bignum-size-mul/i32 : i32 i32 -> i32
-     ;;   Multiply two internal nonnegative sizes, trapping before i32 wraparound.
+     ;;   Multiply two internal nonnegative sizes, raising before i32 wraparound.
      (func $bignum-size-mul/i32
            (param $a i32)
            (param $b i32)
@@ -174,7 +195,7 @@
                        (i64.extend_i32_u (local.get $b))))
            (if (i64.gt_u (local.get $product)
                          (i64.const 2147483647))
-               (then (unreachable)))
+               (then (call $raise-bignum-size-too-large) (unreachable)))
            (i32.wrap_i64 (local.get $product)))
 
      ;;;

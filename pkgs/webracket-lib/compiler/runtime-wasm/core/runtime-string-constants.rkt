@@ -4,6 +4,8 @@
 
 (require (only-in "booleans.rkt"
                   boolean-runtime-string-constants)
+         (only-in "bignums.rkt"
+                  bignum-runtime-string-constants)
          (only-in "boxes.rkt"
                   box-runtime-string-constants)
          (only-in "bytes.rkt"
@@ -130,6 +132,7 @@
           procedure-runtime-string-constants
           keyword-runtime-string-constants
           list-runtime-string-constants
+          bignum-runtime-string-constants
           fixnum-runtime-string-constants
           flonum-runtime-string-constants
           bytes-runtime-string-constants
