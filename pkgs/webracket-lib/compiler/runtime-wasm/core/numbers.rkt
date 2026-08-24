@@ -2977,29 +2977,33 @@
                               (call $real->f64/checked
                                     (global.get $symbol:rationalize)
                                     (local.get $tolerance)))
+
+                   ;; Match Racket's special-value order before exactifying endpoints.
                    (if (f64.ne (local.get $x-f64) (local.get $x-f64))
-                       (then (call $raise-expected-rational
-                                   (global.get $symbol:rationalize)
-                                   (local.get $x))
-                             (unreachable)))
-                   (if (f64.ne (local.get $tolerance-f64)
-                               (local.get $tolerance-f64))
-                       (then (call $raise-expected-rational
-                                   (global.get $symbol:rationalize)
-                                   (local.get $tolerance))
-                             (unreachable)))
+                       (then (return (local.get $x))))
                    (if (f64.eq (f64.abs (local.get $x-f64))
                                (f64.const +inf))
-                       (then (call $raise-expected-rational
-                                   (global.get $symbol:rationalize)
-                                   (local.get $x))
-                             (unreachable)))
+                       (then
+                        (if (f64.eq (f64.abs (local.get $tolerance-f64))
+                                    (f64.const +inf))
+                            (then
+                             (return
+                              (struct.new $Flonum
+                                          (i32.const 0)
+                                          (f64.div (f64.const 0.0)
+                                                   (f64.const 0.0))))))
+                        (return (local.get $x))))
                    (if (f64.eq (f64.abs (local.get $tolerance-f64))
                                (f64.const +inf))
-                       (then (call $raise-expected-rational
-                                   (global.get $symbol:rationalize)
-                                   (local.get $tolerance))
-                             (unreachable)))
+                       (then
+                        (return
+                         (struct.new $Flonum
+                                     (i32.const 0)
+                                     (f64.const 0.0)))))
+                   (if (f64.ne (local.get $tolerance-f64)
+                               (local.get $tolerance-f64))
+                       (then (return (local.get $tolerance))))
+
                    (local.set $delta-f64 (f64.abs (local.get $tolerance-f64)))
                    (local.set $lo-f64
                               (f64.sub (local.get $x-f64)
