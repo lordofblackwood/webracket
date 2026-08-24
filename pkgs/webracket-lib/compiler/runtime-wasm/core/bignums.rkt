@@ -23,6 +23,12 @@
 ;; Limbs are unsigned base-2^32 words in little-endian order.
 ;; The limbs can not all be zero.
 ;; Zero and values in the WebRacket fixnum range are represented as fixnums.
+;; A canonical bignum therefore has a nonzero high limb and a magnitude outside
+;; the WebRacket fixnum range.
+;;
+;; Limb arrays stored in bignums are treated as immutable by convention. Several
+;; helpers, such as negation, can safely share a limb array between bignums
+;; because destructive algorithms first copy the limbs they mutate.
 
 ;; This file is all about the exact integers. Covered here:
 ;;   - arithmetic
@@ -308,7 +314,7 @@
                        (local.get $trimmed)))
 
      ;; $nonzero-fixnum->bignum : fixnum? -> bignum?
-     ;;   Box a nonzero WebRacket fixnum as a one-limb bignum.
+     ;;   Box a nonzero WebRacket fixnum as a transient one-limb bignum.
      (func $nonzero-fixnum->bignum
            (param $x (ref eq))
            (result (ref $Bignum))
@@ -333,7 +339,8 @@
                 (local.set $sign (i32.const 1))
                 (local.set $magnitude (local.get $v))))
 
-           ;; Build a one-limb bignum directly; the input is known nonzero.
+           ;; This intentionally violates the canonical size invariant; callers
+           ;; use it only as a short-lived adapter for mixed fixnum/bignum code.
            (struct.new $Bignum
                        (i32.const 0)
                        (local.get $sign)
@@ -347,6 +354,7 @@
            (result (ref eq))
 
            ;; Flip the sign and normalize so the result collapses if needed.
+           ;; The limb array is shared, but bignum limbs are immutable by convention.
            ;; Since the fixnum range is asymmetrical, we need to normalize.
            (call $bignum-normalize
                  (i32.sub (i32.const 0)
@@ -1285,8 +1293,8 @@
                  (local.get $shift)
                  (call $integer-sign/i32 (local.get $x))))
 
-     ;; $integer-divexact-by-i32 : exact-integer? exact-positive-integer? -> exact-integer?
-     ;;   Divide by a small positive divisor that is known to divide exactly.
+     ;; $integer-divexact-by-i32 : exact-integer? small-positive-fixnum? -> exact-integer?
+     ;;   Divide by a small positive fixnum divisor that divides exactly.
      (func $integer-divexact-by-i32
            (param $n (ref eq))
            (param $d i32)
@@ -1295,6 +1303,12 @@
            (local $vals (ref $Values))
            (local $q    (ref eq))
            (local $r    (ref eq))
+
+           ;; The divisor is tagged as a fixnum, so it must fit that range.
+           (if (i32.or
+                (i32.lt_s (local.get $d) (i32.const 1))
+                (i32.gt_s (local.get $d) (i32.const 536870911)))
+               (then (unreachable)))
 
            ;; Use integer division by the tagged fixnum d.
            (local.set $vals
@@ -3448,7 +3462,7 @@
                                   (local.get $r)
                                   (local.get $n-sign))))
 
-     ;; $integer-divmod : exact-integer? exact-integer? -> values
+     ;; $integer-divmod : exact-integer? nonzero-exact-integer? -> values
      ;;   Divide exact integers with truncating quotient and dividend-sign remainder.
      (func $integer-divmod
            (param $n (ref eq))
@@ -3463,6 +3477,7 @@
            (local $r (ref eq))
            (local $vals (ref $Values))
 
+           ;; Public quotient/remainder/modulo wrappers reject zero divisors.
            ;; Zero divided by anything yields zero quotient and zero remainder.
            (if (call $integer-zero?/i32 (local.get $n))
                (then
