@@ -1068,17 +1068,8 @@
                     (then (return (f64.neg (local.get $out)))))
                 (return (local.get $out))))
 
-           ;; Exact integers use denominator 1.
-           (local.set $sign (call $integer-sign/i32 (local.get $x)))
-           (if (i32.eqz (local.get $sign))
-               (then (return (f64.const 0.0))))
-           (local.set $out
-                      (call $positive-rational->f64
-                            (call $integer-abs (local.get $x))
-                            (ref.i31 (i32.const 2))))
-           (if (i32.lt_s (local.get $sign) (i32.const 0))
-               (then (return (f64.neg (local.get $out)))))
-           (local.get $out))
+           ;; Exact integers delegate to the integer conversion path.
+           (call $integer->f64 (local.get $x)))
 
      ;; Decode a finite f64 as
      ;;
