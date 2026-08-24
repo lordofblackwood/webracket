@@ -1772,6 +1772,53 @@
                       (< (abs r) (abs d)))))
             #:gate? #t
             #:note "Multi-limb divmod must keep the clamped qhat remainder below the divisor.")
+   (nt-case 'bignum-divmod-qhat-clamp-sign-properties
+            'integer-division
+            '(let* ([n (arithmetic-shift 1 95)]
+                    [d (+ (arithmetic-shift 1 63) 1)]
+                    [r0 9223372032559808513])
+               (and
+                (let-values ([(q r) (quotient/remainder n d)])
+                  (and (= q 4294967295)
+                       (= r r0)
+                       (= n (+ (* q d) r))
+                       (< (abs r) (abs d))
+                       (positive? r)))
+                (let-values ([(q r) (quotient/remainder (- n) d)])
+                  (and (= q -4294967295)
+                       (= r (- r0))
+                       (= (- n) (+ (* q d) r))
+                       (< (abs r) (abs d))
+                       (negative? r)))
+                (let-values ([(q r) (quotient/remainder n (- d))])
+                  (and (= q -4294967295)
+                       (= r r0)
+                       (= n (+ (* q (- d)) r))
+                       (< (abs r) (abs d))
+                       (positive? r)))
+                (let-values ([(q r) (quotient/remainder (- n) (- d))])
+                  (and (= q 4294967295)
+                       (= r (- r0))
+                       (= (- n) (+ (* q (- d)) r))
+                       (< (abs r) (abs d))
+                       (negative? r)))))
+            #:gate? #t
+            #:note "quotient/remainder satisfies sign, bound, and reconstruction properties for the qhat clamp path.")
+   (nt-case 'bignum-modulo-qhat-clamp-sign-properties
+            'integer-division
+            '(let* ([n (arithmetic-shift 1 95)]
+                    [d (+ (arithmetic-shift 1 63) 1)]
+                    [r0 9223372032559808513])
+               (and (= (modulo n d) r0)
+                    (= (modulo (- n) d) 4294967296)
+                    (= (modulo n (- d)) -4294967296)
+                    (= (modulo (- n) (- d)) (- r0))
+                    (positive? (modulo n d))
+                    (positive? (modulo (- n) d))
+                    (negative? (modulo n (- d)))
+                    (negative? (modulo (- n) (- d)))))
+            #:gate? #t
+            #:note "modulo follows the divisor sign for the qhat clamp division path.")
    (nt-case 'bignum-quotient-remainder-non-power-divisor
             'integer-division
             '(let-values ([(q r) (quotient/remainder 123456789012345678901234567890
