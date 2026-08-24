@@ -183,6 +183,26 @@
             '(eqv? 2/4 1/2)
             #:gate? #t
             #:note "Canonical rationals compare by numerator and denominator.")
+   (nt-case 'rational-equal-hash-consistent
+            'rational-representation
+            '(let* ([n (+ (expt 2 200) 1)]
+                    [x (/ n 3)]
+                    [y (/ (* 2 n) 6)])
+               (and (equal? x y)
+                    (= (equal-hash-code x)
+                       (equal-hash-code y))))
+            #:gate? #t
+            #:note "equal-hash-code is stable across independently constructed equal rationals.")
+   (nt-case 'rational-eqv-hash-consistent
+            'rational-representation
+            '(let* ([n (+ (expt 2 200) 1)]
+                    [x (/ n 3)]
+                    [y (/ (* 2 n) 6)])
+               (and (eqv? x y)
+                    (= (eqv-hash-code x)
+                       (eqv-hash-code y))))
+            #:gate? #t
+            #:note "eqv-hash-code is stable across independently constructed eqv rationals.")
    (nt-case 'rational-binary-string
             'rational-representation
             '(number->string 1/10 2)

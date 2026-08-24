@@ -2301,6 +2301,7 @@
             (local $heap  (ref $Heap))
             (local $h     i32)
             (local $f     (ref $Flonum))
+            (local $q     (ref $Rational))
             (local $c     (ref $Complex))
             (local $bits i64)
             (local $low  i32)
@@ -2312,6 +2313,26 @@
             (if (ref.test (ref $Bignum) (local.get $v))
                 (then (return (call $bignum-hash/i32
                                     (ref.cast (ref $Bignum) (local.get $v))))))
+            (if (ref.test (ref $Rational) (local.get $v))
+                (then
+                 (local.set $q (ref.cast (ref $Rational) (local.get $v)))
+                 (local.set $h (struct.get $Rational $hash (local.get $q)))
+                 (if (i32.eqz (local.get $h))
+                     (then
+                      (local.set $hr
+                                 (call $eqv-hash/i32
+                                       (struct.get $Rational $num (local.get $q))))
+                      (local.set $hi
+                                 (call $eqv-hash/i32
+                                       (struct.get $Rational $den (local.get $q))))
+                      (local.set $h
+                                 (i32.add
+                                  (i32.mul (local.get $hr) (i32.const 33))
+                                  (local.get $hi)))
+                      (if (i32.eqz (local.get $h))
+                          (then (local.set $h (i32.const 2))))
+                      (struct.set $Rational $hash (local.get $q) (local.get $h))))
+                 (return (local.get $h))))
 
             (if (result i32)
                 (ref.test (ref i31) (local.get $v))
@@ -2415,6 +2436,8 @@
                 (then (return (call $eqv-hash/i32 (local.get $v)))))
             (if (ref.test (ref $Bignum) (local.get $v))
                 (then (return (call $eqv-hash/i32 (local.get $v)))))
+            (if (ref.test (ref $Rational) (local.get $v))
+                (then (return (call $eqv-hash/i32 (local.get $v)))))
             (if (ref.test (ref $Flonum) (local.get $v))
                 (then (return (call $eqv-hash/i32 (local.get $v)))))
             (if (ref.test (ref $Complex) (local.get $v))
@@ -2464,6 +2487,8 @@
             (if (ref.test (ref i31) (local.get $v))
                 (then (return (call $eqv-hash/i32 (local.get $v)))))
             (if (ref.test (ref $Bignum) (local.get $v))
+                (then (return (call $eqv-hash/i32 (local.get $v)))))
+            (if (ref.test (ref $Rational) (local.get $v))
                 (then (return (call $eqv-hash/i32 (local.get $v)))))
             (if (ref.test (ref $Flonum) (local.get $v))
                 (then (return (call $eqv-hash/i32 (local.get $v)))))
