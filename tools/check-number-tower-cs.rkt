@@ -488,6 +488,10 @@
      (values 'exact 0)]
     ['ignore-fixnum-width
      (values 'ignore-fixnum-width 0)]
+    ;; Docs-only assertion for cases where the selected CS executable lags the
+    ;; reference documentation.
+    ['webracket-true
+     (values 'webracket-true 0)]
     ['flonum-ulps
      (values 'flonum-ulps default-flonum-ulps)]
     ['complex-ulps
@@ -576,6 +580,8 @@
     [(ignore-fixnum-width)
      (equal? (record-ignore-fixnum-width cs-record)
              (record-ignore-fixnum-width wr-record))]
+    [(webracket-true)
+     (equal? wr-record '(value (boolean #t)))]
     [(flonum-ulps complex-ulps)
      (record-ulps-match? max-ulps
                          (record-ignore-fixnum-width cs-record)

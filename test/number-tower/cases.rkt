@@ -901,6 +901,26 @@
             '(lcm 12 81.0)
             #:gate? #t
             #:note "Inexact rational inputs coerce the lcm result to inexact.")
+   (nt-case 'lcm-exact-zero-left-docs
+            'rational-gcd-lcm
+            '(let ([r (lcm 0 0.0)])
+               (and (zero? r) (exact? r)))
+            #:comparison 'webracket-true
+            #:gate? #t
+            #:note "Racket docs require exact 0 when any lcm argument is exact 0.")
+   (nt-case 'lcm-exact-zero-right-docs
+            'rational-gcd-lcm
+            '(let ([r (lcm 0.0 0)])
+               (and (zero? r) (exact? r)))
+            #:comparison 'webracket-true
+            #:gate? #t
+            #:note "Racket docs require exact 0 even when the exact zero appears later.")
+   (nt-case 'lcm-all-inexact-zero
+            'rational-gcd-lcm
+            '(let ([r (lcm 0.0 -0.0)])
+               (and (zero? r) (inexact? r)))
+            #:gate? #t
+            #:note "All-inexact zero lcm remains inexact.")
    (nt-case 'gcd-binary-flonum-rational
             'rational-gcd-lcm
             '(gcd 0.1 1/5)
@@ -1004,6 +1024,30 @@
             #:comparison 'ignore-fixnum-width
             #:gate? #t
             #:note "exact-round accepts bignum exact integer inputs.")
+   (nt-case 'exact-round-large-flonum
+            'rational-rounding
+            '(exact-round 536870912.0)
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "exact-round can return a bignum-sized integer from a finite flonum.")
+   (nt-case 'exact-floor-large-negative-flonum
+            'rational-rounding
+            '(exact-floor -536870912.25)
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "exact-floor can return a negative bignum-sized integer from a finite flonum.")
+   (nt-case 'exact-ceiling-large-flonum
+            'rational-rounding
+            '(exact-ceiling 536870912.25)
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "exact-ceiling can return a bignum-sized integer from a finite flonum.")
+   (nt-case 'exact-truncate-large-negative-flonum
+            'rational-rounding
+            '(exact-truncate -536870912.75)
+            #:comparison 'ignore-fixnum-width
+            #:gate? #t
+            #:note "exact-truncate can return a negative bignum-sized integer from a finite flonum.")
    (nt-case 'rectangular-literal
             'complex-basic
             1+2i
@@ -2155,6 +2199,47 @@
             '(rationalize 1.2 0.1)
             #:gate? #t
             #:note "rationalize accepts finite flonum inputs and returns an inexact result.")
+   (nt-case 'rationalize-inexact-endpoint-rounding
+            'real-math
+            '(rationalize 1.0000000000000002
+                          1.1102230246251565e-16)
+            #:gate? #t
+            #:note "Inexact rationalize endpoints are rounded before exact simplification.")
+   (nt-case 'rationalize-positive-infinity
+            'real-math
+            '(rationalize +inf.0 3)
+            #:gate? #t
+            #:note "rationalize preserves infinite x with finite tolerance.")
+   (nt-case 'rationalize-negative-infinity
+            'real-math
+            '(rationalize -inf.0 3)
+            #:gate? #t
+            #:note "rationalize preserves negative infinite x with finite tolerance.")
+   (nt-case 'rationalize-infinite-x-infinite-tolerance
+            'real-math
+            '(nan? (rationalize +inf.0 +inf.0))
+            #:gate? #t
+            #:note "Infinite x with infinite tolerance rationalizes to NaN.")
+   (nt-case 'rationalize-finite-x-infinite-tolerance
+            'real-math
+            '(rationalize 3 +inf.0)
+            #:gate? #t
+            #:note "Finite x with infinite tolerance rationalizes to inexact zero.")
+   (nt-case 'rationalize-nan-x
+            'real-math
+            '(nan? (rationalize +nan.0 1))
+            #:gate? #t
+            #:note "NaN x is preserved by rationalize.")
+   (nt-case 'rationalize-nan-tolerance
+            'real-math
+            '(nan? (rationalize 1 +nan.0))
+            #:gate? #t
+            #:note "NaN tolerance is returned when x is finite.")
+   (nt-case 'rationalize-infinite-x-nan-tolerance
+            'real-math
+            '(rationalize +inf.0 +nan.0)
+            #:gate? #t
+            #:note "Infinite x is returned before checking NaN tolerance.")
    (nt-case 'expt-half-perfect-square
             'real-math
             '(expt 9 1/2)
