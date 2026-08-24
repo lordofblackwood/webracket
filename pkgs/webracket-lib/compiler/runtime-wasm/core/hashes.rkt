@@ -2316,22 +2316,19 @@
             (if (ref.test (ref $Rational) (local.get $v))
                 (then
                  (local.set $q (ref.cast (ref $Rational) (local.get $v)))
-                 (local.set $h (struct.get $Rational $hash (local.get $q)))
+                 ;; Recompute value hashes; eq-hash-code may cache identity hash here.
+                 (local.set $hr
+                            (call $eqv-hash/i32
+                                  (struct.get $Rational $num (local.get $q))))
+                 (local.set $hi
+                            (call $eqv-hash/i32
+                                  (struct.get $Rational $den (local.get $q))))
+                 (local.set $h
+                            (i32.add
+                             (i32.mul (local.get $hr) (i32.const 33))
+                             (local.get $hi)))
                  (if (i32.eqz (local.get $h))
-                     (then
-                      (local.set $hr
-                                 (call $eqv-hash/i32
-                                       (struct.get $Rational $num (local.get $q))))
-                      (local.set $hi
-                                 (call $eqv-hash/i32
-                                       (struct.get $Rational $den (local.get $q))))
-                      (local.set $h
-                                 (i32.add
-                                  (i32.mul (local.get $hr) (i32.const 33))
-                                  (local.get $hi)))
-                      (if (i32.eqz (local.get $h))
-                          (then (local.set $h (i32.const 2))))
-                      (struct.set $Rational $hash (local.get $q) (local.get $h))))
+                     (then (local.set $h (i32.const 2))))
                  (return (local.get $h))))
 
             (if (result i32)

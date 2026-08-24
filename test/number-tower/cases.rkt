@@ -203,6 +203,32 @@
                        (eqv-hash-code y))))
             #:gate? #t
             #:note "eqv-hash-code is stable across independently constructed eqv rationals.")
+   (nt-case 'rational-hash-after-eq-hash-consistent
+            'rational-representation
+            '(let* ([n (+ (expt 2 200) 1)]
+                    [x (/ n 3)]
+                    [y (/ (* 2 n) 6)])
+               (eq-hash-code x)
+               (eq-hash-code y)
+               (and (eqv? x y)
+                    (= (eqv-hash-code x)
+                       (eqv-hash-code y))
+                    (= (equal-hash-code x)
+                       (equal-hash-code y))))
+            #:gate? #t
+            #:note "eq-hash-code must not poison cached rational value hashes.")
+   (nt-case 'rational-equal-hash-table-after-eq-hash
+            'rational-representation
+            '(let* ([n (+ (expt 2 200) 1)]
+                    [x (/ n 3)]
+                    [y (/ (* 2 n) 6)]
+                    [h (make-hash)])
+               (eq-hash-code x)
+               (eq-hash-code y)
+               (hash-set! h x 'found)
+               (eq? (hash-ref h y #f) 'found))
+            #:gate? #t
+            #:note "Equal hash tables find canonical rationals after eq-hash-code has run.")
    (nt-case 'rational-binary-string
             'rational-representation
             '(number->string 1/10 2)
@@ -2204,6 +2230,30 @@
             '(rationalize 1/4 1/4)
             #:gate? #t
             #:note "rationalize chooses zero when the interval contains zero.")
+   (nt-case 'rationalize-zero-crossing-exact-zero
+            'real-math
+            '(let ([r (rationalize 0 0.1)])
+               (and (zero? r) (exact? r)))
+            #:gate? #t
+            #:note "When zero is in the interval, exact x rationalizes to exact zero.")
+   (nt-case 'rationalize-zero-crossing-exact-nonzero
+            'real-math
+            '(let ([r (rationalize 3 3.0)])
+               (and (zero? r) (exact? r)))
+            #:gate? #t
+            #:note "The zero-crossing exactness rule depends on x, not tolerance.")
+   (nt-case 'rationalize-zero-crossing-positive-inexact
+            'real-math
+            '(let ([r (rationalize 1e308 1e308)])
+               (and (zero? r) (inexact? r) (eqv? r 0.0)))
+            #:gate? #t
+            #:note "Inexact finite endpoints that cross zero rationalize to +0.0.")
+   (nt-case 'rationalize-zero-crossing-negative-inexact
+            'real-math
+            '(let ([r (rationalize -1e308 1e308)])
+               (and (zero? r) (inexact? r) (eqv? r 0.0)))
+            #:gate? #t
+            #:note "Negative inexact intervals that cross zero still return +0.0.")
    (nt-case 'rationalize-smallest-denominator
             'real-math
             '(rationalize 11/40 1/4)
@@ -2260,6 +2310,26 @@
             '(rationalize +inf.0 +nan.0)
             #:gate? #t
             #:note "Infinite x is returned before checking NaN tolerance.")
+   (nt-case 'rationalize-huge-exact-special-tolerances
+            'real-math
+            '(let* ([huge (expt 10 400)]
+                    [inf-x (rationalize +inf.0 huge)]
+                    [inf-tol (rationalize huge +inf.0)]
+                    [nan-tol (rationalize huge +nan.0)])
+               (and (eqv? inf-x +inf.0)
+                    (zero? inf-tol)
+                    (inexact? inf-tol)
+                    (eqv? inf-tol 0.0)
+                    (nan? nan-tol)))
+            #:gate? #t
+            #:note "Huge exact values are finite even when their f64 conversion overflows.")
+   (nt-case 'rationalize-huge-exact-zero-inexact-tolerance-error
+            'real-math
+            '(with-handlers ([exn:fail? (lambda (exn) 'fail)])
+               (rationalize (expt 10 400) 0.0)
+               'not-raised)
+            #:gate? #t
+            #:note "Huge exact x with zero inexact tolerance must not be mistaken for infinity.")
    (nt-case 'expt-half-perfect-square
             'real-math
             '(expt 9 1/2)

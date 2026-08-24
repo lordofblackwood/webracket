@@ -2950,14 +2950,20 @@
               (local $hi-f64          f64)
               (local $result          (ref eq))
               (local $inexact?        i32)
+              (local $x-flonum?       i32)
+              (local $tolerance-flonum? i32)
 
               (local.set $x-exact         (ref.i31 (i32.const 0)))
               (local.set $tolerance-exact (ref.i31 (i32.const 0)))
               (local.set $result          (ref.i31 (i32.const 0)))
+              (local.set $x-flonum?
+                         (ref.test (ref $Flonum) (local.get $x)))
+              (local.set $tolerance-flonum?
+                         (ref.test (ref $Flonum) (local.get $tolerance)))
               (local.set $inexact?
                          (i32.or
-                          (ref.test (ref $Flonum) (local.get $x))
-                          (ref.test (ref $Flonum) (local.get $tolerance))))
+                          (local.get $x-flonum?)
+                          (local.get $tolerance-flonum?)))
               (if (local.get $inexact?)
                   (then
                    (local.set $x-f64
@@ -2969,14 +2975,20 @@
                                     (global.get $symbol:rationalize)
                                     (local.get $tolerance)))
 
-                   ;; Match Racket's special-value order before exactifying endpoints.
-                   (if (f64.ne (local.get $x-f64) (local.get $x-f64))
+                   ;; Only original flonums can be NaN or infinite Racket values.
+                   (if (i32.and
+                        (local.get $x-flonum?)
+                        (f64.ne (local.get $x-f64) (local.get $x-f64)))
                        (then (return (local.get $x))))
-                   (if (f64.eq (f64.abs (local.get $x-f64))
-                               (f64.const +inf))
+                   (if (i32.and
+                        (local.get $x-flonum?)
+                        (f64.eq (f64.abs (local.get $x-f64))
+                                (f64.const +inf)))
                        (then
-                        (if (f64.eq (f64.abs (local.get $tolerance-f64))
-                                    (f64.const +inf))
+                        (if (i32.and
+                             (local.get $tolerance-flonum?)
+                             (f64.eq (f64.abs (local.get $tolerance-f64))
+                                     (f64.const +inf)))
                             (then
                              (return
                               (struct.new $Flonum
@@ -2984,15 +2996,19 @@
                                           (f64.div (f64.const 0.0)
                                                    (f64.const 0.0))))))
                         (return (local.get $x))))
-                   (if (f64.eq (f64.abs (local.get $tolerance-f64))
-                               (f64.const +inf))
+                   (if (i32.and
+                        (local.get $tolerance-flonum?)
+                        (f64.eq (f64.abs (local.get $tolerance-f64))
+                                (f64.const +inf)))
                        (then
                         (return
                          (struct.new $Flonum
                                      (i32.const 0)
                                      (f64.const 0.0)))))
-                   (if (f64.ne (local.get $tolerance-f64)
-                               (local.get $tolerance-f64))
+                   (if (i32.and
+                        (local.get $tolerance-flonum?)
+                        (f64.ne (local.get $tolerance-f64)
+                                (local.get $tolerance-f64)))
                        (then (return (local.get $tolerance))))
 
                    (local.set $delta-f64 (f64.abs (local.get $tolerance-f64)))
@@ -3002,6 +3018,17 @@
                    (local.set $hi-f64
                               (f64.add (local.get $x-f64)
                                        (local.get $delta-f64)))
+                   (if (i32.and
+                        (f64.le (local.get $lo-f64) (f64.const 0.0))
+                        (f64.ge (local.get $hi-f64) (f64.const 0.0)))
+                       (then
+                        (if (local.get $x-flonum?)
+                            (then
+                             (return
+                              (struct.new $Flonum
+                                          (i32.const 0)
+                                          (f64.const 0.0)))))
+                        (return (ref.i31 (i32.const 0)))))
                    (if (f64.eq (f64.abs (local.get $lo-f64))
                                (f64.const +inf))
                        (then (call $raise-expected-rational
