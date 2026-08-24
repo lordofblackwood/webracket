@@ -26,7 +26,7 @@
 
 ;; This file is all about the exact integers. Covered here:
 ;;   - arithmetic
-;;   - multiplication algorithms (schoolbook, Karatsuba, Toom 3)
+
 ;;   - division
 ;;   - comparison
 ;;   - conversion
@@ -104,10 +104,9 @@
 
      ;; $integer-from-i64 : i64 -> exact-integer?
      ;;   Build a canonical exact integer from a signed 64-bit value.
-     ;;   Canonical means: use a WebRacket fixnum when possible, otherwise
-     ;;   use a normalized bignum with sign plus little-endian limbs.
-     ;;   Normalized means: no zero bignum, no fixnum-range bignum, and no
-     ;;   leading zero limbs.
+     ;;   Canonical:  use a WebRacket fixnum when possible, otherwise
+     ;;               use a normalized bignum with sign plus little-endian limbs.
+     ;;   Normalized: no zero bignum, no fixnum-range bignum, and no leading zero limbs.
      (func $integer-from-i64
            (param $v i64)
            (result (ref eq))
@@ -130,15 +129,15 @@
            (if (i64.lt_s (local.get $v) (i64.const 0))
                (then
                 (local.set $sign (i32.const -1))
-                (local.set $abs (i64.sub (i64.const 0) (local.get $v))))
+                (local.set $abs  (i64.sub (i64.const 0) (local.get $v))))
                (else
                 (local.set $sign (i32.const 1))
-                (local.set $abs (local.get $v))))
+                (local.set $abs  (local.get $v))))
 
            ;; Split the absolute 64-bit magnitude into low and high 32-bit limbs.
-           (local.set $low (i32.wrap_i64 (local.get $abs)))
-           (local.set $high (i32.wrap_i64
-                             (i64.shr_u (local.get $abs) (i64.const 32))))
+           (local.set $low  (i32.wrap_i64            (local.get $abs)))
+           (local.set $high (i32.wrap_i64 (i64.shr_u (local.get $abs)
+                                                     (i64.const 32))))
 
            ;; A zero high limb means the magnitude fits in one 32-bit limb.
            (if (i32.eqz (local.get $high))
@@ -168,7 +167,7 @@
            (local $trimmed    (ref $I32Array))
 
            ;; Start with the full limb array and trim from the high end.
-           (local.set $len (array.len (local.get $limbs)))
+           (local.set $len        (array.len (local.get $limbs)))
            (local.set $active-len (local.get $len))
            (block $trim-done
                   (loop $trim-loop
@@ -275,6 +274,7 @@
            (result (ref eq))
 
            ;; Flip the sign and normalize so the result collapses if needed.
+           ;; Since the fixnum range is asymmetrical, we need to normalize.
            (call $bignum-normalize
                  (i32.sub (i32.const 0)
                           (struct.get $Bignum $sign (local.get $b)))
@@ -441,7 +441,7 @@
                             (then
                              (local.set $acc
                                         (i64.add (local.get $acc)
-                                                 (i64.const 4294967296)))
+                                                 (i64.const 4294967296))) ; 2^32
                              (local.set $borrow (i64.const 1)))
                             (else
                              (local.set $borrow (i64.const 0))))
@@ -611,11 +611,10 @@
 
            ;; Allocate one extra high limb for the final carry.
            (local.set $limbs (struct.get $Bignum $limbs (local.get $b)))
-           (local.set $len (array.len (local.get $limbs)))
-           (local.set $out
-                      (array.new_default
-                       $I32Array
-                       (i32.add (local.get $len) (i32.const 1))))
+           (local.set $len   (array.len (local.get $limbs)))
+           (local.set $out   (array.new_default
+                              $I32Array
+                              (i32.add (local.get $len) (i32.const 1))))
 
            ;; Multiply each limb by m and add the carry from the previous limb.
            (block $done
@@ -651,8 +650,151 @@
                  (local.get $sign)
                  (local.get $out)))
 
+     ;; $bignum-mul-schoolbook-magnitude : bignum? bignum? -> exact-nonnegative-integer?
+     ;;   Multiply magnitudes with rectangular schoolbook multiplication.
+     (func $bignum-mul-schoolbook-magnitude
+           (param $a (ref $Bignum))
+           (param $b (ref $Bignum))
+           (result (ref eq))
+
+           (local $a-limbs     (ref $I32Array))
+           (local $b-limbs     (ref $I32Array))
+           (local $small-limbs (ref $I32Array))
+           (local $large-limbs (ref $I32Array))
+           (local $a-len       i32)
+           (local $b-len       i32)
+           (local $small-len   i32)
+           (local $large-len   i32)
+           (local $out-len     i32)
+           (local $out         (ref $I32Array))
+           (local $i           i32)
+           (local $j           i32)
+           (local $pos         i32)
+           (local $small-limb  i32)
+           (local $large-limb  i32)
+           (local $acc         i64)
+           (local $carry       i64)
+
+           ;; Schoolbook multiplication iterates with the smaller operand outside.
+           (local.set $a-limbs (struct.get $Bignum $limbs (local.get $a)))
+           (local.set $b-limbs (struct.get $Bignum $limbs (local.get $b)))
+           (local.set $a-len   (array.len (local.get $a-limbs)))
+           (local.set $b-len   (array.len (local.get $b-limbs)))
+           (local.set $small-limbs (local.get $a-limbs))
+           (local.set $small-len   (local.get $a-len))
+           (local.set $large-limbs (local.get $b-limbs))
+           (local.set $large-len   (local.get $b-len))
+           (if (i32.gt_u (local.get $a-len) (local.get $b-len))
+               (then
+                (local.set $small-limbs (local.get $b-limbs))
+                (local.set $small-len   (local.get $b-len))
+                (local.set $large-limbs (local.get $a-limbs))
+                (local.set $large-len   (local.get $a-len))))
+           (local.set $out-len
+                      (i32.add (local.get $small-len)
+                               (local.get $large-len)))
+           (local.set $out (array.new_default $I32Array (local.get $out-len)))
+
+           ;; Add each scaled row of the multiplication table into the output.
+           (block $outer-done
+                  (loop $outer
+                        (br_if $outer-done
+                               (i32.ge_u (local.get $i) (local.get $small-len)))
+                        (local.set $small-limb
+                                   (array.get $I32Array
+                                              (local.get $small-limbs)
+                                              (local.get $i)))
+                        (if (i32.eqz (local.get $small-limb))
+                            (then
+                             (local.set $i (i32.add (local.get $i)
+                                                    (i32.const 1)))
+                             (br $outer)))
+                        (local.set $carry (i64.const 0))
+                        (local.set $j (i32.const 0))
+                        (block $inner-done
+                               (loop $inner
+                                     (br_if $inner-done
+                                            (i32.ge_u (local.get $j) (local.get $large-len)))
+                                     (local.set $pos
+                                                (i32.add (local.get $i)
+                                                         (local.get $j)))
+                                     (local.set $large-limb
+                                                (array.get $I32Array
+                                                           (local.get $large-limbs)
+                                                           (local.get $j)))
+                                     (if (i32.and
+                                          (i32.eqz (local.get $large-limb))
+                                          (i64.eqz (local.get $carry)))
+                                         (then
+                                          (local.set $j
+                                                     (i32.add (local.get $j)
+                                                              (i32.const 1)))
+                                          (br $inner)))
+                                     (local.set $acc
+                                                (i64.add
+                                                 (i64.add
+                                                  (i64.extend_i32_u
+                                                   (array.get $I32Array
+                                                              (local.get $out)
+                                                              (local.get $pos)))
+                                                  (i64.mul
+                                                   (i64.extend_i32_u
+                                                    (local.get $small-limb))
+                                                   (i64.extend_i32_u
+                                                    (local.get $large-limb))))
+                                                 (local.get $carry)))
+                                     (array.set $I32Array
+                                                (local.get $out)
+                                                (local.get $pos)
+                                                (i32.wrap_i64 (local.get $acc)))
+                                     (local.set $carry
+                                                (i64.shr_u (local.get $acc)
+                                                           (i64.const 32)))
+                                     (local.set $j
+                                                (i32.add (local.get $j)
+                                                         (i32.const 1)))
+                                     (br $inner)))
+                        (local.set $pos
+                                   (i32.add (local.get $i) (local.get $large-len)))
+
+                        ;; Propagate the row carry above the last large-operand limb.
+                        (block $carry-done
+                               (loop $carry-loop
+                                     (br_if $carry-done (i64.eqz (local.get $carry)))
+                                     (local.set $acc
+                                                (i64.add
+                                                 (i64.extend_i32_u
+                                                  (array.get $I32Array
+                                                             (local.get $out)
+                                                             (local.get $pos)))
+                                                 (local.get $carry)))
+                                     (array.set $I32Array
+                                                (local.get $out)
+                                                (local.get $pos)
+                                                (i32.wrap_i64 (local.get $acc)))
+                                     (local.set $carry
+                                                (i64.shr_u (local.get $acc)
+                                                           (i64.const 32)))
+                                     (local.set $pos
+                                                (i32.add (local.get $pos)
+                                                         (i32.const 1)))
+                                     (br $carry-loop)))
+                        (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                        (br $outer)))
+
+           ;; Schoolbook computes a magnitude; the dispatcher applies the sign.
+           (call $bignum-normalize (i32.const 1) (local.get $out)))
+
      ;; $bignum-square-basecase : bignum? -> exact-integer?
      ;;   Square a bignum magnitude using one multiply for each off-diagonal pair.
+     ;;   Algorithm:
+     ;;      Treat the bignum as base-2^32 limbs.
+     ;;      Add each limb squared at position 2*i,
+     ;;      then add each different-limb product twice at position i+j.
+     ;;   This works since if x = sum_i ai*B^i, then
+     ;;
+     ;;       x^2 = sum_i ai^2*B^(2*i) + sum_{i<j} 2*ai*aj*B^(i+j).
+     ;;
      (func $bignum-square-basecase
            (param $b (ref $Bignum))
            (result (ref eq))
@@ -863,7 +1005,7 @@
 
            ;; Scan limbs looking for exactly one set bit across the magnitude.
            (local.set $limbs (struct.get $Bignum $limbs (local.get $b)))
-           (local.set $len (array.len (local.get $limbs)))
+           (local.set $len   (array.len (local.get $limbs)))
            (local.set $shift (i32.const -1))
            (block $done
                   (loop $loop
@@ -1079,6 +1221,26 @@
      ;;; Karatsuba Multiplication
      ;;;
 
+     ;; Karatsuba splits each operand into a low half and a high half:
+     ;;
+     ;;     x = x0 + x1*B
+     ;;     y = y0 + y1*B
+     ;;
+     ;; A direct product uses four smaller multiplications:
+     ;;
+     ;;     x*y = x0*y0 + (x0*y1 + x1*y0)*B + x1*y1*B^2
+     ;;
+     ;; Karatsuba computes the middle term with one multiplication instead:
+     ;;
+     ;;     z0  = x0*y0
+     ;;     z2  = x1*y1
+     ;;     d   = (x1 - x0)*(y1 - y0)
+     ;;     mid = z0 + z2 - d = x0*y1 + x1*y0
+     ;;
+     ;; Then it combines:
+     ;;
+     ;;     x*y = z0 + mid*B + z2*B^2
+
      ;; $bignum-mul-karatsuba-magnitude : bignum? bignum? -> exact-nonnegative-integer?
      ;;   Multiply magnitudes with the three-product Karatsuba identity.
      (func $bignum-mul-karatsuba-magnitude
@@ -1086,68 +1248,53 @@
            (param $b (ref $Bignum))
            (result (ref eq))
 
-           (local $a-len  i32)
-           (local $b-len  i32)
+           (local $a-len   i32)
+           (local $b-len   i32)
            (local $max-len i32)
-           (local $k      i32)
-           (local $bits   i32)
-           (local $x0     (ref eq))
-           (local $x1     (ref eq))
-           (local $y0     (ref eq))
-           (local $y1     (ref eq))
-           (local $z0     (ref eq))
-           (local $z2     (ref eq))
-           (local $d      (ref eq))
-           (local $mid    (ref eq))
-           (local $result (ref eq))
+           (local $k       i32)
+           (local $bits    i32)
+           (local $x0      (ref eq))
+           (local $x1      (ref eq))
+           (local $y0      (ref eq))
+           (local $y1      (ref eq))
+           (local $z0      (ref eq))
+           (local $z2      (ref eq))
+           (local $d       (ref eq))
+           (local $mid     (ref eq))
+           (local $result  (ref eq))
 
            ;; Split both operands at k limbs, where k is half the larger length.
-           (local.set $a-len
-                      (array.len
-                       (struct.get $Bignum $limbs (local.get $a))))
-           (local.set $b-len
-                      (array.len
-                       (struct.get $Bignum $limbs (local.get $b))))
-           (local.set $max-len
-                      (select (local.get $a-len)
-                              (local.get $b-len)
-                              (i32.gt_u (local.get $a-len)
-                                        (local.get $b-len))))
-           (local.set $k
-                      (i32.div_u
-                       (i32.add (local.get $max-len) (i32.const 1))
-                       (i32.const 2)))
-           (local.set $bits
-                      (i32.mul (local.get $k) (i32.const 32)))
-           (local.set $x0
-                      (call $bignum-limb-slice
-                            (local.get $a) (i32.const 0) (local.get $k)))
-           (local.set $x1
-                      (call $bignum-limb-slice
-                            (local.get $a) (local.get $k) (local.get $k)))
-           (local.set $y0
-                      (call $bignum-limb-slice
-                            (local.get $b) (i32.const 0) (local.get $k)))
-           (local.set $y1
-                      (call $bignum-limb-slice
-                            (local.get $b) (local.get $k) (local.get $k)))
+           (local.set $a-len   (array.len (struct.get $Bignum $limbs (local.get $a))))
+           (local.set $b-len   (array.len (struct.get $Bignum $limbs (local.get $b))))
+           (local.set $max-len (select (local.get $a-len)
+                                       (local.get $b-len)
+                                       (i32.gt_u (local.get $a-len)
+                                                 (local.get $b-len))))
+           (local.set $k    (i32.div_u
+                             (i32.add (local.get $max-len) (i32.const 1))
+                             (i32.const 2)))
+           (local.set $bits (i32.mul (local.get $k) (i32.const 32)))
+           (local.set $x0   (call $bignum-limb-slice
+                                  (local.get $a) (i32.const 0) (local.get $k)))
+           (local.set $x1   (call $bignum-limb-slice
+                                  (local.get $a) (local.get $k) (local.get $k)))
+           (local.set $y0   (call $bignum-limb-slice
+                                  (local.get $b) (i32.const 0) (local.get $k)))
+           (local.set $y1   (call $bignum-limb-slice
+                                  (local.get $b) (local.get $k) (local.get $k)))
 
            ;; Compute z0, z2, and the difference product for Karatsuba's middle term.
-           (local.set $z0
-                      (call $integer-mul/2 (local.get $x0) (local.get $y0)))
-           (local.set $z2
-                      (call $integer-mul/2 (local.get $x1) (local.get $y1)))
-           (local.set $d
-                      (call $integer-mul/2
-                            (call $integer-sub/2
-                                  (local.get $x1) (local.get $x0))
-                            (call $integer-sub/2
-                                  (local.get $y1) (local.get $y0))))
-           (local.set $mid
-                      (call $integer-sub/2
-                            (call $integer-add/2
-                                  (local.get $z0) (local.get $z2))
-                            (local.get $d)))
+           (local.set $z0 (call $integer-mul/2 (local.get $x0) (local.get $y0)))
+           (local.set $z2 (call $integer-mul/2 (local.get $x1) (local.get $y1)))
+           (local.set $d  (call $integer-mul/2
+                                (call $integer-sub/2
+                                      (local.get $x1) (local.get $x0))
+                                (call $integer-sub/2
+                                      (local.get $y1) (local.get $y0))))
+           (local.set $mid (call $integer-sub/2
+                                 (call $integer-add/2
+                                       (local.get $z0) (local.get $z2))
+                                 (local.get $d)))
 
            ;; Recombine z0 + mid*B + z2*B^2 where B is 2^(32*k).
            (local.set $result (local.get $z0))
@@ -1163,6 +1310,25 @@
                                   (local.get $z2)
                                   (i32.mul (local.get $bits) (i32.const 2)))))
            (local.get $result))
+
+     ;; For a square, Karatsuba uses the same split:
+     ;;
+     ;;     x = x0 + x1*B
+     ;;
+     ;; A direct square is:
+     ;;
+     ;;     x^2 = x0^2 + 2*x0*x1*B + x1^2*B^2
+     ;;
+     ;; The middle term is found with one extra square:
+     ;;
+     ;;     z0  = x0^2
+     ;;     z2  = x1^2
+     ;;     d   = (x1 - x0)^2
+     ;;     mid = z0 + z2 - d = 2*x0*x1
+     ;;
+     ;; Then it combines:
+     ;;
+     ;;     x^2 = z0 + mid*B + z2*B^2
 
      ;; $bignum-square-karatsuba : bignum? -> exact-nonnegative-integer?
      ;;   Square a magnitude with Karatsuba's three-square identity.
@@ -1233,6 +1399,39 @@
      ;;;
      ;;; Toom-Cook Multiplication
      ;;;
+
+     ;; Toom-3 splits each operand into three chunks:
+     ;;
+     ;;     x = x0 + x1*B + x2*B^2
+     ;;     y = y0 + y1*B + y2*B^2
+     ;;
+     ;; The product has five coefficients:
+     ;;
+     ;;     x*y = w0 + w1*B + w2*B^2 + w3*B^3 + w4*B^4
+     ;;
+     ;; Instead of computing all nine pairwise products, Toom-3 evaluates
+     ;; x and y at 0, 1, -1, 2, and infinity, multiplies those values, then
+     ;; interpolates the coefficients:
+     ;;
+     ;;     q0  = x(0)*y(0)               = w0
+     ;;     q1  = x(1)*y(1)
+     ;;     qm1 = x(-1)*y(-1)
+     ;;     q2  = x(2)*y(2)
+     ;;     q4  = x(infinity)*y(infinity) = w4
+     ;;
+     ;; The code recovers the middle coefficients with exact division:
+     ;;
+     ;;     s1   = q1  - q0 - q4  =  w1 + w2 + w3
+     ;;     sm1  = qm1 - q0 - q4  = -w1 + w2 - w3
+     ;;     w2   = (s1 + sm1)/2
+     ;;     odd  = (s1 - sm1)/2   =  w1 + w3
+     ;;     t    = (q2 - q0 - 16*q4 - 4*w2)/2 = w1 + 4*w3
+     ;;     w3   = (t - odd)/3
+     ;;     w1   = odd - w3
+     ;;
+     ;; Then it combines:
+     ;;
+     ;;     x*y = q0 + w1*B + w2*B^2 + w3*B^3 + q4*B^4
 
      ;; $bignum-mul-toom3-magnitude : bignum? bignum? -> exact-nonnegative-integer?
      ;;   Multiply magnitudes by evaluating and interpolating a three-way split.
@@ -1473,46 +1672,30 @@
 
            (local $a-limbs (ref $I32Array))
            (local $b-limbs (ref $I32Array))
-           (local $small-limbs (ref $I32Array))
-           (local $large-limbs (ref $I32Array))
            (local $a-len i32)
            (local $b-len i32)
            (local $min-len i32)
            (local $max-len i32)
-           (local $small-len i32)
-           (local $large-len i32)
-           (local $out-len i32)
-           (local $out (ref $I32Array))
            (local $sign i32)
-           (local $i i32)
-           (local $j i32)
-           (local $pos i32)
-           (local $small-limb i32)
-           (local $large-limb i32)
            (local $shift i32)
-           (local $acc i64)
-           (local $carry i64)
 
            ;; Load limb arrays and derive operand sizes and result sign.
            (local.set $a-limbs (struct.get $Bignum $limbs (local.get $a)))
            (local.set $b-limbs (struct.get $Bignum $limbs (local.get $b)))
-           (local.set $a-len (array.len (local.get $a-limbs)))
-           (local.set $b-len (array.len (local.get $b-limbs)))
-           (local.set $min-len
-                      (select (local.get $a-len)
-                              (local.get $b-len)
-                              (i32.lt_u (local.get $a-len)
-                                        (local.get $b-len))))
-           (local.set $max-len
-                      (select (local.get $a-len)
-                              (local.get $b-len)
-                              (i32.gt_u (local.get $a-len)
-                                        (local.get $b-len))))
-           (local.set $sign
-                      (select (i32.const 1)
-                              (i32.const -1)
-                              (i32.eq (struct.get $Bignum $sign (local.get $a))
-                                      (struct.get $Bignum $sign (local.get $b)))))
+           (local.set $a-len   (array.len (local.get $a-limbs)))
+           (local.set $b-len   (array.len (local.get $b-limbs)))
+           (local.set $min-len (select (local.get $a-len)
+                                       (local.get $b-len)
+                                       (i32.lt_u (local.get $a-len)
+                                                 (local.get $b-len))))
+           (local.set $max-len (select (local.get $a-len)
+                                       (local.get $b-len)
+                                       (i32.gt_u (local.get $a-len)
+                                                 (local.get $b-len))))
+           (local.set $sign    (select (i32.const  1)
+                                       (i32.const -1)
+                                       (i32.eq (struct.get $Bignum $sign (local.get $a))
+                                               (struct.get $Bignum $sign (local.get $b)))))
 
            ;; A one-limb operand uses the specialized bignum-by-u32 path.
            (if (i32.eq (local.get $a-len) (i32.const 1))
@@ -1527,12 +1710,12 @@
            (if (i32.eq (local.get $b-len) (i32.const 1))
                (then
                 (return
-	                 (call $bignum-mul-u32
-	                       (local.get $a)
-	                       (array.get $I32Array
-	                                  (local.get $b-limbs)
-	                                  (i32.const 0))
-	                       (local.get $sign)))))
+                 (call $bignum-mul-u32
+                       (local.get $a)
+                       (array.get $I32Array
+                                  (local.get $b-limbs)
+                                  (i32.const 0))
+                       (local.get $sign)))))
 
            ;; Multiplication by a power of two is a signed left shift.
            (local.set $shift (call $bignum-power-of-two-shift/i32
@@ -1596,111 +1779,11 @@
                              (local.get $a) (local.get $b))
                        (local.get $sign)))))
 
-           ;; Schoolbook multiplication iterates with the smaller operand outside.
-           (local.set $small-limbs (local.get $a-limbs))
-           (local.set $small-len   (local.get $a-len))
-           (local.set $large-limbs (local.get $b-limbs))
-           (local.set $large-len   (local.get $b-len))
-           (if (i32.gt_u (local.get $a-len) (local.get $b-len))
-               (then
-                (local.set $small-limbs (local.get $b-limbs))
-                (local.set $small-len   (local.get $b-len))
-                (local.set $large-limbs (local.get $a-limbs))
-                (local.set $large-len   (local.get $a-len))))
-           (local.set $out-len
-                      (i32.add (local.get $small-len)
-                               (local.get $large-len)))
-           (local.set $out (array.new_default $I32Array (local.get $out-len)))
-
-           ;; Add each scaled row of the multiplication table into the output.
-           (block $outer-done
-                  (loop $outer
-                        (br_if $outer-done
-                               (i32.ge_u (local.get $i) (local.get $small-len)))
-                        (local.set $small-limb
-                                   (array.get $I32Array
-                                              (local.get $small-limbs)
-                                              (local.get $i)))
-                        (if (i32.eqz (local.get $small-limb))
-                            (then
-                             (local.set $i (i32.add (local.get $i)
-                                                    (i32.const 1)))
-                             (br $outer)))
-                        (local.set $carry (i64.const 0))
-                        (local.set $j (i32.const 0))
-                        (block $inner-done
-                               (loop $inner
-                                     (br_if $inner-done
-                                            (i32.ge_u (local.get $j) (local.get $large-len)))
-                                     (local.set $pos
-                                                (i32.add (local.get $i)
-                                                         (local.get $j)))
-                                     (local.set $large-limb
-                                                (array.get $I32Array
-                                                           (local.get $large-limbs)
-                                                           (local.get $j)))
-                                     (if (i32.and
-                                          (i32.eqz (local.get $large-limb))
-                                          (i64.eqz (local.get $carry)))
-                                         (then
-                                          (local.set $j
-                                                     (i32.add (local.get $j)
-                                                              (i32.const 1)))
-                                          (br $inner)))
-                                     (local.set $acc
-                                                (i64.add
-                                                 (i64.add
-                                                  (i64.extend_i32_u
-                                                   (array.get $I32Array
-                                                              (local.get $out)
-                                                              (local.get $pos)))
-                                                  (i64.mul
-                                                   (i64.extend_i32_u
-                                                    (local.get $small-limb))
-                                                   (i64.extend_i32_u
-                                                    (local.get $large-limb))))
-                                                 (local.get $carry)))
-                                     (array.set $I32Array
-                                                (local.get $out)
-                                                (local.get $pos)
-                                                (i32.wrap_i64 (local.get $acc)))
-                                     (local.set $carry
-                                                (i64.shr_u (local.get $acc)
-                                                           (i64.const 32)))
-                                     (local.set $j
-                                                (i32.add (local.get $j)
-                                                         (i32.const 1)))
-                                     (br $inner)))
-                        (local.set $pos
-                                   (i32.add (local.get $i) (local.get $large-len)))
-
-                        ;; Propagate the row carry above the last large-operand limb.
-                        (block $carry-done
-                               (loop $carry-loop
-                                     (br_if $carry-done (i64.eqz (local.get $carry)))
-                                     (local.set $acc
-                                                (i64.add
-                                                 (i64.extend_i32_u
-                                                  (array.get $I32Array
-                                                             (local.get $out)
-                                                             (local.get $pos)))
-                                                 (local.get $carry)))
-                                     (array.set $I32Array
-                                                (local.get $out)
-                                                (local.get $pos)
-                                                (i32.wrap_i64 (local.get $acc)))
-                                     (local.set $carry
-                                                (i64.shr_u (local.get $acc)
-                                                           (i64.const 32)))
-                                     (local.set $pos
-                                                (i32.add (local.get $pos)
-                                                         (i32.const 1)))
-                                     (br $carry-loop)))
-                        (local.set $i (i32.add (local.get $i) (i32.const 1)))
-                        (br $outer)))
-
-           ;; Normalize the accumulated product with the computed sign.
-           (call $bignum-normalize (local.get $sign) (local.get $out)))
+           ;; Final fallback: use schoolbook multiplication and apply the sign.
+           (call $integer-apply-sign
+                 (call $bignum-mul-schoolbook-magnitude
+                       (local.get $a) (local.get $b))
+                 (local.get $sign)))
 
      ;;;
      ;;; Exact Integer Arithmetic
@@ -2561,6 +2644,20 @@
                      (i32.const 32))
             (i32.sub (i32.const 32) (i32.clz (local.get $top)))))
 
+     ;; The square root is found by binary search. Keep an interval
+     ;; [low, high) such that low^2 <= n < high^2. Start with a power
+     ;; of two that is above the square root:
+     ;;
+     ;;     bits  = bit length of n
+     ;;     high  = 2^ceil(bits/2)
+     ;;
+     ;; Repeatedly test the midpoint:
+     ;;
+     ;;     mid = floor((low + high)/2)
+     ;;
+     ;; If mid^2 <= n, move low up to mid. Otherwise move high down to mid.
+     ;; When low and high are adjacent, low is floor(sqrt(n)).
+
      ;; $integer-sqrt/exact : exact-nonnegative-integer? -> exact-nonnegative-integer?
      ;;   Compute the exact floor square root by binary search.
      (func $integer-sqrt/exact
@@ -2597,29 +2694,24 @@
            (block $done
                   (loop $loop
                         (br_if $done
-                               (i32.ge_s
-                                (call $integer-compare/i32
-                                      (call $integer-add/2
-                                            (local.get $low)
-                                            (ref.i31 (i32.const 2)))
-                                      (local.get $high))
-                                (i32.const 0)))
-                        (local.set $sum
-                                   (call $integer-add/2
-                                         (local.get $low)
-                                         (local.get $high)))
-                        (local.set $vals
-                                   (call $integer-divmod
-                                         (local.get $sum)
-                                         (ref.i31 (i32.const 4))))
-                        (local.set $mid
-                                   (array.get $Values
-                                              (local.get $vals)
-                                              (i32.const 0)))
-                        (local.set $sq
-                                   (call $integer-mul/2
-                                         (local.get $mid)
-                                         (local.get $mid)))
+                               (i32.ge_s (call $integer-compare/i32
+                                               (call $integer-add/2
+                                                     (local.get $low)
+                                                     (ref.i31 (i32.const 2)))
+                                               (local.get $high))
+                                         (i32.const 0)))
+                        (local.set $sum  (call $integer-add/2
+                                               (local.get $low)
+                                               (local.get $high)))
+                        (local.set $vals (call $integer-divmod
+                                               (local.get $sum)
+                                               (ref.i31 (i32.const 4))))
+                        (local.set $mid  (array.get $Values
+                                                    (local.get $vals)
+                                                    (i32.const 0)))
+                        (local.set $sq   (call $integer-mul/2
+                                               (local.get $mid)
+                                               (local.get $mid)))
                         (if (i32.le_s
                              (call $integer-compare/i32
                                    (local.get $sq)
@@ -2654,25 +2746,52 @@
      ;;; Division
      ;;;
 
+     ;; Division is implemented in two layers.
+
+     ;; The top layer is $integer-divmod.
+     ;; It handles signs, zero, and, small quotients.
+     ;; The quotient is truncated toward zero,
+     ;; and the remainder has the dividend's sign.
+     ;;
+     ;; The low-level helpers divide positive magnitudes only.
+     ;; They treat a bignum as little-endian limbs in base B = 2^32,
+     ;; compute nonnegative quotient and remainder magnitudes,
+     ;; and normalize both results so they become fixnums whenever possible.
+     ;;
+     ;; There are two magnitude algorithms:
+     ;;   - a short division path when the divisor fits in one 32-bit limb
+     ;;   - normalized long division when both operands are multi-limb bignums
+
+
+     ;; Single-limb division, n div d, is ordinary long division in base B = 2^32.
+     ;; Walk from the high limb down to the low limb, carrying a remainder:
+     ;;
+     ;;     cur = rem*B + limb[i]
+     ;;     q[i] = floor(cur/d)
+     ;;     rem  = cur mod d
+     ;;
+     ;; Because rem < d and d fits in one limb, cur fits in 64 bits and each
+     ;; quotient digit q[i] fits in one 32-bit limb.
+
      ;; $bignum-divmod-u32 : bignum? i32 -> values exact-integer? exact-integer?
      ;;   Divide a positive bignum magnitude by a nonzero unsigned 32-bit limb.
      (func $bignum-divmod-u32
            (param $n (ref $Bignum))
            (param $d i32)
-           (result (ref $Values))
+           (result   (ref $Values))
 
-           (local $limbs (ref $I32Array))
+           (local $limbs   (ref $I32Array))
            (local $q-limbs (ref $I32Array))
-           (local $i i32)
-           (local $cur i64)
-           (local $rem i64)
-           (local $d64 i64)
+           (local $i       i32)
+           (local $cur     i64)
+           (local $rem     i64)
+           (local $d64     i64)
 
            ;; Divide from high limb to low, carrying the remainder as the next high word.
-           (local.set $limbs (struct.get $Bignum $limbs (local.get $n)))
-           (local.set $i (array.len (local.get $limbs)))
+           (local.set $limbs   (struct.get $Bignum $limbs (local.get $n)))
+           (local.set $i       (array.len (local.get $limbs)))
            (local.set $q-limbs (array.new_default $I32Array (local.get $i)))
-           (local.set $d64 (i64.extend_i32_u (local.get $d)))
+           (local.set $d64     (i64.extend_i32_u (local.get $d)))
            (block $done
                   (loop $loop
                         (br_if $done (i32.eqz (local.get $i)))
@@ -2702,6 +2821,20 @@
                                   (local.get $q-limbs))
                             (call $integer-from-i64 (local.get $rem))))
 
+     ;; Multi-limb division uses normalized long division in base B = 2^32.
+     ;; First shift both magnitudes left so the top divisor limb is at least
+     ;; B/2. This makes quotient-digit estimates accurate enough to need only
+     ;; a small correction.
+     ;;
+     ;; For each quotient position j, estimate the next digit from the top two
+     ;; limbs of the current dividend window and the top divisor limb:
+     ;;
+     ;;     qhat = floor((u[j+n]*B + u[j+n-1]) / v[n-1])
+     ;;
+     ;; Then refine qhat with the next lower divisor limb, subtract qhat*v
+     ;; from the dividend window, and if the subtraction borrowed, decrement
+     ;; qhat and add v back. After all digits are processed, the remaining
+     ;; dividend window is shifted right again to recover the true remainder.
      ;; $bignum-divmod-magnitudes : bignum? bignum? -> values
      ;;   Divide positive canonical magnitudes using normalized long division.
      (func $bignum-divmod-magnitudes
@@ -2736,27 +2869,23 @@
            ;; Set up operand lengths and the maximum quotient length.
            (local.set $n-limbs (struct.get $Bignum $limbs (local.get $n)))
            (local.set $d-limbs (struct.get $Bignum $limbs (local.get $d)))
-           (local.set $n-len (array.len (local.get $n-limbs)))
-           (local.set $d-len (array.len (local.get $d-limbs)))
-           (local.set $q-len
-                      (i32.add
-                       (i32.sub (local.get $n-len) (local.get $d-len))
-                       (i32.const 1)))
+           (local.set $n-len   (array.len (local.get $n-limbs)))
+           (local.set $d-len   (array.len (local.get $d-limbs)))
+           (local.set $q-len   (i32.add
+                                (i32.sub (local.get $n-len) (local.get $d-len))
+                                (i32.const 1)))
 
            ;; Normalize so the divisor's high limb has its top bit set.
-           (local.set $shift
-                      (i32.clz
-                       (array.get $I32Array
-                                  (local.get $d-limbs)
-                                  (i32.sub (local.get $d-len)
-                                           (i32.const 1)))))
-           (local.set $u
-                      (array.new_default
-                       $I32Array
-                       (i32.add (local.get $n-len) (i32.const 1))))
-           (local.set $v (array.new_default $I32Array (local.get $d-len)))
-           (local.set $q-limbs
-                      (array.new_default $I32Array (local.get $q-len)))
+           (local.set $shift   (i32.clz
+                                (array.get $I32Array
+                                           (local.get $d-limbs)
+                                           (i32.sub (local.get $d-len)
+                                                    (i32.const 1)))))
+           (local.set $u       (array.new_default
+                                $I32Array
+                                (i32.add (local.get $n-len) (i32.const 1))))
+           (local.set $v       (array.new_default $I32Array (local.get $d-len)))
+           (local.set $q-limbs (array.new_default $I32Array (local.get $q-len)))
 
            ;; Shift the divisor magnitude left by shift bits.
            (local.set $carry (i64.const 0))
