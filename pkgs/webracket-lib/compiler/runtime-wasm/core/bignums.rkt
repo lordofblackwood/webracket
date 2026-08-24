@@ -3754,32 +3754,179 @@
      ;;; Inexact Conversion
      ;;;
 
+     ;; $bignum-bit/i32 : bignum? i32 -> i32
+     ;;   Return bit i of the bignum magnitude, or 0 outside the magnitude.
+     (func $bignum-bit/i32
+           (param $b   (ref $Bignum))
+           (param $bit i32)
+           (result i32)
+
+           (local $limbs      (ref $I32Array))
+           (local $limb-index i32)
+           (local $bit-index  i32)
+
+           ;; Negative bit indexes are outside the finite magnitude.
+           (if (i32.lt_s (local.get $bit) (i32.const 0))
+               (then (return (i32.const 0))))
+
+           ;; Locate the base-2^32 limb and the bit inside that limb.
+           (local.set $limbs (struct.get $Bignum $limbs (local.get $b)))
+           (local.set $limb-index
+                      (i32.div_u (local.get $bit) (i32.const 32)))
+           (local.set $bit-index
+                      (i32.rem_u (local.get $bit) (i32.const 32)))
+
+           ;; Missing high limbs are implicit zeros.
+           (if (i32.ge_u (local.get $limb-index)
+                         (array.len (local.get $limbs)))
+               (then (return (i32.const 0))))
+
+           ;; Extract the requested bit from the stored limb.
+           (i32.and
+            (i32.shr_u
+             (array.get $I32Array
+                        (local.get $limbs)
+                        (local.get $limb-index))
+             (local.get $bit-index))
+            (i32.const 1)))
+
+     ;; $bignum-any-bits-below?/i32 : bignum? i32 -> i32
+     ;;   Return 1 if any magnitude bit below limit is set.
+     (func $bignum-any-bits-below?/i32
+           (param $b     (ref $Bignum))
+           (param $limit i32)
+           (result i32)
+
+           (local $i i32)
+
+           ;; An empty low-bit range has no sticky bit.
+           (if (i32.le_s (local.get $limit) (i32.const 0))
+               (then (return (i32.const 0))))
+
+           ;; Scan bits 0 through limit-1.
+           (block $done
+                  (loop $loop
+                        (br_if $done
+                               (i32.ge_s (local.get $i)
+                                         (local.get $limit)))
+                        (if (call $bignum-bit/i32
+                                  (local.get $b)
+                                  (local.get $i))
+                            (then (return (i32.const 1))))
+                        (local.set $i
+                                   (i32.add (local.get $i)
+                                            (i32.const 1)))
+                        (br $loop)))
+           (i32.const 0))
+
+     ;; Convert by inspecting integer bits and rounding once. Let
+     ;;
+     ;;     bits = bit length of abs(b)
+     ;;     e    = bits - 1
+     ;;
+     ;; The retained significand is the top 53 bits, shifted into an integer
+     ;; in [2^52, 2^53). Bits below it provide the guard and sticky bits for
+     ;; round-to-nearest, ties-to-even.
      ;; $bignum->f64 : bignum? -> f64
      ;;   Convert an exact bignum to the nearest host f64 value.
      (func $bignum->f64
            (param $b (ref $Bignum))
            (result f64)
 
-           (local $limbs (ref $I32Array))
-           (local $i i32)
-           (local $out f64)
+           (local $bits      i32)
+           (local $exponent  i32)
+           (local $shift     i32)
+           (local $k         i32)
+           (local $src-bit   i32)
+           (local $retained  i64)
+           (local $out-bits  i64)
+           (local $out       f64)
 
-           ;; Accumulate limbs from high to low in base 2^32 as an f64.
-           (local.set $limbs (struct.get $Bignum $limbs (local.get $b)))
-           (local.set $i (array.len (local.get $limbs)))
+           ;; Find the unbiased binary exponent from the magnitude bit length.
+           (local.set $bits
+                      (call $integer-nonnegative-bit-length/i32
+                            (local.get $b)))
+           (local.set $exponent
+                      (i32.sub (local.get $bits) (i32.const 1)))
+
+           ;; Exact integers above the binary64 range overflow to infinity.
+           (if (i32.gt_s (local.get $exponent) (i32.const 1023))
+               (then
+                (if (i32.lt_s (struct.get $Bignum $sign (local.get $b))
+                              (i32.const 0))
+                    (then (return (f64.const -inf)))
+                    (else (return (f64.const +inf))))))
+
+           ;; Extract the retained significand bits. A negative shift means
+           ;; the integer has fewer than 53 bits and is shifted left exactly.
+           (local.set $shift
+                      (i32.sub (local.get $bits) (i32.const 53)))
            (block $done
                   (loop $loop
-                        (br_if $done (i32.eqz (local.get $i)))
-                        (local.set $i (i32.sub (local.get $i) (i32.const 1)))
-                        (local.set $out
-                                   (f64.add
-                                    (f64.mul (local.get $out)
-                                             (f64.const 4294967296.0))
-                                    (f64.convert_i32_u
-                                     (array.get $I32Array
-                                                (local.get $limbs)
-                                                (local.get $i)))))
+                        (br_if $done
+                               (i32.ge_u (local.get $k) (i32.const 53)))
+                        (local.set $src-bit
+                                   (i32.add (local.get $shift)
+                                            (local.get $k)))
+                        (if (call $bignum-bit/i32
+                                  (local.get $b)
+                                  (local.get $src-bit))
+                            (then
+                             (local.set $retained
+                                        (i64.or
+                                         (local.get $retained)
+                                         (i64.shl
+                                          (i64.const 1)
+                                          (i64.extend_i32_u
+                                           (local.get $k)))))))
+                        (local.set $k
+                                   (i32.add (local.get $k)
+                                            (i32.const 1)))
                         (br $loop)))
+
+           ;; If bits were discarded, round once using guard and sticky bits.
+           (if (i32.gt_s (local.get $shift) (i32.const 0))
+               (then
+                (if (i32.and
+                     (call $bignum-bit/i32
+                           (local.get $b)
+                           (i32.sub (local.get $shift) (i32.const 1)))
+                     (i32.or
+                      (call $bignum-any-bits-below?/i32
+                            (local.get $b)
+                            (i32.sub (local.get $shift) (i32.const 1)))
+                      (i32.wrap_i64
+                       (i64.and (local.get $retained) (i64.const 1)))))
+                    (then
+                     (local.set $retained
+                                (i64.add (local.get $retained)
+                                         (i64.const 1)))))))
+
+           ;; A carry out of the 53-bit significand increments the exponent.
+           (if (i64.eq (local.get $retained)
+                       (i64.const 9007199254740992))
+               (then
+                (local.set $retained (i64.const 4503599627370496))
+                (local.set $exponent
+                           (i32.add (local.get $exponent) (i32.const 1)))
+                (if (i32.gt_s (local.get $exponent) (i32.const 1023))
+                    (then
+                     (if (i32.lt_s (struct.get $Bignum $sign (local.get $b))
+                                   (i32.const 0))
+                         (then (return (f64.const -inf)))
+                         (else (return (f64.const +inf))))))))
+
+           ;; Pack the biased exponent and fraction bits into a positive f64.
+           (local.set $out-bits
+                      (i64.or
+                       (i64.shl
+                        (i64.extend_i32_u
+                         (i32.add (local.get $exponent) (i32.const 1023)))
+                        (i64.const 52))
+                       (i64.sub
+                        (local.get $retained)
+                        (i64.const 4503599627370496))))
+           (local.set $out (f64.reinterpret_i64 (local.get $out-bits)))
 
            ;; Apply the bignum sign after magnitude conversion.
            (if (result f64)
@@ -3803,7 +3950,7 @@
                    (i31.get_s (ref.cast (ref i31) (local.get $x)))
                    (i32.const 1))))))
 
-           ;; Bignums convert by base-2^32 accumulation.
+           ;; Bignums convert by extracting bits and rounding once.
            (call $bignum->f64 (ref.cast (ref $Bignum) (local.get $x))))
 
      ;;;
