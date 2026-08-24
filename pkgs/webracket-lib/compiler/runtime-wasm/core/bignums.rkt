@@ -1233,7 +1233,7 @@
                  (local.get $sign)))
 
      ;; $bignum-limb-slice : bignum? exact-nonnegative-integer? exact-nonnegative-integer? -> exact-nonnegative-integer?
-     ;;   Copy a zero-extended little-endian limb range as a canonical magnitude.
+     ;;   Copy a little-endian limb range as a canonical magnitude.
      (func $bignum-limb-slice
            (param $b     (ref $Bignum))
            (param $start i32)
@@ -1250,19 +1250,13 @@
            (if (i32.eqz (local.get $count))
                (then (return (ref.i31 (i32.const 0)))))
 
-           ;; Allocate a zero-filled destination so out-of-range limbs read as zero.
+           ;; A start beyond the source length is the zero magnitude.
            (local.set $limbs (struct.get $Bignum $limbs (local.get $b)))
            (local.set $len (array.len (local.get $limbs)))
-           (local.set $out
-                      (array.new_default $I32Array (local.get $count)))
-
-           ;; A start beyond the source length leaves the zero-filled slice.
            (if (i32.ge_u (local.get $start) (local.get $len))
-               (then
-                (return
-                 (call $bignum-normalize (i32.const 1) (local.get $out)))))
+               (then (return (ref.i31 (i32.const 0)))))
 
-           ;; Copy only the source limbs that actually exist.
+           ;; Allocate only the source limbs that actually exist in the slice.
            (local.set $available
                       (i32.sub (local.get $len) (local.get $start)))
            (local.set $copy-len
@@ -1270,6 +1264,10 @@
                               (local.get $count)
                               (i32.lt_u (local.get $available)
                                         (local.get $count))))
+           (if (i32.eqz (local.get $copy-len))
+               (then (return (ref.i31 (i32.const 0)))))
+           (local.set $out
+                      (array.new_default $I32Array (local.get $copy-len)))
            (array.copy $I32Array $I32Array
                        (local.get $out)   (i32.const 0)
                        (local.get $limbs) (local.get $start)
