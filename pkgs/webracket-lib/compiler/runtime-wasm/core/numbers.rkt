@@ -2832,16 +2832,7 @@
                                           (global.get ,(string->symbol (format "$symbol:~a" name)))
                                           (local.get $x)) (unreachable)))
                           (local.set $f64 (,expr (local.get $f64)))
-                          (if (f64.gt (local.get $f64) (f64.const 1073741823.0))
-                              (then (call $raise-expected-rational
-                                          (global.get ,(string->symbol (format "$symbol:~a" name)))
-                                          (local.get $x)) (unreachable)))
-                          (if (f64.lt (local.get $f64) (f64.const -1073741824.0))
-                              (then (call $raise-expected-rational
-                                          (global.get ,(string->symbol (format "$symbol:~a" name)))
-                                          (local.get $x)) (unreachable)))
-                          (local.set $bits (i32.trunc_f64_s (local.get $f64)))
-                          (return (ref.i31 (i32.shl (local.get $bits) (i32.const 1))))))
+                          (return (call $f64->exact-rational (local.get $f64)))))
 
                      ;; Not a number
                      (call $raise-expected-rational
