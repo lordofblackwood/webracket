@@ -2783,41 +2783,46 @@
                        (i32.const 32))
                  (i32.sub (i32.const 32) (i32.clz (local.get $top)))))
 
-     ;; The square root is found by binary search. Keep an interval
-     ;; [low, high) such that low^2 <= n < high^2. Start with a power
+     ;; The square root is found by Newton iteration. Start with a power
      ;; of two that is above the square root:
      ;;
      ;;     bits  = bit length of n
-     ;;     high  = 2^ceil(bits/2)
+     ;;     x     = 2^ceil(bits/2)
      ;;
-     ;; Repeatedly test the midpoint:
+     ;; Repeatedly improve the estimate:
      ;;
-     ;;     mid = floor((low + high)/2)
+     ;;     x' = floor((x + floor(n/x))/2)
      ;;
-     ;; If mid^2 <= n, move low up to mid. Otherwise move high down to mid.
-     ;; When low and high are adjacent, low is floor(sqrt(n)).
+     ;; Starting above the root makes the sequence decrease. When the next
+     ;; estimate is not smaller, x is floor(sqrt(n)).
 
      ;; $integer-sqrt/exact : exact-nonnegative-integer? -> exact-nonnegative-integer?
-     ;;   Compute the exact floor square root by binary search.
+     ;;   Compute the exact floor square root by Newton iteration.
      (func $integer-sqrt/exact
            (param $n (ref eq))
            (result (ref eq))
 
            (local $bits  i32)
            (local $shift i32)
-           (local $low   (ref eq))
-           (local $high  (ref eq))
-           (local $mid   (ref eq))
+           (local $x     (ref eq))
+           (local $next  (ref eq))
+           (local $q     (ref eq))
            (local $sum   (ref eq))
-           (local $sq    (ref eq))
            (local $vals  (ref $Values))
 
-           ;; Initialize the binary-search interval [low, high).
-           (local.set $low  (ref.i31 (i32.const 0)))
-           (local.set $high (ref.i31 (i32.const 2)))
-           (local.set $mid  (ref.i31 (i32.const 0)))
+           ;; The square roots of 0 and 1 are themselves.
+           (if (i32.lt_s
+                (call $integer-compare/i32
+                      (local.get $n)
+                      (ref.i31 (i32.const 4)))
+                (i32.const 0))
+               (then (return (local.get $n))))
+
+           ;; Initialize x to the power of two just above sqrt(n).
+           (local.set $x    (ref.i31 (i32.const 2)))
+           (local.set $next (ref.i31 (i32.const 2)))
+           (local.set $q    (ref.i31 (i32.const 0)))
            (local.set $sum  (ref.i31 (i32.const 0)))
-           (local.set $sq   (ref.i31 (i32.const 0)))
            (local.set $bits (call $integer-nonnegative-bit-length/i32
                                   (local.get $n)))
            (local.set $shift
@@ -2826,42 +2831,39 @@
                              (local.get $bits)
                              (i32.const 1))
                        (i32.const 1)))
-           (local.set $high
+           (local.set $x
                       (call $u64-shl->integer
                             (i64.const 1)
                             (local.get $shift)))
 
-           ;; Narrow the interval until low is the greatest value with low^2 <= n.
+           ;; Decrease x until Newton's next estimate would stop decreasing.
            (block $done
                   (loop $loop
-                        (br_if $done
-                               (i32.ge_s (call $integer-compare/i32
-                                               (call $integer-add/2
-                                                     (local.get $low)
-                                                     (ref.i31 (i32.const 2)))
-                                               (local.get $high))
-                                         (i32.const 0)))
+                        (local.set $vals
+                                   (call $integer-divmod
+                                         (local.get $n)
+                                         (local.get $x)))
+                        (local.set $q
+                                   (array.get $Values
+                                              (local.get $vals)
+                                              (i32.const 0)))
                         (local.set $sum  (call $integer-add/2
-                                               (local.get $low)
-                                               (local.get $high)))
+                                               (local.get $x)
+                                               (local.get $q)))
                         (local.set $vals (call $integer-divmod
                                                (local.get $sum)
                                                (ref.i31 (i32.const 4))))
-                        (local.set $mid  (array.get $Values
+                        (local.set $next (array.get $Values
                                                     (local.get $vals)
                                                     (i32.const 0)))
-                        (local.set $sq   (call $integer-mul/2
-                                               (local.get $mid)
-                                               (local.get $mid)))
-                        (if (i32.le_s
-                             (call $integer-compare/i32
-                                   (local.get $sq)
-                                   (local.get $n))
-                             (i32.const 0))
-                            (then (local.set $low (local.get $mid)))
-                            (else (local.set $high (local.get $mid))))
+                        (br_if $done
+                               (i32.ge_s (call $integer-compare/i32
+                                               (local.get $next)
+                                               (local.get $x))
+                                         (i32.const 0)))
+                        (local.set $x (local.get $next))
                         (br $loop)))
-           (local.get $low))
+           (local.get $x))
 
      ;; $integer-sqrt/remainder/exact : exact-nonnegative-integer? -> values
      ;;   Return integer square root and exact remainder.
