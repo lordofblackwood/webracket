@@ -1,10 +1,57 @@
 #lang racket
 
+;;;
+;;; Bignums
+;;;
+
+;; This file implements bignums.
+;;
+;; Bignums are represented as
+;;
+;;   (type $Bignum (sub $Real
+;;                     (struct
+;;                       (field $hash  (mut i32))
+;;                       (field $sign  i32)
+;;                       (field $limbs (ref $I32Array)))))
+;;
+;;
+;; That is, like other boxed numbers bignums have a:
+;;   - hash code
+;;   - a sign (+1 or -1)
+;;   - some limbs, an array of 32 bit numbers
+;;
+;; Limbs are unsigned base-2^32 words in little-endian order.
+;; The limbs can not all be zero.
+;; Zero and values in the WebRacket fixnum range are represented as fixnums.
+
+;; This file is all about the exact integers. Covered here:
+;;   - arithmetic
+;;   - multiplication algorithms (schoolbook, Karatsuba, Toom 3)
+;;   - division
+;;   - comparison
+;;   - conversion
+;;   - hashing
+;;   - printing
+
 (provide bignum-core-runtime-helpers
          bignum-core-runtime-helper-forms
          bignum-runtime-only-helpers)
 
 (require "../core-helper.rkt")
+
+;;;
+;;; Thresholds for the multiplication algorithms
+;;;
+
+;; Since we have multiple multiplication algorithms, we need a policy for
+;; choosing an algorithm. Our policy is based on the number of limbs.
+;; For small numbers, we use the schoolbook algorithm,
+;; and for large numbers Karatsuba. Currently, Toom-3 is disabled
+;; since it requires a very large number of limbs before it becomes
+;; the fastest (in clock time).
+
+;; While tuning (finding thresholds), we read thresholds from
+;; environment variables.
 
 ;; read-bignum-threshold : string? exact-positive-integer? -> exact-positive-integer?
 ;;   Read a private compile-time multiplication tuning threshold.
@@ -26,18 +73,24 @@
 ;; The current WebRacket measurements select Karatsuba at 128 limbs and keep
 ;; Toom-3 disabled: its generic evaluation/interpolation allocation overhead
 ;; does not repay itself through 16384 limbs without a workspace implementation.
+;; The measurement tool is in tools/.
+
 (define bignum-mul-karatsuba-threshold
   (read-bignum-threshold "WEBRACKET_BIGNUM_MUL_KARATSUBA_THRESHOLD" 128))
 (define bignum-mul-toom3-threshold
-  (read-bignum-threshold "WEBRACKET_BIGNUM_MUL_TOOM3_THRESHOLD" 2147483647))
+  (read-bignum-threshold "WEBRACKET_BIGNUM_MUL_TOOM3_THRESHOLD" 2147483647)) ; disabled
 (define bignum-sqr-basecase-threshold
   (read-bignum-threshold "WEBRACKET_BIGNUM_SQR_BASECASE_THRESHOLD" 128))
 (define bignum-sqr-karatsuba-threshold
   (read-bignum-threshold "WEBRACKET_BIGNUM_SQR_KARATSUBA_THRESHOLD" 128))
 (define bignum-sqr-toom3-threshold
-  (read-bignum-threshold "WEBRACKET_BIGNUM_SQR_TOOM3_THRESHOLD" 2147483647))
+  (read-bignum-threshold "WEBRACKET_BIGNUM_SQR_TOOM3_THRESHOLD" 2147483647)) ; disabled
 (define bignum-mul-max-balance-ratio
   (read-bignum-threshold "WEBRACKET_BIGNUM_MUL_MAX_BALANCE_RATIO" 2))
+
+;;;
+;;; Runtime Helper Forms
+;;;
 
 ;; bignum-core-runtime-helpers : (listof core-runtime-helper?)
 ;;   Runtime support for exact integers outside the i31 fixnum range.
@@ -45,8 +98,16 @@
   (function-forms->runtime-helpers
    'bignum-core-runtime-helpers
    `(
+     ;;;
+     ;;; Canonical Representation
+     ;;;
+
      ;; $integer-from-i64 : i64 -> exact-integer?
      ;;   Build a canonical exact integer from a signed 64-bit value.
+     ;;   Canonical means: use a WebRacket fixnum when possible, otherwise
+     ;;   use a normalized bignum with sign plus little-endian limbs.
+     ;;   Normalized means: no zero bignum, no fixnum-range bignum, and no
+     ;;   leading zero limbs.
      (func $integer-from-i64
            (param $v i64)
            (result (ref eq))
@@ -56,6 +117,7 @@
            (local $low  i32)
            (local $high i32)
 
+           ;; Values in [-2^29, 2^29-1] fit WebRacket's tagged i31 fixnum range.
            (if (i32.and
                 (i64.ge_s (local.get $v) (i64.const -536870912))
                 (i64.le_s (local.get $v) (i64.const  536870911)))
@@ -64,6 +126,7 @@
                  (ref.i31
                   (i32.shl (i32.wrap_i64 (local.get $v)) (i32.const 1))))))
 
+           ;; Record the sign as +/-1 and work with the absolute magnitude.
            (if (i64.lt_s (local.get $v) (i64.const 0))
                (then
                 (local.set $sign (i32.const -1))
@@ -71,15 +134,21 @@
                (else
                 (local.set $sign (i32.const 1))
                 (local.set $abs (local.get $v))))
+
+           ;; Split the absolute 64-bit magnitude into low and high 32-bit limbs.
            (local.set $low (i32.wrap_i64 (local.get $abs)))
            (local.set $high (i32.wrap_i64
                              (i64.shr_u (local.get $abs) (i64.const 32))))
+
+           ;; A zero high limb means the magnitude fits in one 32-bit limb.
            (if (i32.eqz (local.get $high))
                (then
                 (return
                  (call $bignum-normalize
                        (local.get $sign)
                        (array.new_fixed $I32Array 1 (local.get $low))))))
+
+           ;; Otherwise normalize a two-limb little-endian bignum magnitude.
            (call $bignum-normalize
                  (local.get $sign)
                  (array.new_fixed $I32Array 2
@@ -98,6 +167,7 @@
            (local $limb       i32)
            (local $trimmed    (ref $I32Array))
 
+           ;; Start with the full limb array and trim from the high end.
            (local.set $len (array.len (local.get $limbs)))
            (local.set $active-len (local.get $len))
            (block $trim-done
@@ -114,9 +184,12 @@
                                                  (i32.const 1)))
                              (br $trim-loop))
                             (else (br $trim-done)))))
+
+           ;; An all-zero magnitude is canonically the fixnum zero.
            (if (i32.eqz (local.get $active-len))
                (then (return (ref.i31 (i32.const 0)))))
 
+           ;; One-limb magnitudes may fit the positive or negative fixnum range.
            (if (i32.eq (local.get $active-len) (i32.const 1))
                (then
                 (local.set $limb
@@ -137,6 +210,7 @@
                              (i32.sub (i32.const 0) (local.get $limb))
                              (i32.const 1))))))))))
 
+           ;; If no limbs were trimmed, reuse the original array in a bignum.
            (if (i32.eq (local.get $active-len) (local.get $len))
                (then
                 (return
@@ -146,6 +220,8 @@
                                      (i32.const -1)
                                      (i32.gt_s (local.get $sign) (i32.const 0)))
                              (local.get $limbs)))))
+
+           ;; Otherwise copy only the active limbs into the normalized bignum.
            (local.set $trimmed
                       (array.new_default $I32Array (local.get $active-len)))
            (array.copy $I32Array $I32Array
@@ -169,10 +245,13 @@
            (local $sign      i32)
            (local $magnitude i32)
 
+           ;; Decode the tagged i31 fixnum payload.
            (local.set $v
                       (i32.shr_s
                        (i31.get_s (ref.cast (ref i31) (local.get $x)))
                        (i32.const 1)))
+
+           ;; Separate the sign from the absolute one-limb magnitude.
            (if (i32.lt_s (local.get $v) (i32.const 0))
                (then
                 (local.set $sign (i32.const -1))
@@ -181,6 +260,8 @@
                (else
                 (local.set $sign (i32.const 1))
                 (local.set $magnitude (local.get $v))))
+
+           ;; Build a one-limb bignum directly; the input is known nonzero.
            (struct.new $Bignum
                        (i32.const 0)
                        (local.get $sign)
@@ -193,10 +274,15 @@
            (param $b (ref $Bignum))
            (result (ref eq))
 
+           ;; Flip the sign and normalize so the result collapses if needed.
            (call $bignum-normalize
                  (i32.sub (i32.const 0)
                           (struct.get $Bignum $sign (local.get $b)))
                  (struct.get $Bignum $limbs (local.get $b))))
+
+     ;;;
+     ;;; Magnitude Arithmetic
+     ;;;
 
      ;; $bignum-magnitude-compare/i32 : i32-array? i32-array? -> integer?
      ;;   Compare unsigned little-endian limb arrays, returning -1, 0, or 1.
@@ -211,12 +297,15 @@
            (local $av    i32)
            (local $bv    i32)
 
+           ;; Magnitudes with fewer active limbs are smaller.
            (local.set $a-len (array.len (local.get $a)))
            (local.set $b-len (array.len (local.get $b)))
            (if (i32.lt_u (local.get $a-len) (local.get $b-len))
                (then (return (i32.const -1))))
            (if (i32.gt_u (local.get $a-len) (local.get $b-len))
                (then (return (i32.const 1))))
+
+           ;; Equal-length magnitudes compare by scanning high limbs first.
            (local.set $i (local.get $a-len))
            (block $done
                   (loop $loop
@@ -255,6 +344,7 @@
            (local $acc i64)
            (local $carry i64)
 
+           ;; Allocate one extra output limb for a possible final carry.
            (local.set $a-len (array.len (local.get $a)))
            (local.set $b-len (array.len (local.get $b)))
            (local.set $max-len
@@ -266,6 +356,8 @@
                       (array.new_default
                        $I32Array
                        (i32.add (local.get $max-len) (i32.const 1))))
+
+           ;; Add matching limbs plus carry in base 2^32.
            (block $done
                   (loop $loop
                         (br_if $done
@@ -297,6 +389,8 @@
                                    (i64.shr_u (local.get $acc) (i64.const 32)))
                         (local.set $i (i32.add (local.get $i) (i32.const 1)))
                         (br $loop)))
+
+           ;; Store the final carry in the extra high limb.
            (array.set $I32Array
                       (local.get $out)
                       (local.get $max-len)
@@ -317,9 +411,12 @@
            (local $acc i64)
            (local $borrow i64)
 
+           ;; The caller guarantees a >= b, so the output length is a's length.
            (local.set $a-len (array.len (local.get $a)))
            (local.set $b-len (array.len (local.get $b)))
            (local.set $out (array.new_default $I32Array (local.get $a-len)))
+
+           ;; Subtract matching limbs in base 2^32 while propagating borrow.
            (block $done
                   (loop $loop
                         (br_if $done
@@ -367,6 +464,7 @@
            (local $b-limbs (ref $I32Array))
            (local $cmp i32)
 
+           ;; Addition with equal signs is unsigned magnitude addition.
            (local.set $a-limbs (struct.get $Bignum $limbs (local.get $a)))
            (local.set $b-limbs (struct.get $Bignum $limbs (local.get $b)))
            (if (i32.eq (struct.get $Bignum $sign (local.get $a))
@@ -378,12 +476,18 @@
                        (call $bignum-add-magnitudes
                              (local.get $a-limbs)
                              (local.get $b-limbs))))))
+
+           ;; Opposite signs subtract the smaller magnitude from the larger.
            (local.set $cmp
                       (call $bignum-magnitude-compare/i32
                             (local.get $a-limbs)
                             (local.get $b-limbs)))
+
+           ;; Equal magnitudes with opposite signs cancel to fixnum zero.
            (if (i32.eqz (local.get $cmp))
                (then (return (ref.i31 (i32.const 0)))))
+
+           ;; The larger magnitude determines the result sign.
            (if (result (ref eq))
                (i32.gt_s (local.get $cmp) (i32.const 0))
                (then
@@ -410,6 +514,7 @@
            (local $b-limbs (ref $I32Array))
            (local $cmp i32)
 
+           ;; Subtraction with opposite signs is unsigned magnitude addition.
            (local.set $a-limbs (struct.get $Bignum $limbs (local.get $a)))
            (local.set $b-limbs (struct.get $Bignum $limbs (local.get $b)))
            (if (i32.ne (struct.get $Bignum $sign (local.get $a))
@@ -421,12 +526,18 @@
                        (call $bignum-add-magnitudes
                              (local.get $a-limbs)
                              (local.get $b-limbs))))))
+
+           ;; Equal signs subtract the smaller magnitude from the larger.
            (local.set $cmp
                       (call $bignum-magnitude-compare/i32
                             (local.get $a-limbs)
                             (local.get $b-limbs)))
+
+           ;; Equal magnitudes cancel to fixnum zero.
            (if (i32.eqz (local.get $cmp))
                (then (return (ref.i31 (i32.const 0)))))
+
+           ;; The sign is either a's sign or its negation depending on magnitude order.
            (if (result (ref eq))
                (i32.gt_s (local.get $cmp) (i32.const 0))
                (then
@@ -454,6 +565,7 @@
            (local $b-sign i32)
            (local $cmp i32)
 
+           ;; Different signs determine the result without looking at limbs.
            (local.set $a-sign (struct.get $Bignum $sign (local.get $a)))
            (local.set $b-sign (struct.get $Bignum $sign (local.get $b)))
            (if (i32.ne (local.get $a-sign) (local.get $b-sign))
@@ -463,6 +575,8 @@
                          (i32.const -1)
                          (i32.gt_s (local.get $a-sign)
                                    (local.get $b-sign))))))
+
+           ;; Equal signs compare magnitudes, reversing the order for negatives.
            (local.set $cmp
                       (call $bignum-magnitude-compare/i32
                             (struct.get $Bignum $limbs (local.get $a))
@@ -471,6 +585,10 @@
                (i32.gt_s (local.get $a-sign) (i32.const 0))
                (then (local.get $cmp))
                (else (i32.sub (i32.const 0) (local.get $cmp)))))
+
+     ;;;
+     ;;; Schoolbook Multiplication
+     ;;;
 
      ;; $bignum-mul-u32 : bignum? i32 i32 -> exact-integer?
      ;;   Multiply a bignum magnitude by an unsigned 32-bit limb and apply sign.
@@ -487,14 +605,19 @@
            (local $acc   i64)
            (local $carry i64)
 
+           ;; Multiplication by zero canonically returns the fixnum zero.
            (if (i32.eqz (local.get $m))
                (then (return (ref.i31 (i32.const 0)))))
+
+           ;; Allocate one extra high limb for the final carry.
            (local.set $limbs (struct.get $Bignum $limbs (local.get $b)))
            (local.set $len (array.len (local.get $limbs)))
            (local.set $out
                       (array.new_default
                        $I32Array
                        (i32.add (local.get $len) (i32.const 1))))
+
+           ;; Multiply each limb by m and add the carry from the previous limb.
            (block $done
                   (loop $loop
                         (br_if $done
@@ -518,6 +641,8 @@
                         (local.set $i
                                    (i32.add (local.get $i) (i32.const 1)))
                         (br $loop)))
+
+           ;; Store the final carry and normalize under the requested sign.
            (array.set $I32Array
                       (local.get $out)
                       (local.get $len)
@@ -544,12 +669,15 @@
            (local $acc    i64)
            (local $carry  i64)
 
+           ;; A square of n limbs has at most 2n limbs.
            (local.set $limbs (struct.get $Bignum $limbs (local.get $b)))
            (local.set $len (array.len (local.get $limbs)))
            (local.set $out
                       (array.new_default
                        $I32Array
                        (i32.mul (local.get $len) (i32.const 2))))
+
+           ;; For each nonzero limb, add its diagonal square and off-diagonal doubles.
            (block $outer-done
                   (loop $outer
                         (br_if $outer-done
@@ -564,6 +692,7 @@
                                         (i32.add (local.get $i)
                                                  (i32.const 1)))
                              (br $outer)))
+                        ;; Add ai^2 at output position 2i.
                         (local.set $prod
                                    (i64.mul
                                     (i64.extend_i32_u (local.get $ai))
@@ -588,6 +717,8 @@
                                     (i64.shr_u (local.get $acc) (i64.const 32))))
                         (local.set $pos
                                    (i32.add (local.get $pos) (i32.const 1)))
+
+                        ;; Propagate the diagonal carry through following limbs.
                         (block $diag-carry-done
                                (loop $diag-carry-loop
                                      (br_if $diag-carry-done
@@ -613,6 +744,8 @@
                         (local.set $j
                                    (i32.add (local.get $i) (i32.const 1)))
                         (local.set $carry (i64.const 0))
+
+                        ;; Add each off-diagonal product twice, because ai*aj and aj*ai match.
                         (block $inner-done
                                (loop $inner
                                      (br_if $inner-done
@@ -674,6 +807,8 @@
                         (local.set $pos
                                    (i32.add (local.get $i)
                                             (local.get $len)))
+
+                        ;; Propagate any remaining cross-product carry.
                         (block $cross-carry-done
                                (loop $cross-carry-loop
                                      (br_if $cross-carry-done
@@ -703,9 +838,15 @@
                         (local.set $i
                                    (i32.add (local.get $i) (i32.const 1)))
                         (br $outer)))
+
+           ;; Squaring a magnitude is nonnegative; normalize the output limbs.
            (call $bignum-normalize
                  (i32.const 1)
                  (local.get $out)))
+
+     ;;;
+     ;;; Shifts and Limb Slices
+     ;;;
 
      ;; $bignum-power-of-two-shift/i32 : bignum? -> integer?
      ;;   Return k for a magnitude of 2^k, or -1 when the magnitude is not a power of two.
@@ -720,6 +861,7 @@
            (local $seen  i32)
            (local $shift i32)
 
+           ;; Scan limbs looking for exactly one set bit across the magnitude.
            (local.set $limbs (struct.get $Bignum $limbs (local.get $b)))
            (local.set $len (array.len (local.get $limbs)))
            (local.set $shift (i32.const -1))
@@ -731,6 +873,8 @@
                                    (array.get $I32Array
                                               (local.get $limbs)
                                               (local.get $i)))
+
+                        ;; A nonzero limb must itself be a power of two.
                         (if (i32.ne (local.get $limb) (i32.const 0))
                             (then
                              (if (local.get $seen)
@@ -769,6 +913,7 @@
            (local $acc        i64)
            (local $carry      i64)
 
+           ;; Split the bit count into a whole-limb shift and an intra-limb shift.
            (local.set $limbs (struct.get $Bignum $limbs (local.get $b)))
            (local.set $len (array.len (local.get $limbs)))
            (local.set $word-shift
@@ -781,6 +926,8 @@
                        (i32.add
                         (i32.add (local.get $len) (local.get $word-shift))
                         (i32.const 1))))
+
+           ;; Copy shifted limbs into their new positions while propagating carry.
            (block $done
                   (loop $loop
                         (br_if $done
@@ -807,6 +954,8 @@
                         (local.set $i
                                    (i32.add (local.get $i) (i32.const 1)))
                         (br $loop)))
+
+           ;; Store the final carry above the shifted source limbs.
            (array.set $I32Array
                       (local.get $out)
                       (i32.add (local.get $word-shift) (local.get $len))
@@ -823,15 +972,18 @@
            (param $sign  i32)
            (result (ref eq))
 
+           ;; Shift fixnum magnitudes via a 64-bit mantissa path.
            (if (ref.test (ref i31) (local.get $x))
                (then
                 (return
                  (call $integer-apply-sign
                        (call $u64-shl->integer
                              (i64.extend_i32_u
-                              (call $integer-abs-u32 (local.get $x)))
+                             (call $integer-abs-u32 (local.get $x)))
                              (local.get $shift))
                        (local.get $sign)))))
+
+           ;; Shift bignum magnitudes directly by limbs and bits.
            (call $bignum-shl-by-i32/sign
                  (ref.cast (ref $Bignum) (local.get $x))
                  (local.get $shift)
@@ -851,16 +1003,23 @@
            (local $copy-len  i32)
            (local $out       (ref $I32Array))
 
+           ;; An empty slice is the zero magnitude.
            (if (i32.eqz (local.get $count))
                (then (return (ref.i31 (i32.const 0)))))
+
+           ;; Allocate a zero-filled destination so out-of-range limbs read as zero.
            (local.set $limbs (struct.get $Bignum $limbs (local.get $b)))
            (local.set $len (array.len (local.get $limbs)))
            (local.set $out
                       (array.new_default $I32Array (local.get $count)))
+
+           ;; A start beyond the source length leaves the zero-filled slice.
            (if (i32.ge_u (local.get $start) (local.get $len))
                (then
                 (return
                  (call $bignum-normalize (i32.const 1) (local.get $out)))))
+
+           ;; Copy only the source limbs that actually exist.
            (local.set $available
                       (i32.sub (local.get $len) (local.get $start)))
            (local.set $copy-len
@@ -881,8 +1040,11 @@
            (param $shift i32)
            (result (ref eq))
 
+           ;; Shifting zero preserves the existing canonical zero value.
            (if (call $integer-zero?/i32 (local.get $x))
                (then (return (local.get $x))))
+
+           ;; Otherwise shift the magnitude and reapply the original sign.
            (call $integer-shl-by-i32/sign
                  (local.get $x)
                  (local.get $shift)
@@ -899,6 +1061,7 @@
            (local $q    (ref eq))
            (local $r    (ref eq))
 
+           ;; Use integer division by the tagged fixnum d.
            (local.set $vals
                       (call $integer-divmod
                             (local.get $n)
@@ -906,9 +1069,15 @@
                              (i32.shl (local.get $d) (i32.const 1)))))
            (local.set $q (array.get $Values (local.get $vals) (i32.const 0)))
            (local.set $r (array.get $Values (local.get $vals) (i32.const 1)))
+
+           ;; The caller promises exact divisibility; a remainder is an internal bug.
            (if (i32.eqz (call $integer-zero?/i32 (local.get $r)))
                (then (unreachable)))
            (local.get $q))
+
+     ;;;
+     ;;; Karatsuba Multiplication
+     ;;;
 
      ;; $bignum-mul-karatsuba-magnitude : bignum? bignum? -> exact-nonnegative-integer?
      ;;   Multiply magnitudes with the three-product Karatsuba identity.
@@ -932,6 +1101,7 @@
            (local $mid    (ref eq))
            (local $result (ref eq))
 
+           ;; Split both operands at k limbs, where k is half the larger length.
            (local.set $a-len
                       (array.len
                        (struct.get $Bignum $limbs (local.get $a))))
@@ -961,6 +1131,8 @@
            (local.set $y1
                       (call $bignum-limb-slice
                             (local.get $b) (local.get $k) (local.get $k)))
+
+           ;; Compute z0, z2, and the difference product for Karatsuba's middle term.
            (local.set $z0
                       (call $integer-mul/2 (local.get $x0) (local.get $y0)))
            (local.set $z2
@@ -976,6 +1148,8 @@
                             (call $integer-add/2
                                   (local.get $z0) (local.get $z2))
                             (local.get $d)))
+
+           ;; Recombine z0 + mid*B + z2*B^2 where B is 2^(32*k).
            (local.set $result (local.get $z0))
            (local.set $result
                       (call $integer-add/2
@@ -1007,6 +1181,7 @@
            (local $mid    (ref eq))
            (local $result (ref eq))
 
+           ;; Split the operand at k limbs, where k is half the length.
            (local.set $len
                       (array.len
                        (struct.get $Bignum $limbs (local.get $b))))
@@ -1022,6 +1197,8 @@
            (local.set $x1
                       (call $bignum-limb-slice
                             (local.get $b) (local.get $k) (local.get $k)))
+
+           ;; Compute the low square, high square, and square of the difference.
            (local.set $z0
                       (call $integer-mul/2 (local.get $x0) (local.get $x0)))
            (local.set $z2
@@ -1037,6 +1214,8 @@
                             (call $integer-add/2
                                   (local.get $z0) (local.get $z2))
                             (local.get $d)))
+
+           ;; Recombine z0 + mid*B + z2*B^2 where B is 2^(32*k).
            (local.set $result (local.get $z0))
            (local.set $result
                       (call $integer-add/2
@@ -1050,6 +1229,10 @@
                                   (local.get $z2)
                                   (i32.mul (local.get $bits) (i32.const 2)))))
            (local.get $result))
+
+     ;;;
+     ;;; Toom-Cook Multiplication
+     ;;;
 
      ;; $bignum-mul-toom3-magnitude : bignum? bignum? -> exact-nonnegative-integer?
      ;;   Multiply magnitudes by evaluating and interpolating a three-way split.
@@ -1086,6 +1269,7 @@
            (local $t      (ref eq))
            (local $result (ref eq))
 
+           ;; Split both operands into three k-limb chunks.
            (local.set $a-len
                       (array.len
                        (struct.get $Bignum $limbs (local.get $a))))
@@ -1125,10 +1309,14 @@
                             (local.get $b)
                             (i32.mul (local.get $k) (i32.const 2))
                             (local.get $k)))
+
+           ;; Evaluate and multiply at 0 and infinity.
            (local.set $q0
                       (call $integer-mul/2 (local.get $x0) (local.get $y0)))
            (local.set $q4
                       (call $integer-mul/2 (local.get $x2) (local.get $y2)))
+
+           ;; Evaluate and multiply at 1.
            (local.set $p1
                       (call $integer-add/2
                             (call $integer-add/2
@@ -1141,6 +1329,8 @@
                                   (call $integer-add/2
                                         (local.get $y0) (local.get $y1))
                                   (local.get $y2))))
+
+           ;; Evaluate and multiply at -1.
            (local.set $pm1
                       (call $integer-add/2
                             (call $integer-sub/2
@@ -1153,6 +1343,8 @@
                                   (call $integer-sub/2
                                         (local.get $y0) (local.get $y1))
                                   (local.get $y2))))
+
+           ;; Evaluate and multiply at 2.
            (local.set $p2
                       (call $integer-add/2
                             (call $integer-add/2
@@ -1171,6 +1363,8 @@
                                               (local.get $y1) (i32.const 1)))
                                   (call $integer-shl-by-i32
                                         (local.get $y2) (i32.const 2)))))
+
+           ;; Remove the known q0 and q4 contributions from q(1) and q(-1).
            (local.set $s1
                       (call $integer-sub/2
                             (call $integer-sub/2
@@ -1181,16 +1375,22 @@
                             (call $integer-sub/2
                                   (local.get $qm1) (local.get $q0))
                             (local.get $q4)))
+
+           ;; Recover the even middle coefficient contribution.
            (local.set $w2
                       (call $integer-divexact-by-i32
                             (call $integer-add/2
                                   (local.get $s1) (local.get $sm1))
                             (i32.const 2)))
+
+           ;; Recover w1 + w3 from the odd part.
            (local.set $odd
                       (call $integer-divexact-by-i32
                             (call $integer-sub/2
                                   (local.get $s1) (local.get $sm1))
                             (i32.const 2)))
+
+           ;; Use q(2) to isolate the remaining cubic contribution.
            (local.set $t
                       (call $integer-divexact-by-i32
                             (call $integer-sub/2
@@ -1210,6 +1410,8 @@
            (local.set $w1
                       (call $integer-sub/2
                             (local.get $odd) (local.get $w3)))
+
+           ;; Recombine q0 + w1*B + w2*B^2 + w3*B^3 + q4*B^4.
            (local.set $result (local.get $q0))
            (local.set $result
                       (call $integer-add/2
@@ -1234,6 +1436,10 @@
                        (local.get $q4)
                        (i32.mul (local.get $bits) (i32.const 4)))))
 
+     ;;;
+     ;;; Multiplication Dispatch
+     ;;;
+
      ;; $bignum-square : bignum? -> exact-nonnegative-integer?
      ;;   Select the tuned square algorithm for a bignum magnitude.
      (func $bignum-square
@@ -1242,6 +1448,7 @@
 
            (local $len i32)
 
+           ;; Select the square algorithm by tuned limb thresholds.
            (local.set $len
                       (array.len
                        (struct.get $Bignum $limbs (local.get $b))))
@@ -1286,6 +1493,7 @@
            (local $acc i64)
            (local $carry i64)
 
+           ;; Load limb arrays and derive operand sizes and result sign.
            (local.set $a-limbs (struct.get $Bignum $limbs (local.get $a)))
            (local.set $b-limbs (struct.get $Bignum $limbs (local.get $b)))
            (local.set $a-len (array.len (local.get $a-limbs)))
@@ -1305,6 +1513,8 @@
                               (i32.const -1)
                               (i32.eq (struct.get $Bignum $sign (local.get $a))
                                       (struct.get $Bignum $sign (local.get $b)))))
+
+           ;; A one-limb operand uses the specialized bignum-by-u32 path.
            (if (i32.eq (local.get $a-len) (i32.const 1))
                (then
                 (return
@@ -1323,6 +1533,8 @@
 	                                  (local.get $b-limbs)
 	                                  (i32.const 0))
 	                       (local.get $sign)))))
+
+           ;; Multiplication by a power of two is a signed left shift.
            (local.set $shift (call $bignum-power-of-two-shift/i32
                                    (local.get $a)))
            (if (i32.ge_s (local.get $shift) (i32.const 0))
@@ -1341,6 +1553,7 @@
                        (local.get $a)
                        (local.get $shift)
                        (local.get $sign)))))
+
            ;; Smaller equal operands are not consistently faster with the
            ;; square-specific carry bookkeeping.
            (if (i32.and
@@ -1382,6 +1595,8 @@
                        (call $bignum-mul-karatsuba-magnitude
                              (local.get $a) (local.get $b))
                        (local.get $sign)))))
+
+           ;; Schoolbook multiplication iterates with the smaller operand outside.
            (local.set $small-limbs (local.get $a-limbs))
            (local.set $small-len   (local.get $a-len))
            (local.set $large-limbs (local.get $b-limbs))
@@ -1396,6 +1611,8 @@
                       (i32.add (local.get $small-len)
                                (local.get $large-len)))
            (local.set $out (array.new_default $I32Array (local.get $out-len)))
+
+           ;; Add each scaled row of the multiplication table into the output.
            (block $outer-done
                   (loop $outer
                         (br_if $outer-done
@@ -1456,6 +1673,8 @@
                                      (br $inner)))
                         (local.set $pos
                                    (i32.add (local.get $i) (local.get $large-len)))
+
+                        ;; Propagate the row carry above the last large-operand limb.
                         (block $carry-done
                                (loop $carry-loop
                                      (br_if $carry-done (i64.eqz (local.get $carry)))
@@ -1479,7 +1698,13 @@
                                      (br $carry-loop)))
                         (local.set $i (i32.add (local.get $i) (i32.const 1)))
                         (br $outer)))
+
+           ;; Normalize the accumulated product with the computed sign.
            (call $bignum-normalize (local.get $sign) (local.get $out)))
+
+     ;;;
+     ;;; Exact Integer Arithmetic
+     ;;;
 
      ;; $integer-add/2 : exact-integer? exact-integer? -> exact-integer?
      ;;   Add exact integers, promoting fixnum overflow to bignums.
@@ -1491,6 +1716,7 @@
            (local $xv i64)
            (local $yv i64)
 
+           ;; Fixnum plus fixnum uses i64 arithmetic so overflow can promote cleanly.
            (if (ref.test (ref i31) (local.get $x))
                (then
                 (if (ref.test (ref i31) (local.get $y))
@@ -1513,10 +1739,14 @@
                 (if (i32.eqz
                      (i31.get_s (ref.cast (ref i31) (local.get $x))))
                     (then (return (local.get $y))))
+
+                ;; Nonzero fixnum plus bignum promotes the fixnum to one limb.
                 (return
                  (call $bignum-add
                        (call $nonzero-fixnum->bignum (local.get $x))
                        (ref.cast (ref $Bignum) (local.get $y))))))
+
+           ;; Bignum plus fixnum handles zero as an identity and otherwise promotes.
            (if (ref.test (ref i31) (local.get $y))
                (then
                 (if (i32.eqz
@@ -1526,6 +1756,8 @@
                  (call $bignum-add
                        (ref.cast (ref $Bignum) (local.get $x))
                        (call $nonzero-fixnum->bignum (local.get $y))))))
+
+           ;; Bignum plus bignum delegates to the signed bignum helper.
            (call $bignum-add
                  (ref.cast (ref $Bignum) (local.get $x))
                  (ref.cast (ref $Bignum) (local.get $y))))
@@ -1540,6 +1772,7 @@
            (local $xv i64)
            (local $yv i64)
 
+           ;; Fixnum minus fixnum uses i64 arithmetic so overflow can promote cleanly.
            (if (ref.test (ref i31) (local.get $x))
                (then
                 (if (ref.test (ref i31) (local.get $y))
@@ -1565,10 +1798,14 @@
                      (return
                       (call $bignum-negate
                             (ref.cast (ref $Bignum) (local.get $y))))))
+
+                ;; Nonzero fixnum minus bignum promotes the fixnum to one limb.
                 (return
                  (call $bignum-sub
                        (call $nonzero-fixnum->bignum (local.get $x))
                        (ref.cast (ref $Bignum) (local.get $y))))))
+
+           ;; Bignum minus fixnum handles zero as an identity and otherwise promotes.
            (if (ref.test (ref i31) (local.get $y))
                (then
                 (if (i32.eqz
@@ -1578,6 +1815,8 @@
                  (call $bignum-sub
                        (ref.cast (ref $Bignum) (local.get $x))
                        (call $nonzero-fixnum->bignum (local.get $y))))))
+
+           ;; Bignum minus bignum delegates to the signed bignum helper.
            (call $bignum-sub
                  (ref.cast (ref $Bignum) (local.get $x))
                  (ref.cast (ref $Bignum) (local.get $y))))
@@ -1594,11 +1833,14 @@
            (local $sign i32)
            (local $shift i32)
 
+           ;; A zero fixnum operand makes the whole product fixnum zero.
            (if (ref.test (ref i31) (local.get $x))
                (then
                 (if (i32.eqz
                      (i31.get_s (ref.cast (ref i31) (local.get $x))))
                     (then (return (ref.i31 (i32.const 0)))))
+
+                ;; Fixnum times fixnum uses i64 arithmetic so overflow can promote cleanly.
                 (if (ref.test (ref i31) (local.get $y))
                     (then
                      (local.set $xv
@@ -1614,8 +1856,10 @@
                                    (ref.cast (ref i31) (local.get $y)))
                                   (i32.const 1))))
                      (return
-                      (call $integer-from-i64
+                     (call $integer-from-i64
                             (i64.mul (local.get $xv) (local.get $yv))))))
+
+                ;; Fixnum times bignum uses a shift fast path for powers of two.
                 (local.set $sign
                            (select (i32.const 1)
                                    (i32.const -1)
@@ -1638,6 +1882,8 @@
                        (ref.cast (ref $Bignum) (local.get $y))
                        (call $integer-abs-u32 (local.get $x))
                        (local.get $sign)))))
+
+           ;; Bignum times fixnum mirrors the fixnum-times-bignum cases.
            (if (ref.test (ref i31) (local.get $y))
                (then
                 (if (i32.eqz
@@ -1665,9 +1911,15 @@
                        (ref.cast (ref $Bignum) (local.get $x))
                        (call $integer-abs-u32 (local.get $y))
                        (local.get $sign)))))
+
+           ;; Bignum times bignum uses the tuned multiplication dispatcher.
            (call $bignum-mul
                  (ref.cast (ref $Bignum) (local.get $x))
                  (ref.cast (ref $Bignum) (local.get $y))))
+
+     ;;;
+     ;;; Integer Utilities
+     ;;;
 
      ;; $integer-zero?/i32 : exact-integer? -> i32
      ;;   Return 1 when x is exact zero, otherwise 0.
@@ -1675,6 +1927,7 @@
            (param $x (ref eq))
            (result i32)
 
+           ;; Only the fixnum representation can be zero; bignums are nonzero.
            (if (ref.test (ref i31) (local.get $x))
                (then
                 (return
@@ -1691,6 +1944,7 @@
            (local $bits i32)
            (local $bn   (ref $Bignum))
 
+           ;; For fixnums, test the low value bit after untagging.
            (if (ref.test (ref i31) (local.get $x))
                (then
                 (local.set $bits
@@ -1700,6 +1954,8 @@
                 (return
                  (i32.eqz
                   (i32.and (local.get $bits) (i32.const 1))))))
+
+           ;; For bignums, evenness is determined by the low limb.
            (local.set $bn (ref.cast (ref $Bignum) (local.get $x)))
            (i32.eqz
             (i32.and
@@ -1716,6 +1972,7 @@
 
            (local $v i32)
 
+           ;; Fixnums need explicit zero handling before extracting +/-1.
            (if (ref.test (ref i31) (local.get $x))
                (then
                 (local.set $v
@@ -1728,6 +1985,8 @@
                  (select (i32.const 1)
                          (i32.const -1)
                          (i32.gt_s (local.get $v) (i32.const 0))))))
+
+           ;; Bignums store their sign directly.
            (struct.get $Bignum $sign (ref.cast (ref $Bignum) (local.get $x))))
 
      ;; $integer-abs-u32 : exact-integer? -> i32
@@ -1738,6 +1997,7 @@
 
            (local $v i32)
 
+           ;; For fixnums, decode and conditionally negate the signed payload.
            (if (ref.test (ref i31) (local.get $x))
                (then
                 (local.set $v
@@ -1748,6 +2008,8 @@
                  (select (i32.sub (i32.const 0) (local.get $v))
                          (local.get $v)
                          (i32.lt_s (local.get $v) (i32.const 0))))))
+
+           ;; The caller only asks this for one-limb bignums.
            (array.get $I32Array
                       (struct.get $Bignum $limbs
                                   (ref.cast (ref $Bignum) (local.get $x)))
@@ -1759,8 +2021,11 @@
            (param $x (ref eq))
            (result i32)
 
+           ;; Every fixnum magnitude fits in one unsigned 32-bit limb.
            (if (ref.test (ref i31) (local.get $x))
                (then (return (i32.const 1))))
+
+           ;; Bignums are single-limb exactly when their limb array length is one.
            (i32.eq
             (array.len
              (struct.get $Bignum $limbs
@@ -1780,6 +2045,7 @@
            (local $len   i32)
            (local $limb  i32)
 
+           ;; Decode a nonnegative fixnum, rejecting immediates and negatives.
            (if (ref.test (ref i31) (local.get $x))
                (then
                 (local.set $bits (i31.get_s (ref.cast (ref i31) (local.get $x))))
@@ -1790,12 +2056,15 @@
                     (then (return (i32.const -1))))
                 (return (local.get $idx))))
 
+           ;; Non-bignum values and negative bignums fail the contract.
            (if (i32.eqz (ref.test (ref $Bignum) (local.get $x)))
                (then (return (i32.const -1))))
            (local.set $bn (ref.cast (ref $Bignum) (local.get $x)))
            (if (i32.lt_s (struct.get $Bignum $sign (local.get $bn))
                          (i32.const 0))
                (then (return (i32.const -1))))
+
+           ;; More than one limb, or one limb above INT32_MAX, saturates.
            (local.set $limbs (struct.get $Bignum $limbs (local.get $bn)))
            (local.set $len (array.len (local.get $limbs)))
            (if (i32.eqz (local.get $len))
@@ -1815,6 +2084,7 @@
            (param $sign i32)
            (result (ref eq))
 
+           ;; Negative signs negate fixnum magnitudes or rebuild bignums with sign -1.
            (if (i32.lt_s (local.get $sign) (i32.const 0))
                (then
                 (if (ref.test (ref i31) (local.get $mag))
@@ -1825,7 +2095,13 @@
                        (struct.get $Bignum $limbs
                                    (ref.cast (ref $Bignum)
                                              (local.get $mag)))))))
+
+           ;; Positive signs leave the nonnegative magnitude unchanged.
            (local.get $mag))
+
+     ;;;
+     ;;; Bitwise Arithmetic
+     ;;;
 
      ;; $integer-nonnegative-limb-count/i32 : exact-nonnegative-integer? -> i32
      ;;   Return the number of finite magnitude limbs needed for x.
@@ -1833,11 +2109,14 @@
            (param $x (ref eq))
            (result i32)
 
+           ;; Zero fixnums have no finite nonzero limbs; other fixnums have one.
            (if (ref.test (ref i31) (local.get $x))
                (then
                 (if (i32.eqz (i31.get_s (ref.cast (ref i31) (local.get $x))))
                     (then (return (i32.const 0))))
                 (return (i32.const 1))))
+
+           ;; Bignums expose their finite limb count directly.
            (array.len
             (struct.get $Bignum $limbs
                         (ref.cast (ref $Bignum) (local.get $x)))))
@@ -1851,6 +2130,7 @@
 
            (local $limbs (ref $I32Array))
 
+           ;; Fixnums contribute one low limb and implicit zeros above it.
            (if (ref.test (ref i31) (local.get $x))
                (then
                 (if (i32.eqz (local.get $i))
@@ -1858,8 +2138,10 @@
                      (return
                       (i32.shr_u
                        (i31.get_s (ref.cast (ref i31) (local.get $x)))
-                       (i32.const 1)))))
+                        (i32.const 1)))))
                 (return (i32.const 0))))
+
+           ;; Bignums return stored limbs in range and implicit zeros beyond them.
            (local.set $limbs
                       (struct.get $Bignum $limbs
                                   (ref.cast (ref $Bignum) (local.get $x))))
@@ -1884,6 +2166,7 @@
            (local $out     (ref $I32Array))
            (local $i       i32)
 
+           ;; AND only needs limbs present in both finite magnitudes.
            (local.set $x-len (call $integer-nonnegative-limb-count/i32
                                    (local.get $x)))
            (local.set $y-len (call $integer-nonnegative-limb-count/i32
@@ -1897,6 +2180,8 @@
                (then (return (ref.i31 (i32.const 0)))))
            (local.set $out (array.new_default $I32Array
                                               (local.get $out-len)))
+
+           ;; Combine each finite limb pair with bitwise AND.
            (block $done
                   (loop $loop
                         (br_if $done
@@ -1929,6 +2214,7 @@
            (local $out     (ref $I32Array))
            (local $i       i32)
 
+           ;; IOR needs limbs up to the larger finite magnitude.
            (local.set $x-len (call $integer-nonnegative-limb-count/i32
                                    (local.get $x)))
            (local.set $y-len (call $integer-nonnegative-limb-count/i32
@@ -1942,6 +2228,8 @@
                (then (return (ref.i31 (i32.const 0)))))
            (local.set $out (array.new_default $I32Array
                                               (local.get $out-len)))
+
+           ;; Combine each finite limb pair with bitwise inclusive-or.
            (block $done
                   (loop $loop
                         (br_if $done
@@ -1974,6 +2262,7 @@
            (local $out     (ref $I32Array))
            (local $i       i32)
 
+           ;; XOR needs limbs up to the larger finite magnitude.
            (local.set $x-len (call $integer-nonnegative-limb-count/i32
                                    (local.get $x)))
            (local.set $y-len (call $integer-nonnegative-limb-count/i32
@@ -1987,6 +2276,8 @@
                (then (return (ref.i31 (i32.const 0)))))
            (local.set $out (array.new_default $I32Array
                                               (local.get $out-len)))
+
+           ;; Combine each finite limb pair with bitwise exclusive-or.
            (block $done
                   (loop $loop
                         (br_if $done
@@ -2017,6 +2308,7 @@
            (local $out     (ref $I32Array))
            (local $i       i32)
 
+           ;; AND-NOT only needs limbs present in x's finite magnitude.
            (local.set $out-len
                       (call $integer-nonnegative-limb-count/i32
                             (local.get $x)))
@@ -2024,6 +2316,8 @@
                (then (return (ref.i31 (i32.const 0)))))
            (local.set $out (array.new_default $I32Array
                                               (local.get $out-len)))
+
+           ;; Combine x with the limbwise complement of y.
            (block $done
                   (loop $loop
                         (br_if $done
@@ -2051,6 +2345,7 @@
            (param $x (ref eq))
            (result (ref eq))
 
+           ;; In infinite two's-complement arithmetic, ~x is -1 - x.
            (call $integer-sub/2 (ref.i31 (i32.const -2)) (local.get $x)))
 
      ;; $integer-bitwise-and/2 : exact-integer? exact-integer? -> exact-integer?
@@ -2065,24 +2360,31 @@
            (local $xc     (ref eq))
            (local $yc     (ref eq))
 
+           ;; Track which operands are negative and preallocate complement slots.
            (local.set $xc (ref.i31 (i32.const 0)))
            (local.set $yc (ref.i31 (i32.const 0)))
            (local.set $x-neg? (i32.lt_s (call $integer-sign/i32 (local.get $x))
                                         (i32.const 0)))
            (local.set $y-neg? (i32.lt_s (call $integer-sign/i32 (local.get $y))
                                         (i32.const 0)))
+
+           ;; Nonnegative operands can use finite-limb AND directly.
            (if (i32.eqz (i32.or (local.get $x-neg?) (local.get $y-neg?)))
                (then
                 (return
                  (call $integer-bitwise-and/nonnegative
                        (local.get $x)
                        (local.get $y)))))
+
+           ;; Convert negative operands to complemented nonnegative magnitudes.
            (if (local.get $x-neg?)
                (then (local.set $xc (call $integer-bitwise-complement
                                           (local.get $x)))))
            (if (local.get $y-neg?)
                (then (local.set $yc (call $integer-bitwise-complement
                                           (local.get $y)))))
+
+           ;; Negative AND negative is the complement of finite OR of complements.
            (if (i32.and (local.get $x-neg?) (local.get $y-neg?))
                (then
                 (return
@@ -2090,6 +2392,8 @@
                        (call $integer-bitwise-ior/nonnegative
                              (local.get $xc)
                              (local.get $yc))))))
+
+           ;; Mixed signs use finite AND-NOT against the complemented negative.
            (if (local.get $x-neg?)
                (then
                 (return
@@ -2112,24 +2416,31 @@
            (local $xc     (ref eq))
            (local $yc     (ref eq))
 
+           ;; Track which operands are negative and preallocate complement slots.
            (local.set $xc (ref.i31 (i32.const 0)))
            (local.set $yc (ref.i31 (i32.const 0)))
            (local.set $x-neg? (i32.lt_s (call $integer-sign/i32 (local.get $x))
                                         (i32.const 0)))
            (local.set $y-neg? (i32.lt_s (call $integer-sign/i32 (local.get $y))
                                         (i32.const 0)))
+
+           ;; Nonnegative operands can use finite-limb IOR directly.
            (if (i32.eqz (i32.or (local.get $x-neg?) (local.get $y-neg?)))
                (then
                 (return
                  (call $integer-bitwise-ior/nonnegative
                        (local.get $x)
                        (local.get $y)))))
+
+           ;; Convert negative operands to complemented nonnegative magnitudes.
            (if (local.get $x-neg?)
                (then (local.set $xc (call $integer-bitwise-complement
                                           (local.get $x)))))
            (if (local.get $y-neg?)
                (then (local.set $yc (call $integer-bitwise-complement
                                           (local.get $y)))))
+
+           ;; Negative IOR negative is the complement of finite AND of complements.
            (if (i32.and (local.get $x-neg?) (local.get $y-neg?))
                (then
                 (return
@@ -2137,6 +2448,8 @@
                        (call $integer-bitwise-and/nonnegative
                              (local.get $xc)
                              (local.get $yc))))))
+
+           ;; Mixed signs are complements of finite AND-NOT cases.
            (if (local.get $x-neg?)
                (then
                 (return
@@ -2161,30 +2474,39 @@
            (local $xc     (ref eq))
            (local $yc     (ref eq))
 
+           ;; Track which operands are negative and preallocate complement slots.
            (local.set $xc (ref.i31 (i32.const 0)))
            (local.set $yc (ref.i31 (i32.const 0)))
            (local.set $x-neg? (i32.lt_s (call $integer-sign/i32 (local.get $x))
                                         (i32.const 0)))
            (local.set $y-neg? (i32.lt_s (call $integer-sign/i32 (local.get $y))
                                         (i32.const 0)))
+
+           ;; Nonnegative operands can use finite-limb XOR directly.
            (if (i32.eqz (i32.or (local.get $x-neg?) (local.get $y-neg?)))
                (then
                 (return
                  (call $integer-bitwise-xor/nonnegative
                        (local.get $x)
                        (local.get $y)))))
+
+           ;; Convert negative operands to complemented nonnegative magnitudes.
            (if (local.get $x-neg?)
                (then (local.set $xc (call $integer-bitwise-complement
                                           (local.get $x)))))
            (if (local.get $y-neg?)
                (then (local.set $yc (call $integer-bitwise-complement
                                           (local.get $y)))))
+
+           ;; Negative XOR negative is finite XOR of complements.
            (if (i32.and (local.get $x-neg?) (local.get $y-neg?))
                (then
                 (return
                  (call $integer-bitwise-xor/nonnegative
                        (local.get $xc)
                        (local.get $yc)))))
+
+           ;; Mixed signs are complements of finite XOR with the complemented negative.
            (if (local.get $x-neg?)
                (then
                 (return
@@ -2197,6 +2519,10 @@
                        (local.get $x)
                        (local.get $yc))))
 
+     ;;;
+     ;;; Integer Square Roots
+     ;;;
+
      ;; $integer-nonnegative-bit-length/i32 : exact-nonnegative-integer? -> i32
      ;;   Return the number of bits in x's finite magnitude.
      (func $integer-nonnegative-bit-length/i32
@@ -2208,6 +2534,7 @@
            (local $len   i32)
            (local $top   i32)
 
+           ;; Fixnum bit length is computed directly from the decoded payload.
            (if (ref.test (ref i31) (local.get $x))
                (then
                 (local.set $bits
@@ -2219,6 +2546,8 @@
                 (return
                  (i32.sub (i32.const 32)
                           (i32.clz (local.get $bits))))))
+
+           ;; Bignum bit length is 32 bits per lower limb plus the top limb width.
            (local.set $limbs
                       (struct.get $Bignum $limbs
                                   (ref.cast (ref $Bignum) (local.get $x))))
@@ -2247,6 +2576,7 @@
            (local $sq    (ref eq))
            (local $vals  (ref $Values))
 
+           ;; Initialize the binary-search interval [low, high).
            (local.set $low  (ref.i31 (i32.const 0)))
            (local.set $high (ref.i31 (i32.const 2)))
            (local.set $mid  (ref.i31 (i32.const 0)))
@@ -2262,6 +2592,8 @@
                       (call $u64-shl->integer
                             (i64.const 1)
                             (local.get $shift)))
+
+           ;; Narrow the interval until low is the greatest value with low^2 <= n.
            (block $done
                   (loop $loop
                         (br_if $done
@@ -2307,6 +2639,7 @@
            (local $s  (ref eq))
            (local $sq (ref eq))
 
+           ;; Compute s = floor(sqrt(n)), then return n - s^2 as the remainder.
            (local.set $s  (call $integer-sqrt/exact (local.get $n)))
            (local.set $sq (call $integer-mul/2
                                 (local.get $s)
@@ -2316,6 +2649,10 @@
                             (call $integer-sub/2
                                   (local.get $n)
                                   (local.get $sq))))
+
+     ;;;
+     ;;; Division
+     ;;;
 
      ;; $bignum-divmod-u32 : bignum? i32 -> values exact-integer? exact-integer?
      ;;   Divide a positive bignum magnitude by a nonzero unsigned 32-bit limb.
@@ -2331,6 +2668,7 @@
            (local $rem i64)
            (local $d64 i64)
 
+           ;; Divide from high limb to low, carrying the remainder as the next high word.
            (local.set $limbs (struct.get $Bignum $limbs (local.get $n)))
            (local.set $i (array.len (local.get $limbs)))
            (local.set $q-limbs (array.new_default $I32Array (local.get $i)))
@@ -2356,6 +2694,8 @@
                                    (i64.rem_u (local.get $cur)
                                               (local.get $d64)))
                         (br $loop)))
+
+           ;; Return normalized quotient and the final one-limb remainder.
            (array.new_fixed $Values 2
                             (call $bignum-normalize
                                   (i32.const 1)
@@ -2393,6 +2733,7 @@
            (local $sub i64)
            (local $borrow i64)
 
+           ;; Set up operand lengths and the maximum quotient length.
            (local.set $n-limbs (struct.get $Bignum $limbs (local.get $n)))
            (local.set $d-limbs (struct.get $Bignum $limbs (local.get $d)))
            (local.set $n-len (array.len (local.get $n-limbs)))
@@ -2402,6 +2743,7 @@
                        (i32.sub (local.get $n-len) (local.get $d-len))
                        (i32.const 1)))
 
+           ;; Normalize so the divisor's high limb has its top bit set.
            (local.set $shift
                       (i32.clz
                        (array.get $I32Array
@@ -2416,6 +2758,7 @@
            (local.set $q-limbs
                       (array.new_default $I32Array (local.get $q-len)))
 
+           ;; Shift the divisor magnitude left by shift bits.
            (local.set $carry (i64.const 0))
            (block $normalize-done-v
                   (loop $normalize-loop-v
@@ -2441,6 +2784,7 @@
                                    (i32.add (local.get $i) (i32.const 1)))
                         (br $normalize-loop-v)))
 
+           ;; Shift the dividend magnitude left by shift bits, with one guard limb.
            (local.set $i (i32.const 0))
            (local.set $carry (i64.const 0))
            (block $normalize-done-u
@@ -2471,6 +2815,7 @@
                       (local.get $n-len)
                       (i32.wrap_i64 (local.get $carry)))
 
+           ;; Process quotient digits from high to low.
            (local.set $v-high
                       (i64.extend_i32_u
                        (array.get $I32Array
@@ -2482,6 +2827,8 @@
                         (br_if $divide-done (i32.eqz (local.get $j)))
                         (local.set $j
                                    (i32.sub (local.get $j) (i32.const 1)))
+
+                        ;; Estimate qhat from the top two dividend limbs.
                         (local.set $numer
                                    (i64.or
                                     (i64.shl
@@ -2523,6 +2870,8 @@
                              (local.set $rhat
                                         (i64.rem_u (local.get $numer)
                                                    (local.get $v-high)))))
+
+                        ;; Refine qhat using the next divisor and dividend limbs.
                         (if (i32.gt_u (local.get $d-len) (i32.const 1))
                             (then
                              (block $qhat-ready
@@ -2569,6 +2918,7 @@
                                                   (i64.const 4294967296)))
                                           (br $qhat-loop)))))
 
+                        ;; Subtract qhat*v from the current dividend window.
                         (local.set $i (i32.const 0))
                         (local.set $carry (i64.const 0))
                         (local.set $borrow (i64.const 0))
@@ -2644,6 +2994,8 @@
                                    (i32.add (local.get $j)
                                             (local.get $d-len))
                                    (i32.wrap_i64 (local.get $sub)))
+
+                        ;; If qhat was one too high, decrement it and add v back.
                         (if (i64.lt_s (local.get $sub) (i64.const 0))
                             (then
                              (local.set $qhat
@@ -2658,10 +3010,10 @@
                                                            (local.get $d-len)))
                                           (local.set $acc
                                                      (i64.add
-                                                      (i64.add
-                                                       (i64.extend_i32_u
-                                                        (array.get
-                                                         $I32Array
+                                (i64.add
+                                 (i64.extend_i32_u
+                                  (array.get
+                                   $I32Array
                                                          (local.get $u)
                                                          (i32.add
                                                           (local.get $j)
@@ -2699,13 +3051,16 @@
                                   (local.get $u)
                                   (i32.add (local.get $j)
                                            (local.get $d-len))))
-                                (local.get $carry))))))
+                                 (local.get $carry))))))
+
+                        ;; Store the corrected quotient limb.
                         (array.set $I32Array
                                    (local.get $q-limbs)
                                    (local.get $j)
                                    (i32.wrap_i64 (local.get $qhat)))
                         (br $divide-loop)))
 
+           ;; Unnormalize the remaining dividend window to get the remainder.
            (local.set $r-limbs
                       (array.new_default $I32Array (local.get $d-len)))
            (if (i32.eqz (local.get $shift))
@@ -2779,12 +3134,15 @@
            (local $r (ref eq))
            (local $vals (ref $Values))
 
+           ;; Zero divided by anything yields zero quotient and zero remainder.
            (if (call $integer-zero?/i32 (local.get $n))
                (then
                 (return
                  (array.new_fixed $Values 2
                                   (ref.i31 (i32.const 0))
                                   (ref.i31 (i32.const 0))))))
+
+           ;; Compute quotient and remainder signs for truncating division.
            (local.set $n-sign (call $integer-sign/i32 (local.get $n)))
            (local.set $m-sign (call $integer-sign/i32 (local.get $m)))
            (local.set $q-sign
@@ -2794,6 +3152,7 @@
                                       (local.get $m-sign))))
            (local.set $d (call $integer-abs-u32 (local.get $m)))
 
+           ;; Fixnum dividends can divide in unsigned 64-bit arithmetic.
            (if (ref.test (ref i31) (local.get $n))
                (then
                 (local.set $nv
@@ -2818,6 +3177,7 @@
                                         (local.get $r)
                                         (local.get $n-sign))))))
 
+           ;; Bignum dividends divide by the single-limb magnitude helper.
            (local.set $vals
                       (call $bignum-divmod-u32
                             (ref.cast (ref $Bignum) (local.get $n))
@@ -2847,12 +3207,15 @@
            (local $r (ref eq))
            (local $vals (ref $Values))
 
+           ;; Zero divided by anything yields zero quotient and zero remainder.
            (if (call $integer-zero?/i32 (local.get $n))
                (then
                 (return
                  (array.new_fixed $Values 2
                                   (ref.i31 (i32.const 0))
                                   (ref.i31 (i32.const 0))))))
+
+           ;; Compute result signs and compare absolute magnitudes.
            (local.set $n-sign (call $integer-sign/i32 (local.get $n)))
            (local.set $m-sign (call $integer-sign/i32 (local.get $m)))
            (local.set $q-sign
@@ -2864,12 +3227,16 @@
                       (call $integer-compare/i32
                             (call $integer-abs (local.get $n))
                             (call $integer-abs (local.get $m))))
+
+           ;; A smaller dividend magnitude gives zero quotient and dividend remainder.
            (if (i32.lt_s (local.get $cmp) (i32.const 0))
                (then
                 (return
                  (array.new_fixed $Values 2
                                   (ref.i31 (i32.const 0))
                                   (local.get $n)))))
+
+           ;; Single-limb divisors use the small-divisor helper.
            (if (call $integer-single-limb?/i32 (local.get $m))
                (then
                 (return
@@ -2877,6 +3244,7 @@
                        (local.get $n)
                        (local.get $m)))))
 
+           ;; Otherwise divide positive bignum magnitudes and reapply signs.
            (local.set $vals
                       (call $bignum-divmod-magnitudes
                             (ref.cast (ref $Bignum)
@@ -2893,6 +3261,10 @@
                                   (local.get $r)
                                   (local.get $n-sign))))
 
+     ;;;
+     ;;; Integer Comparison
+     ;;;
+
      ;; $integer-compare/i32 : exact-integer? exact-integer? -> integer?
      ;;   Compare exact integers, returning -1, 0, or 1.
      (func $integer-compare/i32
@@ -2904,6 +3276,7 @@
            (local $yv i32)
            (local $yb (ref $Bignum))
 
+           ;; Fixnum-vs-fixnum comparison uses decoded signed payloads.
            (if (ref.test (ref i31) (local.get $x))
                (then
                 (local.set $xv
@@ -2926,6 +3299,8 @@
                                (i32.gt_s (local.get $xv) (local.get $yv))
                                (then (i32.const 1))
                                (else (i32.const 0))))))))
+
+                ;; Fixnum zero compares against bignum sign without boxing.
                 (local.set $yb (ref.cast (ref $Bignum) (local.get $y)))
                 (if (i32.eqz (local.get $xv))
                     (then
@@ -2935,11 +3310,14 @@
                                     (i32.const 0))
                           (then (i32.const -1))
                           (else (i32.const 1))))))
+
+                ;; Nonzero fixnums promote to one-limb bignums for mixed comparison.
                 (return
                  (call $bignum-compare/i32
                        (call $nonzero-fixnum->bignum (local.get $x))
                        (local.get $yb)))))
 
+           ;; Bignum-vs-fixnum mirrors the mixed comparison above.
            (if (ref.test (ref i31) (local.get $y))
                (then
                 (local.set $yv
@@ -2961,6 +3339,7 @@
                        (ref.cast (ref $Bignum) (local.get $x))
                        (call $nonzero-fixnum->bignum (local.get $y))))))
 
+           ;; Bignum-vs-bignum delegates to signed bignum comparison.
            (call $bignum-compare/i32
                  (ref.cast (ref $Bignum) (local.get $x))
                  (ref.cast (ref $Bignum) (local.get $y))))
@@ -2982,9 +3361,11 @@
            (local $acc        i64)
            (local $carry      i64)
 
+           ;; A zero mantissa shifted by any amount is canonical zero.
            (if (i64.eqz (local.get $m))
                (then (return (ref.i31 (i32.const 0)))))
 
+           ;; Split the mantissa and shift count into limbs and bit offset.
            (local.set $low  (i32.wrap_i64 (local.get $m)))
            (local.set $high (i32.wrap_i64
                              (i64.shr_u (local.get $m) (i64.const 32))))
@@ -2997,6 +3378,7 @@
                        $I32Array
                        (i32.add (local.get $word-shift) (i32.const 3))))
 
+           ;; Place the shifted low limb at the word-shifted position.
            (local.set $pos (local.get $word-shift))
            (local.set $acc
                       (i64.shl
@@ -3009,6 +3391,7 @@
            (local.set $carry
                       (i64.shr_u (local.get $acc) (i64.const 32)))
 
+           ;; Add the shifted high limb if present, then normalize.
            (local.set $pos (i32.add (local.get $pos) (i32.const 1)))
            (if (i32.eqz (local.get $high))
                (then
@@ -3051,9 +3434,11 @@
            (local $cmp       i32)
            (local $frac-mask i64)
 
+           ;; Any positive flonum below 1 is smaller than any nonzero integer magnitude.
            (if (f64.lt (local.get $y) (f64.const 1.0))
                (then (return (i32.const 1))))
 
+           ;; Decode the f64 exponent and significand bits.
            (local.set $bits (i64.reinterpret_f64 (local.get $y)))
            (local.set $exp
                       (i32.wrap_i64
@@ -3070,6 +3455,7 @@
            (local.set $shift
                       (i32.sub (local.get $exp) (i32.const 1075)))
 
+           ;; Nonnegative shifts make the flonum value an exact shifted integer.
            (if (i32.ge_s (local.get $shift) (i32.const 0))
                (then
                 (return
@@ -3079,6 +3465,7 @@
                              (local.get $mantissa)
                              (local.get $shift))))))
 
+           ;; Negative shifts compare against the integer floor of the flonum value.
            (local.set $d (i32.sub (i32.const 0) (local.get $shift)))
            (local.set $floor
                       (call $integer-from-i64
@@ -3091,6 +3478,8 @@
                             (local.get $floor)))
            (if (i32.ne (local.get $cmp) (i32.const 0))
                (then (return (local.get $cmp))))
+
+           ;; Equal floors need a fractional-bit check to distinguish equality.
            (local.set $frac-mask
                       (i64.sub
                        (i64.shl (i64.const 1)
@@ -3116,6 +3505,7 @@
            (local $y-sign i32)
            (local $cmp i32)
 
+           ;; Handle unordered NaN and infinities before exact comparison.
            (local.set $y (struct.get $Flonum $v (local.get $y/fl)))
            (if (f64.ne (local.get $y) (local.get $y))
                (then (return (i32.const 2))))
@@ -3130,6 +3520,7 @@
                        (local.get $x)
                        (ref.i31 (i32.const 0))))))
 
+           ;; Determine the exact integer sign from its representation.
            (if (ref.test (ref i31) (local.get $x))
                (then
                 (local.set $xv
@@ -3148,6 +3539,8 @@
                            (struct.get $Bignum $sign
                                        (ref.cast (ref $Bignum)
                                                  (local.get $x))))))
+
+           ;; Opposite signs determine the result without magnitude comparison.
            (local.set $y-sign
                       (select (i32.const 1)
                               (i32.const -1)
@@ -3166,6 +3559,7 @@
                          (i32.gt_s (local.get $x-sign)
                                    (local.get $y-sign))))))
 
+           ;; Equal signs compare absolute magnitudes and reverse for negatives.
            (local.set $cmp
                       (call $integer-flonum-abs-compare/i32
                             (local.get $x)
@@ -3175,12 +3569,17 @@
                (then (local.get $cmp))
                (else (i32.sub (i32.const 0) (local.get $cmp)))))
 
+     ;;;
+     ;;; Negation and Absolute Value
+     ;;;
+
      ;; $integer-negate : exact-integer? -> exact-integer?
      ;;   Return the additive inverse, promoting the most-negative fixnum.
      (func $integer-negate
            (param $x (ref eq))
            (result (ref eq))
 
+           ;; Negate fixnums through i64 so the most-negative fixnum can promote.
            (if (ref.test (ref i31) (local.get $x))
                (then
                 (return
@@ -3191,6 +3590,8 @@
                          (i32.shr_s
                           (i31.get_s (ref.cast (ref i31) (local.get $x)))
                           (i32.const 1))))))))
+
+           ;; Bignums negate by flipping their stored sign and normalizing.
            (call $bignum-negate (ref.cast (ref $Bignum) (local.get $x))))
 
      ;; $integer-abs : exact-integer? -> exact-integer?
@@ -3201,6 +3602,7 @@
 
            (local $v i32)
 
+           ;; Fixnum absolute value either returns x or its canonical negation.
            (if (ref.test (ref i31) (local.get $x))
                (then
                 (local.set $v
@@ -3210,6 +3612,8 @@
                 (if (i32.lt_s (local.get $v) (i32.const 0))
                     (then (return (call $integer-negate (local.get $x))))
                     (else (return (local.get $x))))))
+
+           ;; Negative bignums negate; nonnegative bignums are already absolute.
            (if (i32.lt_s
                 (struct.get $Bignum $sign
                             (ref.cast (ref $Bignum) (local.get $x)))
@@ -3219,6 +3623,10 @@
                  (call $bignum-negate
                        (ref.cast (ref $Bignum) (local.get $x))))))
            (local.get $x))
+
+     ;;;
+     ;;; Inexact Conversion
+     ;;;
 
      ;; $bignum->f64 : bignum? -> f64
      ;;   Convert an exact bignum to the nearest host f64 value.
@@ -3230,6 +3638,7 @@
            (local $i i32)
            (local $out f64)
 
+           ;; Accumulate limbs from high to low in base 2^32 as an f64.
            (local.set $limbs (struct.get $Bignum $limbs (local.get $b)))
            (local.set $i (array.len (local.get $limbs)))
            (block $done
@@ -3245,6 +3654,8 @@
                                                 (local.get $limbs)
                                                 (local.get $i)))))
                         (br $loop)))
+
+           ;; Apply the bignum sign after magnitude conversion.
            (if (result f64)
                (i32.lt_s (struct.get $Bignum $sign (local.get $b))
                          (i32.const 0))
@@ -3257,6 +3668,7 @@
            (param $x (ref eq))
            (result f64)
 
+           ;; Fixnums convert directly from their decoded signed payload.
            (if (ref.test (ref i31) (local.get $x))
                (then
                 (return
@@ -3264,7 +3676,13 @@
                   (i32.shr_s
                    (i31.get_s (ref.cast (ref i31) (local.get $x)))
                    (i32.const 1))))))
+
+           ;; Bignums convert by base-2^32 accumulation.
            (call $bignum->f64 (ref.cast (ref $Bignum) (local.get $x))))
+
+     ;;;
+     ;;; Equality and Hashing
+     ;;;
 
      ;; $bignum-eqv? : bignum? bignum? -> boolean?
      ;;   Compare canonical bignums by sign and unsigned little-endian limbs.
@@ -3278,6 +3696,7 @@
            (local $len i32)
            (local $i i32)
 
+           ;; Different signs or limb counts make canonical bignums unequal.
            (if (i32.ne (struct.get $Bignum $sign (local.get $a))
                        (struct.get $Bignum $sign (local.get $b)))
                (then (return (global.get $false))))
@@ -3286,6 +3705,8 @@
            (local.set $len (array.len (local.get $a-limbs)))
            (if (i32.ne (local.get $len) (array.len (local.get $b-limbs)))
                (then (return (global.get $false))))
+
+           ;; Equal signs and lengths compare each limb.
            (block $done
                   (loop $loop
                         (br_if $done (i32.ge_u (local.get $i) (local.get $len)))
@@ -3307,10 +3728,13 @@
            (local $i i32)
            (local $h i32)
 
+           ;; Seed the hash with FNV offset basis mixed with the sign.
            (local.set $limbs (struct.get $Bignum $limbs (local.get $b)))
            (local.set $len (array.len (local.get $limbs)))
            (local.set $h (i32.xor (i32.const 0x811c9dc5)
                                   (struct.get $Bignum $sign (local.get $b))))
+
+           ;; Mix each limb with a small Murmur-style rotate/multiply step.
            (block $done
                   (loop $loop
                         (br_if $done (i32.ge_u (local.get $i) (local.get $len)))
@@ -3326,10 +3750,16 @@
                                     (i32.const 0x1b873593)))
                         (local.set $i (i32.add (local.get $i) (i32.const 1)))
                         (br $loop)))
+
+           ;; Avoid zero as a cached hash sentinel.
            (if (result i32)
                (i32.eqz (local.get $h))
                (then (i32.const 2))
                (else (local.get $h))))
+
+     ;;;
+     ;;; Printing
+     ;;;
 
      ;; $bignum->string : bignum? (or/c 2 8 10 16) -> string?
      ;;   Convert a canonical bignum by repeated division with an unsigned
@@ -3356,6 +3786,7 @@
            (local $sign i32)
            (local $out-len i32)
 
+           ;; Read the source limbs and choose a conservative output buffer size.
            (local.set $limbs (struct.get $Bignum $limbs (local.get $b)))
            (local.set $len (array.len (local.get $limbs)))
            (local.set $active-len (local.get $len))
@@ -3375,9 +3806,11 @@
                          (then (local.set $max-len
                                           (i32.add (i32.mul (local.get $len) (i32.const 8))
                                                    (i32.const 1))))
-                         (else (local.set $max-len
+                        (else (local.set $max-len
                                           (i32.add (i32.mul (local.get $len) (i32.const 10))
                                                    (i32.const 1)))))))))
+
+           ;; Work on a mutable copy because repeated division destroys the magnitude.
            (local.set $work (array.new_default $I32Array (local.get $len)))
            (array.copy $I32Array $I32Array
                        (local.get $work) (i32.const 0)
@@ -3387,6 +3820,7 @@
            (local.set $i (local.get $max-len))
            (local.set $radix64 (i64.extend_i32_u (local.get $radix)))
 
+           ;; Repeatedly divide by the radix; each remainder is the next digit.
            (block $digits-done
                   (loop $digit-loop
                         (br_if $digits-done (i32.eqz (local.get $active-len)))
@@ -3411,11 +3845,13 @@
                                                 (i32.wrap_i64
                                                  (i64.rem_u (local.get $acc)
                                                             (local.get $radix64))))
-                                     (array.set $I32Array
-                                                (local.get $work)
-                                                (local.get $j)
-                                                (i32.wrap_i64 (local.get $q)))
+                                    (array.set $I32Array
+                                               (local.get $work)
+                                               (local.get $j)
+                                               (i32.wrap_i64 (local.get $q)))
                                      (br $division-loop)))
+
+                        ;; Emit the digit as an ASCII code point in reverse order.
                         (local.set $digit (local.get $carry))
                         (local.set $i (i32.sub (local.get $i) (i32.const 1)))
                         (array.set $I32Array
@@ -3425,6 +3861,8 @@
                                     (i32.add (local.get $digit) (i32.const 48))
                                     (i32.add (local.get $digit) (i32.const 87))
                                     (i32.lt_u (local.get $digit) (i32.const 10))))
+
+                        ;; Trim high zero limbs from the working magnitude.
                         (block $trim-done
                                (loop $trim-loop
                                      (br_if $trim-done (i32.eqz (local.get $active-len)))
@@ -3439,10 +3877,13 @@
                                          (else (br $trim-done)))))
                         (br $digit-loop)))
 
+           ;; Add a minus sign for negative bignums.
            (if (i32.lt_s (local.get $sign) (i32.const 0))
                (then
                 (local.set $i (i32.sub (local.get $i) (i32.const 1)))
                 (array.set $I32Array (local.get $buf) (local.get $i) (i32.const 45))))
+
+           ;; Copy the used suffix into an immutable WebRacket string.
            (local.set $out-len (i32.sub (local.get $max-len) (local.get $i)))
            (local.set $out (array.new_default $I32Array (local.get $out-len)))
            (array.copy $I32Array $I32Array
