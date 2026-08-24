@@ -2980,31 +2980,28 @@
                                          (local.get $u)
                                          (i32.add (local.get $j)
                                                   (local.get $d-len))))
-                             (local.get $v-high))
+                            (local.get $v-high))
                             (then
-                             (local.set $qhat (i64.const 4294967295))
-                             (local.set $rhat
-                                        (i64.extend_i32_u
-                                         (array.get $I32Array
-                                                    (local.get $u)
-                                                    (i32.add
-                                                     (local.get $j)
-                                                     (i32.sub
-                                                      (local.get $d-len)
-                                                      (i32.const 1)))))))
+                             (local.set $qhat (i64.const 4294967295)))
                             (else
                              (local.set $qhat
                                         (i64.div_u (local.get $numer)
-                                                   (local.get $v-high)))
-                             (local.set $rhat
-                                        (i64.rem_u (local.get $numer)
                                                    (local.get $v-high)))))
+                        (local.set $rhat
+                                   (i64.sub
+                                    (local.get $numer)
+                                    (i64.mul (local.get $qhat)
+                                             (local.get $v-high))))
 
                         ;; Refine qhat using the next divisor and dividend limbs.
                         (if (i32.gt_u (local.get $d-len) (i32.const 1))
                             (then
                              (block $qhat-ready
                                     (loop $qhat-loop
+                                          (br_if $qhat-ready
+                                                 (i64.ge_u
+                                                  (local.get $rhat)
+                                                  (i64.const 4294967296)))
                                           (local.set $prod
                                                      (i64.mul
                                                       (local.get $qhat)
