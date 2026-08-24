@@ -27,6 +27,36 @@
 
 (define disabled-threshold #"2147483647")
 
+(define schoolbook-profile
+  (algorithm-profile
+   'schoolbook
+   '(bignum-mul-dense-96-bit-carry
+     bignum-mul-dense-96-bit-negative
+     bignum-mul-dense-square
+     bignum-mul-sparse-alternating
+     bignum-mul-asymmetric-short-left
+     bignum-mul-asymmetric-short-right)
+   '(2 3 4 7 15 16 17 31 32 33)
+   (list (cons #"WEBRACKET_BIGNUM_MUL_KARATSUBA_THRESHOLD" disabled-threshold)
+         (cons #"WEBRACKET_BIGNUM_MUL_TOOM3_THRESHOLD" disabled-threshold)
+         (cons #"WEBRACKET_BIGNUM_SQR_BASECASE_THRESHOLD" disabled-threshold)
+         (cons #"WEBRACKET_BIGNUM_SQR_KARATSUBA_THRESHOLD" disabled-threshold)
+         (cons #"WEBRACKET_BIGNUM_SQR_TOOM3_THRESHOLD" disabled-threshold))))
+
+(define square-basecase-profile
+  (algorithm-profile
+   'square-basecase
+   '(bignum-mul-dense-square
+     bignum-mul-dense-square-negative
+     bignum-mul-dense-square-carry
+     bignum-square-karatsuba-threshold)
+   '(2 3 4 7 15 16 17 31 32 33)
+   (list (cons #"WEBRACKET_BIGNUM_MUL_KARATSUBA_THRESHOLD" disabled-threshold)
+         (cons #"WEBRACKET_BIGNUM_MUL_TOOM3_THRESHOLD" disabled-threshold)
+         (cons #"WEBRACKET_BIGNUM_SQR_BASECASE_THRESHOLD" #"1")
+         (cons #"WEBRACKET_BIGNUM_SQR_KARATSUBA_THRESHOLD" disabled-threshold)
+         (cons #"WEBRACKET_BIGNUM_SQR_TOOM3_THRESHOLD" disabled-threshold))))
+
 (define karatsuba-profile
   (algorithm-profile
    'karatsuba
@@ -146,7 +176,7 @@
   (command-line
    #:program "check-bignum-mul-algorithms-cs"
    #:once-each
-   [("--algorithm") ids "karatsuba, toom3, or a comma-separated list"
+   [("--algorithm") ids "schoolbook, square-basecase, karatsuba, toom3, or a comma-separated list"
                     (set! requested (append requested (parse-algorithm-list ids)))]
    [("--cs") path "Racket CS executable path"
              (set! cs-path path)]
@@ -154,7 +184,11 @@
                            (set! webracket-racket-path path)]
    [("--keep-temp") "Keep generated compiler caches under tmp/"
                     (set! keep-temp? #t)])
-  (define all-profiles (list karatsuba-profile toom3-profile))
+  (define all-profiles
+    (list schoolbook-profile
+          square-basecase-profile
+          karatsuba-profile
+          toom3-profile))
   (define selected
     (if (null? requested)
         all-profiles
