@@ -1458,6 +1458,7 @@
            (local $z0     (ref eq))
            (local $z2     (ref eq))
            (local $d      (ref eq))
+           (local $diff   (ref eq))
            (local $mid    (ref eq))
            (local $result (ref eq))
 
@@ -1487,12 +1488,13 @@
                       (call $integer-mul/2 (local.get $x0) (local.get $x0)))
            (local.set $z2
                       (call $integer-mul/2 (local.get $x1) (local.get $x1)))
+           (local.set $diff
+                      (call $integer-sub/2
+                            (local.get $x1) (local.get $x0)))
            (local.set $d
                       (call $integer-mul/2
-                            (call $integer-sub/2
-                                  (local.get $x1) (local.get $x0))
-                            (call $integer-sub/2
-                                  (local.get $x1) (local.get $x0))))
+                            (local.get $diff)
+                            (local.get $diff)))
            (local.set $mid
                       (call $integer-sub/2
                             (call $integer-add/2
@@ -4183,9 +4185,116 @@
      ;;; Printing
      ;;;
 
+     ;; $bignum->string/power-of-two-radix : bignum? exact-positive-integer? -> string?
+     ;;   Emit a base 2, 8, or 16 representation directly from magnitude bits.
+     (func $bignum->string/power-of-two-radix
+           (param $b          (ref $Bignum))
+           (param $group-bits i32)
+           (result (ref $String))
+
+           (local $sign         i32)
+           (local $bits         i32)
+           (local $digits       i32)
+           (local $out-len      i32)
+           (local $out          (ref $I32Array))
+           (local $out-pos      i32)
+           (local $group        i32)
+           (local $bit-in-group i32)
+           (local $bit          i32)
+           (local $digit        i32)
+
+           ;; Each output digit is a group of 1, 3, or 4 bits.
+           (local.set $sign (struct.get $Bignum $sign (local.get $b)))
+           (local.set $bits
+                      (call $integer-nonnegative-bit-length/i32
+                            (local.get $b)))
+           (local.set $digits
+                      (i32.div_u
+                       (call $bignum-size-add/i32
+                             (local.get $bits)
+                             (i32.sub (local.get $group-bits)
+                                      (i32.const 1)))
+                       (local.get $group-bits)))
+
+           ;; Allocate the exact output size, including a possible minus sign.
+           (local.set $out-len (local.get $digits))
+           (if (i32.lt_s (local.get $sign) (i32.const 0))
+               (then
+                (local.set $out-len
+                           (call $bignum-size-add/i32
+                                 (local.get $out-len)
+                                 (i32.const 1)))))
+           (local.set $out (array.new_default $I32Array (local.get $out-len)))
+           (if (i32.lt_s (local.get $sign) (i32.const 0))
+               (then
+                (array.set $I32Array
+                           (local.get $out)
+                           (local.get $out-pos)
+                           (i32.const 45))
+                (local.set $out-pos
+                           (i32.add (local.get $out-pos) (i32.const 1)))))
+
+           ;; Walk groups from most significant to least significant.
+           (local.set $group (local.get $digits))
+           (block $groups-done
+                  (loop $groups
+                        (br_if $groups-done
+                               (i32.eqz (local.get $group)))
+                        (local.set $group
+                                   (i32.sub (local.get $group)
+                                            (i32.const 1)))
+                        (local.set $digit (i32.const 0))
+                        (local.set $bit-in-group (i32.const 0))
+
+                        ;; Collect one output digit from its low-to-high bits.
+                        (block $bits-done
+                               (loop $bits
+                                     (br_if $bits-done
+                                            (i32.ge_u
+                                             (local.get $bit-in-group)
+                                             (local.get $group-bits)))
+                                     (local.set $bit
+                                                (call $bignum-size-add/i32
+                                                      (call $bignum-size-mul/i32
+                                                            (local.get $group)
+                                                            (local.get $group-bits))
+                                                      (local.get $bit-in-group)))
+                                     (if (call $bignum-bit/i32
+                                               (local.get $b)
+                                               (local.get $bit))
+                                         (then
+                                          (local.set $digit
+                                                     (i32.or
+                                                      (local.get $digit)
+                                                      (i32.shl
+                                                       (i32.const 1)
+                                                       (local.get $bit-in-group))))))
+                                     (local.set $bit-in-group
+                                                (i32.add
+                                                 (local.get $bit-in-group)
+                                                 (i32.const 1)))
+                                     (br $bits)))
+
+                        ;; Store the digit as an ASCII code point.
+                        (array.set $I32Array
+                                   (local.get $out)
+                                   (local.get $out-pos)
+                                   (select
+                                    (i32.add (local.get $digit) (i32.const 48))
+                                    (i32.add (local.get $digit) (i32.const 87))
+                                    (i32.lt_u (local.get $digit) (i32.const 10))))
+                        (local.set $out-pos
+                                   (i32.add (local.get $out-pos)
+                                            (i32.const 1)))
+                        (br $groups)))
+
+           (struct.new $String
+                       (i32.const 0)
+                       (i32.const 1)
+                       (local.get $out)))
+
      ;; $bignum->string : bignum? (or/c 2 8 10 16) -> string?
-     ;;   Convert a canonical bignum by repeated division with an unsigned
-     ;;   small radix. The working copy is mutated; the source limbs are not.
+     ;;   Convert a canonical bignum to a string in one of Racket's small radices.
      (func $bignum->string
            (param $b (ref $Bignum))
            (param $radix i32)
@@ -4204,45 +4313,41 @@
            (local $digit i32)
            (local $acc i64)
            (local $q i64)
-           (local $radix64 i64)
+           (local $divisor64 i64)
            (local $sign i32)
            (local $out-len i32)
 
-           ;; Read the source limbs and choose a conservative output buffer size.
+           ;; Power-of-two radices are emitted directly from bits.
+           (if (i32.eq (local.get $radix) (i32.const 2))
+               (then
+                (return
+                 (call $bignum->string/power-of-two-radix
+                       (local.get $b)
+                       (i32.const 1)))))
+           (if (i32.eq (local.get $radix) (i32.const 8))
+               (then
+                (return
+                 (call $bignum->string/power-of-two-radix
+                       (local.get $b)
+                       (i32.const 3)))))
+           (if (i32.eq (local.get $radix) (i32.const 16))
+               (then
+                (return
+                 (call $bignum->string/power-of-two-radix
+                       (local.get $b)
+                       (i32.const 4)))))
+
+           ;; Decimal conversion uses base 10^9 chunks to reduce divisions.
            (local.set $limbs (struct.get $Bignum $limbs (local.get $b)))
            (local.set $len (array.len (local.get $limbs)))
            (local.set $active-len (local.get $len))
            (local.set $sign (struct.get $Bignum $sign (local.get $b)))
-
-           (if (i32.eq (local.get $radix) (i32.const 2))
-               (then (local.set $max-len
-                                (call $bignum-size-add/i32
-                                      (call $bignum-size-mul/i32
-                                            (local.get $len)
-                                            (i32.const 32))
-                                      (i32.const 1))))
-               (else
-                (if (i32.eq (local.get $radix) (i32.const 8))
-                    (then (local.set $max-len
-                                     (call $bignum-size-add/i32
-                                           (call $bignum-size-mul/i32
-                                                 (local.get $len)
-                                                 (i32.const 11))
-                                           (i32.const 1))))
-                    (else
-                     (if (i32.eq (local.get $radix) (i32.const 16))
-                         (then (local.set $max-len
-                                          (call $bignum-size-add/i32
-                                                (call $bignum-size-mul/i32
-                                                      (local.get $len)
-                                                      (i32.const 8))
-                                                (i32.const 1))))
-                        (else (local.set $max-len
-                                          (call $bignum-size-add/i32
-                                                (call $bignum-size-mul/i32
-                                                      (local.get $len)
-                                                      (i32.const 10))
-                                                (i32.const 1)))))))))
+           (local.set $max-len
+                      (call $bignum-size-add/i32
+                            (call $bignum-size-mul/i32
+                                  (local.get $len)
+                                  (i32.const 10))
+                            (i32.const 1)))
 
            ;; Work on a mutable copy because repeated division destroys the magnitude.
            (local.set $work (array.new_default $I32Array (local.get $len)))
@@ -4252,9 +4357,9 @@
                        (local.get $len))
            (local.set $buf (array.new_default $I32Array (local.get $max-len)))
            (local.set $i (local.get $max-len))
-           (local.set $radix64 (i64.extend_i32_u (local.get $radix)))
+           (local.set $divisor64 (i64.const 1000000000))
 
-           ;; Repeatedly divide by the radix; each remainder is the next digit.
+           ;; Repeatedly divide by 10^9; each remainder is a decimal chunk.
            (block $digits-done
                   (loop $digit-loop
                         (br_if $digits-done (i32.eqz (local.get $active-len)))
@@ -4274,27 +4379,16 @@
                                                              (local.get $work)
                                                              (local.get $j)))))
                                      (local.set $q (i64.div_u (local.get $acc)
-                                                              (local.get $radix64)))
+                                                              (local.get $divisor64)))
                                      (local.set $carry
                                                 (i32.wrap_i64
                                                  (i64.rem_u (local.get $acc)
-                                                            (local.get $radix64))))
+                                                            (local.get $divisor64))))
                                     (array.set $I32Array
                                                (local.get $work)
                                                (local.get $j)
                                                (i32.wrap_i64 (local.get $q)))
                                      (br $division-loop)))
-
-                        ;; Emit the digit as an ASCII code point in reverse order.
-                        (local.set $digit (local.get $carry))
-                        (local.set $i (i32.sub (local.get $i) (i32.const 1)))
-                        (array.set $I32Array
-                                   (local.get $buf)
-                                   (local.get $i)
-                                   (select
-                                    (i32.add (local.get $digit) (i32.const 48))
-                                    (i32.add (local.get $digit) (i32.const 87))
-                                    (i32.lt_u (local.get $digit) (i32.const 10))))
 
                         ;; Trim high zero limbs from the working magnitude.
                         (block $trim-done
@@ -4309,6 +4403,41 @@
                                                      (i32.sub (local.get $active-len) (i32.const 1)))
                                           (br $trim-loop))
                                          (else (br $trim-done)))))
+
+                        ;; Emit the least-significant chunk as nine decimal digits.
+                        (local.set $digit (local.get $carry))
+                        (local.set $j (i32.const 0))
+                        (block $chunk-done
+                               (loop $chunk-loop
+                                     (if (i32.and
+                                          (i32.ne (local.get $active-len) (i32.const 0))
+                                          (i32.ge_u (local.get $j) (i32.const 9)))
+                                         (then (br $chunk-done)))
+                                     (if (i32.and
+                                          (i32.eqz (local.get $active-len))
+                                          (i32.and
+                                           (i32.gt_u (local.get $j) (i32.const 0))
+                                           (i32.eqz (local.get $digit))))
+                                         (then (br $chunk-done)))
+                                     (local.set $i
+                                                (i32.sub (local.get $i)
+                                                         (i32.const 1)))
+                                     (array.set $I32Array
+                                                (local.get $buf)
+                                                (local.get $i)
+                                                (i32.add
+                                                 (i32.rem_u
+                                                  (local.get $digit)
+                                                  (i32.const 10))
+                                                 (i32.const 48)))
+                                     (local.set $digit
+                                                (i32.div_u
+                                                 (local.get $digit)
+                                                 (i32.const 10)))
+                                     (local.set $j
+                                                (i32.add (local.get $j)
+                                                         (i32.const 1)))
+                                     (br $chunk-loop)))
                         (br $digit-loop)))
 
            ;; Add a minus sign for negative bignums.

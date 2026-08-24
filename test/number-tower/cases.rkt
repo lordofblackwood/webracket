@@ -96,6 +96,33 @@
             '(number->string -536870913 8)
             #:gate? #t
             #:note "Bignum number->string must support radix 8 and signs.")
+   (nt-case 'bignum-decimal-billion-chunk-padding
+            'integer-representation
+            '(number->string (+ (expt 10 18) 42))
+            #:gate? #t
+            #:note "Decimal bignum number->string pads internal 10^9 chunks.")
+   (nt-case 'bignum-decimal-zero-chunks
+            'integer-representation
+            '(number->string (expt 10 27))
+            #:gate? #t
+            #:note "Decimal bignum number->string preserves all-zero chunks.")
+   (nt-case 'wide-bignum-binary-string
+            'integer-representation
+            '(number->string (+ (arithmetic-shift 1 130) 7) 2)
+            #:gate? #t
+            #:note "Binary bignum number->string emits wide magnitudes directly from bits.")
+   (nt-case 'wide-bignum-octal-string
+            'integer-representation
+            '(number->string (+ (arithmetic-shift 1 130) 7) 8)
+            #:gate? #t
+            #:note "Octal bignum number->string handles a partial leading bit group.")
+   (nt-case 'wide-bignum-hex-string
+            'integer-representation
+            '(number->string (+ (arithmetic-shift 1 128)
+                                (sub1 (arithmetic-shift 1 64)))
+                             16)
+            #:gate? #t
+            #:note "Hex bignum number->string emits wide magnitudes without division.")
    (nt-case 'bignum-eqv-same-value
             'integer-representation
             '(eqv? 9007199254740993 9007199254740993)
