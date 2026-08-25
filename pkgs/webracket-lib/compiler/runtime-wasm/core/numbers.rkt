@@ -172,6 +172,9 @@
     $exact-rational-expt/integer
     $number-expt/integer
     $expt
+    $complex-hypot/f64
+    $complex-log-magnitude/f64
+    $complex-log1p-cs/f64
     $complex-exp
     $complex-log
     $exp
@@ -579,6 +582,7 @@
 
               (local $bits i32)
               (local $fl (ref $Flonum))
+              (local $c  (ref $Complex))
               (local $f64 f64)
 
               ;; If z is a fixnum, ensure LSB = 0 and return it
@@ -592,6 +596,16 @@
                   (then (return (local.get $z))))
               (if (ref.test (ref $Rational) (local.get $z))
                   (then (return (local.get $z))))
+              ;; Convert complex components recursively and then canonicalize.
+              (if (ref.test (ref $Complex) (local.get $z))
+                  (then
+                   (local.set $c (ref.cast (ref $Complex) (local.get $z)))
+                   (return
+                    (call $make-rectangular/canonical
+                          (call $inexact->exact
+                                (struct.get $Complex $real (local.get $c)))
+                          (call $inexact->exact
+                                (struct.get $Complex $imag (local.get $c)))))))
 
               ;; If z is a flonum, convert to fixnum if finite and integral
               (if (ref.test (ref $Flonum) (local.get $z))
@@ -716,6 +730,7 @@
 
                (local $x/fx i32)
                (local $x/fl (ref $Flonum))
+               (local $x/c  (ref $Complex))
 
                ;; If x is a fixnum, check if it's 0
                (if (ref.test (ref i31) (local.get $x))
@@ -742,6 +757,18 @@
                ;; Canonical rationals never represent zero.
                (if (ref.test (ref $Rational) (local.get $x))
                    (then (return (global.get $false))))
+               ;; Complex zero means both rectangular components are zero.
+               (if (ref.test (ref $Complex) (local.get $x))
+                   (then
+                    (local.set $x/c (ref.cast (ref $Complex) (local.get $x)))
+                    (if (ref.eq
+                         (call $zero?
+                               (struct.get $Complex $real (local.get $x/c)))
+                         (global.get $false))
+                        (then (return (global.get $false))))
+                    (return
+                     (call $zero?
+                           (struct.get $Complex $imag (local.get $x/c))))))
                ;; Not a number
                (call $raise-expected-number/who
                      (global.get $symbol:zero?)
@@ -1179,6 +1206,97 @@
 
               (struct.new $Flonum (i32.const 0) (local.get $res)))
 
+        ;; complex-hypot/f64 : f64 f64 -> f64
+        ;;   Compute sqrt(x*x + y*y) without avoidable overflow or underflow.
+        (func $complex-hypot/f64
+              (param $x f64)
+              (param $y f64)
+              (result f64)
+
+              (local $ax f64)
+              (local $ay f64)
+              (local $hi f64)
+              (local $lo f64)
+              (local $r  f64)
+
+              (local.set $ax (f64.abs (local.get $x)))
+              (local.set $ay (f64.abs (local.get $y)))
+              (if (f64.eq (local.get $ax) (f64.const +inf))
+                  (then (return (f64.const +inf))))
+              (if (f64.eq (local.get $ay) (f64.const +inf))
+                  (then (return (f64.const +inf))))
+              (if (f64.ne (local.get $ax) (local.get $ax))
+                  (then (return (local.get $ax))))
+              (if (f64.ne (local.get $ay) (local.get $ay))
+                  (then (return (local.get $ay))))
+              (if (f64.ge (local.get $ax) (local.get $ay))
+                  (then
+                   (local.set $hi (local.get $ax))
+                   (local.set $lo (local.get $ay)))
+                  (else
+                   (local.set $hi (local.get $ay))
+                   (local.set $lo (local.get $ax))))
+              (if (f64.eq (local.get $hi) (f64.const 0.0))
+                  (then (return (f64.const 0.0))))
+              (local.set $r (f64.div (local.get $lo) (local.get $hi)))
+              (f64.mul
+               (local.get $hi)
+               (call $js-raw-math-sqrt
+                     (f64.add
+                      (f64.const 1.0)
+                      (f64.mul (local.get $r) (local.get $r))))))
+
+        ;; complex-log-magnitude/f64 : f64 f64 -> f64
+        ;;   Compute log(sqrt(x*x + y*y)) without first forming x*x + y*y.
+        (func $complex-log-magnitude/f64
+              (param $x f64)
+              (param $y f64)
+              (result f64)
+
+              (local $ax f64)
+              (local $ay f64)
+              (local $hi f64)
+              (local $lo f64)
+              (local $r  f64)
+
+              (local.set $ax (f64.abs (local.get $x)))
+              (local.set $ay (f64.abs (local.get $y)))
+              (if (f64.eq (local.get $ax) (f64.const +inf))
+                  (then (return (f64.const +inf))))
+              (if (f64.eq (local.get $ay) (f64.const +inf))
+                  (then (return (f64.const +inf))))
+              (if (f64.ne (local.get $ax) (local.get $ax))
+                  (then (return (local.get $ax))))
+              (if (f64.ne (local.get $ay) (local.get $ay))
+                  (then (return (local.get $ay))))
+              (if (f64.ge (local.get $ax) (local.get $ay))
+                  (then
+                   (local.set $hi (local.get $ax))
+                   (local.set $lo (local.get $ay)))
+                  (else
+                   (local.set $hi (local.get $ay))
+                   (local.set $lo (local.get $ax))))
+              (if (f64.eq (local.get $hi) (f64.const 0.0))
+                  (then (return (f64.const -inf))))
+              (local.set $r (f64.div (local.get $lo) (local.get $hi)))
+              (f64.add
+               (call $js-raw-math-log (local.get $hi))
+               (f64.mul
+                (f64.const 0.5)
+                (call $js-raw-math-log
+                      (f64.add
+                       (f64.const 1.0)
+                       (f64.mul (local.get $r) (local.get $r)))))))
+
+        ;; complex-log1p-cs/f64 : f64 -> f64
+        ;;   Match Racket CS's Chez fllog1+ behavior used by complex atanh.
+        (func $complex-log1p-cs/f64
+              (param $x f64)
+              (result f64)
+
+              (call $js-raw-math-log
+                    (f64.add (f64.const 1.0) (local.get $x))))
+
         ;; complex-exp : complex? -> number?
         ;;   Compute exp(a+bi) as exp(a) * (cos(b) + i sin(b)).
         (func $complex-exp
@@ -1205,6 +1323,38 @@
         (func $complex-log
               (param $z (ref $Complex))
               (result (ref eq))
+
+              (local $real (ref eq))
+              (local $imag (ref eq))
+              (local $x    f64)
+              (local $y    f64)
+
+              (local.set $real (struct.get $Complex $real (local.get $z)))
+              (local.set $imag (struct.get $Complex $imag (local.get $z)))
+              (if (i32.or
+                   (ref.test (ref $Flonum) (local.get $real))
+                   (ref.test (ref $Flonum) (local.get $imag)))
+                  (then
+                   (local.set $x
+                              (call $real->f64/checked
+                                    (global.get $symbol:log)
+                                    (local.get $real)))
+                   (local.set $y
+                              (call $real->f64/checked
+                                    (global.get $symbol:log)
+                                    (local.get $imag)))
+                   (return
+                    (call $make-rectangular/canonical
+                          (struct.new $Flonum
+                                      (i32.const 0)
+                                      (call $complex-log-magnitude/f64
+                                            (local.get $x)
+                                            (local.get $y)))
+                          (struct.new $Flonum
+                                      (i32.const 0)
+                                      (call $js-raw-math-atan2
+                                            (local.get $y)
+                                            (local.get $x)))))))
               (call $make-rectangular/canonical
                     (call $log
                           (call $magnitude (local.get $z))
@@ -1342,6 +1492,10 @@
                                          (ref.i31 (i32.const 2))))
                         (if (i32.eqz (local.get $cmp/i32))
                             (then (return (ref.i31 (i32.const 0)))))
+                        (local.set $cmp/i32
+                                   (call $exact-rational-compare/i32
+                                         (local.get $z)
+                                         (global.get $zero)))
                         (if (i32.lt_s (local.get $cmp/i32) (i32.const 0))
                             (then
                              (return
@@ -1366,70 +1520,30 @@
                          (local.get $z))
                    (unreachable))
                   (else
-                   ;; Log with base
-                   (if (ref.test (ref i31) (local.get $z))
+                   ;; Log with base is the generic quotient log(z) / log(base).
+                   (if (ref.eq (call $number? (local.get $z))
+                               (global.get $false))
+                       (then (call $raise-expected-number/who
+                                   (global.get $symbol:log)
+                                   (local.get $z))
+                             (unreachable)))
+                   (if (ref.eq (call $number? (local.get $b))
+                               (global.get $false))
+                       (then (call $raise-expected-number/who
+                                   (global.get $symbol:log)
+                                   (local.get $b))
+                             (unreachable)))
+                   (if (call $exact-rational?/i32 (local.get $b))
                        (then
-                        (local.set $bits (i31.get_s (ref.cast (ref i31) (local.get $z))))
-                        (if (i32.eqz (i32.and (local.get $bits) (i32.const 1)))
-                            (then
-                             (local.set $bits (i32.shr_s (local.get $bits) (i32.const 1)))
-                             (if (i32.eqz (local.get $bits))
-                                 (then (call $raise-division-by-zero) (unreachable)))
-                             (local.set $zf64 (f64.convert_i32_s (local.get $bits))))
-                            (else (call $raise-expected-number/who
-                                        (global.get $symbol:log)
-                                        (local.get $z)) (unreachable))))
-                       (else
-                        (if (ref.test (ref $Flonum) (local.get $z))
-                            (then
-                             (local.set $fl (ref.cast (ref $Flonum) (local.get $z)))
-                             (local.set $zf64 (struct.get $Flonum $v (local.get $fl))))
-                            (else
-                             (if (call $exact-rational?/i32 (local.get $z))
-                                 (then
-                                  (if (call $exact-rational-zero?/i32 (local.get $z))
-                                      (then (call $raise-division-by-zero) (unreachable)))
-                                  (local.set $zf64
-                                             (call $exact-rational->f64
-                                                   (local.get $z))))
-                                 (else (call $raise-expected-number/who
-                                             (global.get $symbol:log)
-                                             (local.get $z)) (unreachable)))))))
-                   (if (ref.test (ref i31) (local.get $b))
-                       (then
-                        (local.set $bits (i31.get_s (ref.cast (ref i31) (local.get $b))))
-                        (if (i32.eqz (i32.and (local.get $bits) (i32.const 1)))
-                            (then
-                             (local.set $bits (i32.shr_s (local.get $bits) (i32.const 1)))
-                             (if (i32.eq (local.get $bits) (i32.const 1))
-                                 (then (call $raise-division-by-zero) (unreachable)))
-                             (local.set $bf64 (f64.convert_i32_s (local.get $bits))))
-                            (else (call $raise-expected-number/who
-                                        (global.get $symbol:log)
-                                        (local.get $b)) (unreachable))))
-                       (else
-                        (if (ref.test (ref $Flonum) (local.get $b))
-                            (then
-                             (local.set $fl (ref.cast (ref $Flonum) (local.get $b)))
-                             (local.set $bf64 (struct.get $Flonum $v (local.get $fl))))
-                            (else
-                             (if (call $exact-rational?/i32 (local.get $b))
-                                 (then
-                                  (if (i32.eqz
-                                       (call $exact-rational-compare/i32
-                                             (local.get $b)
-                                             (ref.i31 (i32.const 2))))
-                                      (then (call $raise-division-by-zero) (unreachable)))
-                                  (local.set $bf64
-                                             (call $exact-rational->f64
-                                                   (local.get $b))))
-                                 (else (call $raise-expected-number/who
-                                             (global.get $symbol:log)
-                                             (local.get $b)) (unreachable)))))))
-                   (local.set $res
-                              (f64.div (call $js-raw-math-log (local.get $zf64))
-                                       (call $js-raw-math-log (local.get $bf64))))
-                   (return (struct.new $Flonum (i32.const 0) (local.get $res)))))
+                        (if (i32.eqz
+                             (call $exact-rational-compare/i32
+                                   (local.get $b)
+                                   (global.get $one)))
+                            (then (call $raise-division-by-zero) (unreachable)))))
+                   (return
+                    (call $/2
+                          (call $log (local.get $z) (global.get $missing))
+                          (call $log (local.get $b) (global.get $missing))))))
               ;; Ensure static fallthrough is unreachable for the validator.
               (unreachable))
 
@@ -2349,13 +2463,23 @@
                    (then (return (call $integer-add/2
                                        (local.get $v)
                                        (global.get $one)))))
-               ;; Case 3: Flonum
+               ;; Case 3: Rational
+               (if (ref.test (ref $Rational) (local.get $v))
+                   (then (return (call $exact-rational-add/2
+                                       (local.get $v)
+                                       (global.get $one)))))
+               ;; Case 4: Flonum
                (if (ref.test (ref $Flonum) (local.get $v))
                    (then (local.set $v/fl (ref.cast (ref $Flonum) (local.get $v)))
                          (local.set $f64v (struct.get $Flonum $v (local.get $v/fl)))
                          (return (struct.new $Flonum
                                              (i32.const 0)
                                              (f64.add (local.get $f64v) (f64.const 1.0))))))
+               ;; Case 5: Complex
+               (if (ref.test (ref $Complex) (local.get $v))
+                   (then (return (call $+/2
+                                       (local.get $v)
+                                       (global.get $one)))))
                ;; Not a number
                (call $raise-expected-number/who
                      (global.get $symbol:add1)
@@ -2378,7 +2502,12 @@
                    (then (return (call $integer-sub/2
                                        (local.get $v)
                                        (global.get $one)))))
-               ;; Case 3: Flonum
+               ;; Case 3: Rational
+               (if (ref.test (ref $Rational) (local.get $v))
+                   (then (return (call $exact-rational-sub/2
+                                       (local.get $v)
+                                       (global.get $one)))))
+               ;; Case 4: Flonum
                (if (ref.test (ref $Flonum) (local.get $v))
                    (then (local.set $v/fl (ref.cast (ref $Flonum) (local.get $v)))
                          (local.set $f64v (struct.get $Flonum $v (local.get $v/fl)))
@@ -2386,6 +2515,11 @@
                           (struct.new $Flonum
                                       (i32.const 0)
                                       (f64.sub (local.get $f64v) (f64.const 1.0))))))
+               ;; Case 5: Complex
+               (if (ref.test (ref $Complex) (local.get $v))
+                   (then (return (call $-/2
+                                       (local.get $v)
+                                       (global.get $one)))))
                ;; Not a number
                (call $raise-expected-number/who
                      (global.get $symbol:sub1)
@@ -2416,6 +2550,11 @@
               ;; Case 4: Flonum
               (if (ref.test (ref $Flonum) (local.get $x))
                   (then (return (call $fl* (local.get $x) (local.get $x)))))
+              ;; Case 5: Complex
+              (if (ref.test (ref $Complex) (local.get $x))
+                  (then (return (call $*/2
+                                      (local.get $x)
+                                      (local.get $x)))))
                ;; Not a number
                (call $raise-expected-number/who
                      (global.get $symbol:sqr)
@@ -2525,9 +2664,130 @@
                (local $u    (ref eq))
                (local $v    (ref eq))
                (local $imag (ref eq))
+               (local $x    f64)
+               (local $y    f64)
+               (local $ax   f64)
+               (local $ay   f64)
+               (local $rf64 f64)
+               (local $bf64 f64)
+               (local $ratio f64)
+               (local $uf64 f64)
+               (local $vf64 f64)
 
                (local.set $a (struct.get $Complex $real (local.get $z)))
                (local.set $b (struct.get $Complex $imag (local.get $z)))
+               (if (i32.or
+                    (ref.test (ref $Flonum) (local.get $a))
+                    (ref.test (ref $Flonum) (local.get $b)))
+                   (then
+                    (local.set $x
+                               (call $real->f64/checked
+                                     (global.get $symbol:sqrt)
+                                     (local.get $a)))
+                    (local.set $y
+                               (call $real->f64/checked
+                                     (global.get $symbol:sqrt)
+                                     (local.get $b)))
+                    (local.set $ax (f64.abs (local.get $x)))
+                    (local.set $ay (f64.abs (local.get $y)))
+                    (if (f64.gt (local.get $ax) (local.get $ay))
+                        (then
+                         (local.set $ratio
+                                    (f64.div (local.get $ay)
+                                             (local.get $ax)))
+                         (local.set $rf64
+                                    (f64.mul
+                                     (call $js-raw-math-sqrt
+                                           (local.get $ax))
+                                     (call $js-raw-math-sqrt
+                                           (f64.mul
+                                            (f64.const 0.5)
+                                            (f64.add
+                                             (call $js-raw-math-sqrt
+                                                   (f64.add
+                                                    (f64.const 1.0)
+                                                    (f64.mul
+                                                     (local.get $ratio)
+                                                     (local.get $ratio))))
+                                             (f64.const 1.0)))))))
+                        (else
+                         (if (f64.lt (local.get $ax) (local.get $ay))
+                             (then
+                              (local.set $ratio
+                                         (f64.div (local.get $ax)
+                                                  (local.get $ay)))
+                              (local.set $rf64
+                                         (f64.mul
+                                          (call $js-raw-math-sqrt
+                                                (local.get $ay))
+                                          (call $js-raw-math-sqrt
+                                                (f64.mul
+                                                 (f64.const 0.5)
+                                                 (f64.add
+                                                  (call $js-raw-math-sqrt
+                                                        (f64.add
+                                                         (f64.const 1.0)
+                                                         (f64.mul
+                                                          (local.get $ratio)
+                                                          (local.get $ratio))))
+                                                  (local.get $ratio)))))))
+                             (else
+                              (if (f64.eq (local.get $ax) (local.get $ay))
+                                  (then
+                                   (local.set $rf64
+                                              (f64.mul
+                                               (call $js-raw-math-sqrt
+                                                     (local.get $ax))
+                                               (call $js-raw-math-sqrt
+                                                     (f64.mul
+                                                      (f64.const 0.5)
+                                                      (f64.add
+                                                       (call $js-raw-math-sqrt
+                                                             (f64.const 2.0))
+                                                       (f64.const 1.0)))))))
+                                  (else
+                                   (if (f64.ne (local.get $ax) (local.get $ax))
+                                       (then
+                                        (local.set $rf64 (local.get $ax)))
+                                       (else
+                                        (local.set $rf64 (local.get $ay))))))))))
+                    (if (f64.eq (local.get $rf64) (f64.const 0.0))
+                        (then
+                         (return
+                          (call $make-rectangular/canonical
+                                (struct.new $Flonum
+                                            (i32.const 0)
+                                            (f64.const 0.0))
+                                (struct.new $Flonum
+                                            (i32.const 0)
+                                            (local.get $y))))))
+                    (if (f64.eq (f64.abs (local.get $y)) (f64.const +inf))
+                        (then
+                         (local.set $bf64 (local.get $y)))
+                        (else
+                         (local.set $bf64
+                                    (f64.mul
+                                     (f64.div (local.get $y)
+                                              (local.get $rf64))
+                                     (f64.const 0.5)))))
+                    (if (f64.lt (local.get $x) (f64.const 0.0))
+                        (then
+                         (local.set $uf64 (f64.abs (local.get $bf64)))
+                         (local.set $vf64 (local.get $rf64))
+                         (if (call $flonum-negative-sign?/i32 (local.get $y))
+                             (then
+                              (local.set $vf64 (f64.neg (local.get $vf64))))))
+                        (else
+                         (local.set $uf64 (local.get $rf64))
+                         (local.set $vf64 (local.get $bf64))))
+                    (return
+                     (call $make-rectangular/canonical
+                           (struct.new $Flonum
+                                       (i32.const 0)
+                                       (local.get $uf64))
+                           (struct.new $Flonum
+                                       (i32.const 0)
+                                       (local.get $vf64))))))
                (local.set $r (call $magnitude (local.get $z)))
                (local.set $u
                           (call $sqrt
@@ -3255,6 +3515,8 @@
               (local $c (ref $Complex))
               (local $real (ref eq))
               (local $imag (ref eq))
+              (local $x f64)
+              (local $y f64)
 
               (if (call $real-number?/i32 (local.get $z))
                   (then (return (call $abs (local.get $z)))))
@@ -3263,6 +3525,24 @@
                    (local.set $c (ref.cast (ref $Complex) (local.get $z)))
                    (local.set $real (struct.get $Complex $real (local.get $c)))
                    (local.set $imag (struct.get $Complex $imag (local.get $c)))
+                   (if (i32.or
+                        (ref.test (ref $Flonum) (local.get $real))
+                        (ref.test (ref $Flonum) (local.get $imag)))
+                       (then
+                        (local.set $x
+                                   (call $real->f64/checked
+                                         (global.get $symbol:magnitude)
+                                         (local.get $real)))
+                        (local.set $y
+                                   (call $real->f64/checked
+                                         (global.get $symbol:magnitude)
+                                         (local.get $imag)))
+                        (return
+                         (struct.new $Flonum
+                                     (i32.const 0)
+                                     (call $complex-hypot/f64
+                                           (local.get $x)
+                                           (local.get $y))))))
                    (return
                     (call $sqrt
                           (call $+/2
@@ -3408,14 +3688,52 @@
                     (call $complex-asin (local.get $z))))
 
         ;; complex-atan : number? -> number?
-        ;;   Compute atan z as (log(1+i*z) - log(1-i*z)) / (2*i).
+        ;;   Compute atan z, using atan(z) = atanh(i*z)/i for inexact complex inputs.
         (func $complex-atan
               (param $z (ref eq))
               (result (ref eq))
 
+              (local $c     (ref $Complex))
+              (local $real  (ref eq))
+              (local $imag  (ref eq))
               (local $i     (ref eq))
               (local $two-i (ref eq))
               (local $iz    (ref eq))
+              (local $w     (ref eq))
+              (local $x     f64)
+              (local $y     f64)
+
+              (if (ref.test (ref $Complex) (local.get $z))
+                  (then
+                   (local.set $c (ref.cast (ref $Complex) (local.get $z)))
+                   (local.set $real (struct.get $Complex $real (local.get $c)))
+                   (local.set $imag (struct.get $Complex $imag (local.get $c)))
+                   (if (i32.or
+                        (ref.test (ref $Flonum) (local.get $real))
+                        (ref.test (ref $Flonum) (local.get $imag)))
+                       (then
+                        (local.set $x
+                                   (call $real->f64/checked
+                                         (global.get $symbol:atan)
+                                         (local.get $real)))
+                        (local.set $y
+                                   (call $real->f64/checked
+                                         (global.get $symbol:atan)
+                                         (local.get $imag)))
+                        (local.set $w
+                                   (call $complex-atanh
+                                         (call $make-rectangular/canonical
+                                               (struct.new $Flonum
+                                                           (i32.const 0)
+                                                           (f64.neg (local.get $y)))
+                                               (struct.new $Flonum
+                                                           (i32.const 0)
+                                                           (local.get $x)))))
+                        (return
+                         (call $make-rectangular/canonical
+                               (call $imag-part (local.get $w))
+                               (call $real-negate
+                                     (call $real-part (local.get $w)))))))))
 
               (local.set $i
                          (call $make-rectangular/canonical
@@ -3478,13 +3796,58 @@
                                 (call $sinh (local.get $b))))))
 
         ;; complex-tan : complex? -> number?
-        ;;   Compute tan(a+bi).
+        ;;   Compute tan(a+bi) with a scaled formula for large |b|.
         (func $complex-tan
               (param $z (ref $Complex))
               (result (ref eq))
-              (call $/2
-                    (call $complex-sin (local.get $z))
-                    (call $complex-cos (local.get $z))))
+
+              (local $a    f64)
+              (local $b    f64)
+              (local $t    f64)
+              (local $den  f64)
+              (local $real f64)
+              (local $imag f64)
+
+              (local.set $a
+                         (call $real->f64/checked
+                               (global.get $symbol:tan)
+                               (struct.get $Complex $real (local.get $z))))
+              (local.set $b
+                         (call $real->f64/checked
+                               (global.get $symbol:tan)
+                               (struct.get $Complex $imag (local.get $z))))
+              (local.set $t
+                         (call $js-raw-math-exp
+                               (f64.mul
+                                (f64.const -2.0)
+                                (f64.abs (local.get $b)))))
+              (local.set $den
+                         (f64.add
+                          (f64.const 1.0)
+                          (f64.add
+                           (f64.mul
+                            (f64.mul (f64.const 2.0) (local.get $t))
+                            (call $js-raw-math-cos
+                                  (f64.mul (f64.const 2.0) (local.get $a))))
+                           (f64.mul (local.get $t) (local.get $t)))))
+              (local.set $real
+                         (f64.div
+                          (f64.mul
+                           (f64.mul (f64.const 2.0) (local.get $t))
+                           (call $js-raw-math-sin
+                                 (f64.mul (f64.const 2.0) (local.get $a))))
+                          (local.get $den)))
+              (local.set $imag
+                         (f64.div
+                          (f64.sub
+                           (f64.const 1.0)
+                           (f64.mul (local.get $t) (local.get $t)))
+                          (local.get $den)))
+              (if (call $flonum-negative-sign?/i32 (local.get $b))
+                  (then (local.set $imag (f64.neg (local.get $imag)))))
+              (call $make-rectangular/canonical
+                    (struct.new $Flonum (i32.const 0) (local.get $real))
+                    (struct.new $Flonum (i32.const 0) (local.get $imag))))
 
         ;; complex-sinh : complex? -> number?
         ;;   Compute sinh(a+bi).
@@ -3525,13 +3888,58 @@
                           (call $sin (local.get $b)))))
 
         ;; complex-tanh : complex? -> number?
-        ;;   Compute tanh(a+bi).
+        ;;   Compute tanh(a+bi) with a scaled formula for large |a|.
         (func $complex-tanh
               (param $z (ref $Complex))
               (result (ref eq))
-              (call $/2
-                    (call $complex-sinh (local.get $z))
-                    (call $complex-cosh (local.get $z))))
+
+              (local $a    f64)
+              (local $b    f64)
+              (local $t    f64)
+              (local $den  f64)
+              (local $real f64)
+              (local $imag f64)
+
+              (local.set $a
+                         (call $real->f64/checked
+                               (global.get $symbol:tanh)
+                               (struct.get $Complex $real (local.get $z))))
+              (local.set $b
+                         (call $real->f64/checked
+                               (global.get $symbol:tanh)
+                               (struct.get $Complex $imag (local.get $z))))
+              (local.set $t
+                         (call $js-raw-math-exp
+                               (f64.mul
+                                (f64.const -2.0)
+                                (f64.abs (local.get $a)))))
+              (local.set $den
+                         (f64.add
+                          (f64.const 1.0)
+                          (f64.add
+                           (f64.mul
+                            (f64.mul (f64.const 2.0) (local.get $t))
+                            (call $js-raw-math-cos
+                                  (f64.mul (f64.const 2.0) (local.get $b))))
+                           (f64.mul (local.get $t) (local.get $t)))))
+              (local.set $real
+                         (f64.div
+                          (f64.sub
+                           (f64.const 1.0)
+                           (f64.mul (local.get $t) (local.get $t)))
+                          (local.get $den)))
+              (if (call $flonum-negative-sign?/i32 (local.get $a))
+                  (then (local.set $real (f64.neg (local.get $real)))))
+              (local.set $imag
+                         (f64.div
+                          (f64.mul
+                           (f64.mul (f64.const 2.0) (local.get $t))
+                           (call $js-raw-math-sin
+                                 (f64.mul (f64.const 2.0) (local.get $b))))
+                          (local.get $den)))
+              (call $make-rectangular/canonical
+                    (struct.new $Flonum (i32.const 0) (local.get $real))
+                    (struct.new $Flonum (i32.const 0) (local.get $imag))))
 
         ;; complex-asinh : number? -> number?
         ;;   Compute asinh z as log(z + sqrt(z*z + 1)).
@@ -3573,10 +3981,178 @@
                     (global.get $missing)))
 
         ;; complex-atanh : number? -> number?
-        ;;   Compute atanh z as (log(1 + z) - log(1 - z)) / 2.
+        ;;   Compute atanh z, using Kahan's stable formula for inexact complex inputs.
         (func $complex-atanh
               (param $z (ref eq))
               (result (ref eq))
+
+              (local $c        (ref $Complex))
+              (local $real     (ref eq))
+              (local $imag     (ref eq))
+              (local $x        f64)
+              (local $y        f64)
+              (local $work-x   f64)
+              (local $work-y   f64)
+              (local $ay       f64)
+              (local $r        f64)
+              (local $k        f64)
+              (local $den      f64)
+              (local $out-real f64)
+              (local $out-imag f64)
+              (local $negate?  i32)
+
+              (if (ref.test (ref $Complex) (local.get $z))
+                  (then
+                   (local.set $c (ref.cast (ref $Complex) (local.get $z)))
+                   (local.set $real (struct.get $Complex $real (local.get $c)))
+                   (local.set $imag (struct.get $Complex $imag (local.get $c)))
+                   (if (i32.or
+                        (ref.test (ref $Flonum) (local.get $real))
+                        (ref.test (ref $Flonum) (local.get $imag)))
+                       (then
+                        (local.set $x
+                                   (call $real->f64/checked
+                                         (global.get $symbol:atanh)
+                                         (local.get $real)))
+                        (local.set $y
+                                   (call $real->f64/checked
+                                         (global.get $symbol:atanh)
+                                         (local.get $imag)))
+                        (if (call $flonum-negative-sign?/i32
+                                  (local.get $x))
+                            (then
+                             (local.set $negate? (i32.const 1))
+                             (local.set $work-x (f64.neg (local.get $x)))
+                             (local.set $work-y (local.get $y)))
+                            (else
+                             (local.set $negate? (i32.const 0))
+                             (local.set $work-x (local.get $x))
+                             (local.set $work-y (f64.neg (local.get $y)))))
+                        (local.set $ay (f64.abs (local.get $work-y)))
+                        (if (i32.or
+                             (f64.gt (local.get $work-x)
+                                     (f64.const 3.351951982485649e153))
+                             (f64.gt (local.get $ay)
+                                     (f64.const 3.351951982485649e153)))
+                            (then
+                             (if (f64.ge (local.get $work-x)
+                                         (local.get $ay))
+                                 (then
+                                  (local.set $out-real
+                                             (f64.div
+                                              (f64.const 1.0)
+                                              (f64.add
+                                               (local.get $work-x)
+                                               (f64.mul
+                                                (f64.div (local.get $work-y)
+                                                         (local.get $work-x))
+                                                (local.get $work-y))))))
+                                 (else
+                                  (local.set $r
+                                             (f64.div (local.get $work-x)
+                                                      (local.get $work-y)))
+                                  (local.set $out-real
+                                             (f64.div
+                                              (local.get $r)
+                                              (f64.add
+                                               (local.get $work-y)
+                                               (f64.mul
+                                                (local.get $r)
+                                                (local.get $work-x)))))))
+                             (if (call $flonum-negative-sign?/i32
+                                       (local.get $work-y))
+                                 (then
+                                  (local.set $out-imag
+                                             (f64.const 1.5707963267948966)))
+                                 (else
+                                  (local.set $out-imag
+                                             (f64.const -1.5707963267948966)))))
+                            (else
+                             (if (f64.eq (local.get $work-x) (f64.const 1.0))
+                                 (then
+                                  (local.set $k
+                                             (f64.add
+                                              (local.get $ay)
+                                              (f64.const 2.983336292480083e-154)))
+                                  (local.set $out-real
+                                             (call $js-raw-math-log
+                                                   (f64.div
+                                                    (call $js-raw-math-sqrt
+                                                          (call $js-raw-math-sqrt
+                                                                (f64.add
+                                                                 (f64.const 4.0)
+                                                                 (f64.mul
+                                                                  (local.get $work-y)
+                                                                  (local.get $work-y)))))
+                                                    (call $js-raw-math-sqrt
+                                                          (local.get $k)))))
+                                  (local.set $out-imag
+                                             (f64.div
+                                              (f64.add
+                                               (f64.const 1.5707963267948966)
+                                               (call $js-raw-math-atan
+                                                     (f64.mul
+                                                      (local.get $k)
+                                                      (f64.const 0.5))))
+                                              (if (result f64)
+                                                  (call $flonum-negative-sign?/i32
+                                                        (local.get $work-y))
+                                                  (then (f64.const 2.0))
+                                                  (else (f64.const -2.0))))))
+                                 (else
+                                  (local.set $k
+                                             (f64.add
+                                              (local.get $ay)
+                                              (f64.const 2.983336292480083e-154)))
+                                  (local.set $k
+                                             (f64.mul (local.get $k)
+                                                      (local.get $k)))
+                                  (local.set $den
+                                             (f64.add
+                                              (f64.mul
+                                               (f64.sub (f64.const 1.0)
+                                                        (local.get $work-x))
+                                               (f64.sub (f64.const 1.0)
+                                                        (local.get $work-x)))
+                                              (local.get $k)))
+                                  (local.set $out-real
+                                             (f64.mul
+                                              (f64.const 0.25)
+                                              (call $complex-log1p-cs/f64
+                                                    (f64.div
+                                                     (f64.mul
+                                                      (f64.const 4.0)
+                                                      (local.get $work-x))
+                                                     (local.get $den)))))
+                                  (local.set $out-imag
+                                             (f64.mul
+                                              (f64.const -0.5)
+                                              (call $js-raw-math-atan2
+                                                    (f64.mul
+                                                     (f64.const 2.0)
+                                                     (local.get $work-y))
+                                                    (f64.sub
+                                                     (f64.mul
+                                                      (f64.sub (f64.const 1.0)
+                                                               (local.get $work-x))
+                                                      (f64.add (f64.const 1.0)
+                                                               (local.get $work-x)))
+                                                     (local.get $k)))))))))
+                        (if (local.get $negate?)
+                            (then
+                             (local.set $out-real
+                                        (f64.neg (local.get $out-real)))
+                             (local.set $out-imag
+                                        (f64.neg (local.get $out-imag)))))
+                        (return
+                         (call $make-rectangular/canonical
+                               (struct.new $Flonum
+                                           (i32.const 0)
+                                           (local.get $out-real))
+                               (struct.new $Flonum
+                                           (i32.const 0)
+                                           (local.get $out-imag))))))))
+
               (call $/2
                     (call $-/2
                           (call $log

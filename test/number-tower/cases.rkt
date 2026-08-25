@@ -1165,16 +1165,44 @@
             '(angle 1.0)
             #:gate? #t
             #:note "Positive inexact real angle is exact zero.")
-   (nt-case 'conjugate-inexact-positive-zero
-            'complex-basic
-            '(conjugate (make-rectangular 1 0.0))
-            #:gate? #t
-            #:note "Conjugate flips the sign of an inexact zero imaginary part.")
-   (nt-case 'complex-add-exact
-            'complex-basic
-            '(+ 1+2i 3+4i)
-            #:gate? #t
-            #:note "Complex addition combines rectangular components.")
+           (nt-case 'conjugate-inexact-positive-zero
+                    'complex-basic
+                    '(conjugate (make-rectangular 1 0.0))
+                    #:gate? #t
+                    #:note "Conjugate flips the sign of an inexact zero imaginary part.")
+           (nt-case 'complex-zero-signed-zeros
+                    'complex-basic
+                    '(list
+                      (zero? (make-rectangular 0.0 0.0))
+                      (zero? (make-rectangular -0.0 0.0))
+                      (zero? (make-rectangular 0.0 -0.0))
+                      (zero? (make-rectangular -0.0 -0.0))
+                      (zero? 0+1.0i))
+                    #:gate? #t
+                    #:note "zero? checks both complex components and accepts either signed zero.")
+           (nt-case 'complex-inexact->exact-components
+                    'complex-basic
+                    '(inexact->exact (make-rectangular 1.5 2.25))
+                    #:gate? #t
+                    #:note "inexact->exact recursively converts rectangular components.")
+           (nt-case 'complex-inexact->exact-canonical-real
+                    'complex-basic
+                    '(inexact->exact (make-rectangular 1.0 0.0))
+                    #:gate? #t
+                    #:note "inexact->exact canonicalizes an exact zero imaginary part away.")
+           (nt-case 'complex-add1-sub1-sqr
+                    'complex-basic
+                    '(list (add1 1+2i)
+                           (sub1 1+2i)
+                           (sqr 1+2i)
+                           (exact? (sqr 1+2i)))
+                    #:gate? #t
+                    #:note "add1, sub1, and sqr dispatch through generic complex arithmetic.")
+           (nt-case 'complex-add-exact
+                    'complex-basic
+                    '(+ 1+2i 3+4i)
+                    #:gate? #t
+                    #:note "Complex addition combines rectangular components.")
    (nt-case 'complex-sub-unary-exact
             'complex-basic
             '(- 1+2i)
@@ -1227,17 +1255,30 @@
                 (equal-hash-code (make-rectangular 1 2)))
             #:gate? #t
             #:note "equal-hash-code is stable across equal complex values.")
-   (nt-case 'complex-eqv-hash-consistent
-            'complex-basic
-            '(= (eqv-hash-code 1+2i)
-                (eqv-hash-code (make-rectangular 1 2)))
-            #:gate? #t
-            #:note "eqv-hash-code is stable across eqv complex values.")
-   (nt-case 'sqrt-negative-perfect-square
-            'complex-root
-            '(sqrt -4)
-            #:gate? #t
-            #:note "Negative exact square roots become exact imaginary values.")
+           (nt-case 'complex-eqv-hash-consistent
+                    'complex-basic
+                    '(= (eqv-hash-code 1+2i)
+                        (eqv-hash-code (make-rectangular 1 2)))
+                    #:gate? #t
+                    #:note "eqv-hash-code is stable across eqv complex values.")
+           (nt-case 'complex-hash-after-eq-hash-consistent
+                    'complex-basic
+                    '(let ([x (make-rectangular 1/3 2/5)]
+                           [y (make-rectangular 2/6 4/10)])
+                       (eq-hash-code x)
+                       (eq-hash-code y)
+                       (and (eqv? x y)
+                            (= (eqv-hash-code x)
+                               (eqv-hash-code y))
+                            (= (equal-hash-code x)
+                               (equal-hash-code y))))
+                    #:gate? #t
+                    #:note "eq-hash-code must not poison cached complex value hashes.")
+           (nt-case 'sqrt-negative-perfect-square
+                    'complex-root
+                    '(sqrt -4)
+                    #:gate? #t
+                    #:note "Negative exact square roots become exact imaginary values.")
    (nt-case 'sqrt-negative-non-square
             'complex-root
             '(sqrt -2)
@@ -1263,16 +1304,39 @@
             '(sqrt (make-rectangular -1 -0.0))
             #:gate? #t
             #:note "Complex sqrt follows the imaginary signed-zero branch.")
-   (nt-case 'sqrt-complex-positive-real-negative-zero-imag
-            'complex-root
-            '(sqrt (make-rectangular 4 -0.0))
-            #:gate? #t
-            #:note "Complex sqrt preserves negative zero imaginary components.")
-   (nt-case 'complex-exp-unit-imaginary
-            'complex-transcendental
-            '(exp +i)
-            #:gate? #t
-            #:note "Complex exp composes real exp with sin/cos.")
+           (nt-case 'sqrt-complex-positive-real-negative-zero-imag
+                    'complex-root
+                    '(sqrt (make-rectangular 4 -0.0))
+                    #:gate? #t
+                    #:note "Complex sqrt preserves negative zero imaginary components.")
+           (nt-case 'sqrt-complex-large-finite
+                    'complex-root
+                    '(sqrt (make-rectangular 1e308 1e308))
+                    #:comparison '(complex-ulps 16)
+                    #:gate? #t
+                    #:note "Inexact complex sqrt avoids overflowing large finite components.")
+           (nt-case 'sqrt-complex-unbalanced-imag-nonzero
+                    'complex-root
+                    '(let ([z (sqrt (make-rectangular 1e300 1.0))])
+                       (and (positive? (imag-part z))
+                            (not (zero? (imag-part z)))))
+                    #:gate? #t
+                    #:note "Inexact complex sqrt keeps the tiny imaginary component in unbalanced inputs.")
+           (nt-case 'sqrt-complex-negative-real-positive-zero-branch
+                    'complex-root
+                    '(/ 1.0 (imag-part (sqrt (make-rectangular -4.0 0.0))))
+                    #:gate? #t
+                    #:note "Complex sqrt follows the positive-zero branch cut above the negative real axis.")
+           (nt-case 'sqrt-complex-negative-real-negative-zero-branch
+                    'complex-root
+                    '(/ 1.0 (imag-part (sqrt (make-rectangular -4.0 -0.0))))
+                    #:gate? #t
+                    #:note "Complex sqrt follows the negative-zero branch cut below the negative real axis.")
+           (nt-case 'complex-exp-unit-imaginary
+                    'complex-transcendental
+                    '(exp +i)
+                    #:gate? #t
+                    #:note "Complex exp composes real exp with sin/cos.")
    (nt-case 'complex-exp-rectangular
             'complex-transcendental
             '(exp 1+2i)
@@ -1298,16 +1362,97 @@
             '(log 3+4i)
             #:gate? #t
             #:note "Complex natural log uses magnitude and angle.")
-   (nt-case 'complex-log-inexact-zero
-            'complex-transcendental
-            '(log (make-rectangular 0.0 0.0))
-            #:gate? #t
-            #:note "Complex log of inexact zero keeps the complex result shape.")
-   (nt-case 'complex-sin-shape
-            'complex-transcendental
-            '(let ([z (sin 1+2i)])
-               (and (number? z) (complex? z) (not (real? z)) (inexact? z)))
-            #:gate? #t
+           (nt-case 'complex-log-inexact-zero
+                    'complex-transcendental
+                    '(log (make-rectangular 0.0 0.0))
+                    #:gate? #t
+                    #:note "Complex log of inexact zero keeps the complex result shape.")
+           (nt-case 'log-negative-real-positive-base
+                    'complex-transcendental
+                    '(log -8 2)
+                    #:comparison '(complex-ulps 8)
+                    #:gate? #t
+                    #:note "Two-argument log accepts negative real values through principal logarithms.")
+           (nt-case 'log-positive-real-negative-base
+                    'complex-transcendental
+                    '(log 8 -2)
+                    #:comparison '(complex-ulps 8)
+                    #:gate? #t
+                    #:note "Two-argument log accepts negative bases through principal logarithms.")
+           (nt-case 'log-complex-positive-base
+                    'complex-transcendental
+                    '(log 1+1i 10)
+                    #:comparison '(complex-ulps 8)
+                    #:gate? #t
+                    #:note "Two-argument log accepts complex values.")
+           (nt-case 'log-complex-complex-base
+                    'complex-transcendental
+                    '(log 1+1i 2+1i)
+                    #:comparison '(complex-ulps 8)
+                    #:gate? #t
+                    #:note "Two-argument log accepts complex bases.")
+           (nt-case 'magnitude-complex-large-scaled
+                    'complex-transcendental
+                    '(round (* 1e-295
+                               (magnitude
+                                (make-rectangular 1e300 1e300))))
+                    #:gate? #t
+                    #:note "Complex magnitude avoids overflow for large finite components.")
+           (nt-case 'magnitude-complex-tiny-scaled
+                    'complex-transcendental
+                    '(round (* 1e305
+                               (magnitude
+                                (make-rectangular 1e-300 1e-300))))
+                    #:gate? #t
+                    #:note "Complex magnitude avoids underflow for tiny finite components.")
+           (nt-case 'magnitude-complex-infinity-beats-nan
+                    'complex-transcendental
+                    '(magnitude (make-rectangular +inf.0 +nan.0))
+                    #:gate? #t
+                    #:note "Complex magnitude returns +inf.0 when either component is infinite.")
+           (nt-case 'magnitude-complex-nan-infinity
+                    'complex-transcendental
+                    '(magnitude (make-rectangular +nan.0 +inf.0))
+                    #:gate? #t
+                    #:note "Complex magnitude checks infinity before propagating NaN.")
+           (nt-case 'magnitude-complex-nan-finite
+                    'complex-transcendental
+                    '(magnitude (make-rectangular +nan.0 2.0))
+                    #:gate? #t
+                    #:note "Complex magnitude propagates NaN when no component is infinite.")
+           (nt-case 'complex-log-large-scaled
+                    'complex-transcendental
+                    '(let ([z (* 1000
+                                 (log (make-rectangular 1e300 1e300)))])
+                       (list (round (real-part z))
+                             (round (imag-part z))))
+                    #:gate? #t
+                    #:note "Complex log computes log magnitude without first overflowing magnitude.")
+           (nt-case 'complex-log-tiny-scaled
+                    'complex-transcendental
+                    '(let ([z (* 1000
+                                 (log (make-rectangular 1e-300 1e-300)))])
+                       (list (round (real-part z))
+                             (round (imag-part z))))
+                    #:gate? #t
+                    #:note "Complex log computes log magnitude without underflowing magnitude to zero.")
+           (nt-case 'complex-log-negative-real-positive-zero-branch
+                    'complex-transcendental
+                    '(positive? (imag-part
+                                 (log (make-rectangular -1.0 0.0))))
+                    #:gate? #t
+                    #:note "Complex log selects the upper branch for positive imaginary zero.")
+           (nt-case 'complex-log-negative-real-negative-zero-branch
+                    'complex-transcendental
+                    '(negative? (imag-part
+                                 (log (make-rectangular -1.0 -0.0))))
+                    #:gate? #t
+                    #:note "Complex log selects the lower branch for negative imaginary zero.")
+           (nt-case 'complex-sin-shape
+                    'complex-transcendental
+                    '(let ([z (sin 1+2i)])
+                       (and (number? z) (complex? z) (not (real? z)) (inexact? z)))
+                    #:gate? #t
             #:note "Complex sin uses the rectangular formula.")
    (nt-case 'complex-sin-value
             'complex-transcendental
@@ -1327,18 +1472,30 @@
             #:comparison '(complex-ulps 4)
             #:gate? #t
             #:note "Complex cos value matches CS within a small ULP budget.")
-   (nt-case 'complex-tan-shape
-            'complex-transcendental
-            '(let ([z (tan +i)])
-               (and (number? z) (complex? z) (not (real? z)) (inexact? z)))
-            #:gate? #t
-            #:note "Complex tan uses sin/cos division.")
-   (nt-case 'complex-tan-value
-            'complex-transcendental
-            '(tan +i)
-            #:comparison '(complex-ulps 4)
-            #:gate? #t
-            #:note "Complex tan value matches CS within a small ULP budget.")
+           (nt-case 'complex-tan-shape
+                    'complex-transcendental
+                    '(let ([z (tan +i)])
+                       (and (number? z) (complex? z) (not (real? z)) (inexact? z)))
+                    #:gate? #t
+                    #:note "Complex tan uses a scaled formula for large imaginary parts.")
+           (nt-case 'complex-tan-value
+                    'complex-transcendental
+                    '(tan +i)
+                    #:comparison '(complex-ulps 4)
+                    #:gate? #t
+                    #:note "Complex tan value matches CS within a small ULP budget.")
+           (nt-case 'complex-tan-large-positive-imaginary
+                    'complex-transcendental
+                    '(tan (make-rectangular 1.0 1000.0))
+                    #:comparison '(complex-ulps 4)
+                    #:gate? #t
+                    #:note "Complex tan reaches its finite large-positive-imaginary asymptote.")
+           (nt-case 'complex-tan-large-negative-imaginary
+                    'complex-transcendental
+                    '(tan (make-rectangular 1.0 -1000.0))
+                    #:comparison '(complex-ulps 4)
+                    #:gate? #t
+                    #:note "Complex tan reaches its finite large-negative-imaginary asymptote.")
    (nt-case 'complex-sinh-shape
             'complex-transcendental
             '(let ([z (sinh 1+i)])
@@ -1363,18 +1520,42 @@
             #:comparison '(complex-ulps 4)
             #:gate? #t
             #:note "Complex cosh value matches CS within a small ULP budget.")
-   (nt-case 'complex-tanh-shape
-            'complex-transcendental
-            '(let ([z (tanh 1+i)])
-               (and (number? z) (complex? z) (not (real? z)) (inexact? z)))
-            #:gate? #t
-            #:note "Complex tanh uses sinh/cosh division.")
-   (nt-case 'complex-tanh-value
-            'complex-transcendental
-            '(tanh 1+i)
-            #:comparison '(complex-ulps 4)
-            #:gate? #t
-            #:note "Complex tanh value matches CS within a small ULP budget.")
+           (nt-case 'complex-tanh-shape
+                    'complex-transcendental
+                    '(let ([z (tanh 1+i)])
+                       (and (number? z) (complex? z) (not (real? z)) (inexact? z)))
+                    #:gate? #t
+                    #:note "Complex tanh uses a scaled formula for large real parts.")
+           (nt-case 'complex-tanh-value
+                    'complex-transcendental
+                    '(tanh 1+i)
+                    #:comparison '(complex-ulps 4)
+                    #:gate? #t
+                    #:note "Complex tanh value matches CS within a small ULP budget.")
+           (nt-case 'complex-tanh-large-positive-real
+                    'complex-transcendental
+                    '(let ([z (tanh (make-rectangular 1000.0 1.0))])
+                       (and (complex? z)
+                            (not (real? z))
+                            (= (real-part z) 1.0)
+                            (zero? (imag-part z))
+                            (not (nan? (real-part z)))
+                            (not (nan? (imag-part z)))))
+                    #:comparison 'webracket-true
+                    #:gate? #t
+                    #:note "Complex tanh reaches its finite large-positive-real asymptote; CS 9.3.0.2 overflows to NaN here.")
+           (nt-case 'complex-tanh-large-negative-real
+                    'complex-transcendental
+                    '(let ([z (tanh (make-rectangular -1000.0 1.0))])
+                       (and (complex? z)
+                            (not (real? z))
+                            (= (real-part z) -1.0)
+                            (zero? (imag-part z))
+                            (not (nan? (real-part z)))
+                            (not (nan? (imag-part z)))))
+                    #:comparison 'webracket-true
+                    #:gate? #t
+                    #:note "Complex tanh reaches its finite large-negative-real asymptote; CS 9.3.0.2 overflows to NaN here.")
    (nt-case 'complex-asin-shape
             'complex-transcendental
             '(let ([z (asin 1+2i)])
@@ -1405,12 +1586,25 @@
                (and (number? z) (complex? z) (not (real? z)) (inexact? z)))
             #:gate? #t
             #:note "Unary complex atan uses the logarithmic branch formula.")
-   (nt-case 'complex-atan-value
-            'complex-transcendental
-            '(atan 1+2i)
-            #:comparison '(complex-ulps 4)
-            #:gate? #t
-            #:note "Complex atan value matches CS within a small ULP budget.")
+           (nt-case 'complex-atan-value
+                    'complex-transcendental
+                    '(atan 1+2i)
+                    #:comparison '(complex-ulps 4)
+                    #:gate? #t
+                    #:note "Complex atan value matches CS within a small ULP budget.")
+           (nt-case 'complex-atan-near-pole-inexact
+                    'complex-transcendental
+                    '(let ([z (* 100 (atan (make-rectangular 0.0 1.0)))])
+                       (list (round (real-part z))
+                             (round (imag-part z))))
+                    #:gate? #t
+                    #:note "Complex atan follows the inexact branch near +i.")
+           (nt-case 'complex-atan-large-imaginary-tiny-part
+                    'complex-transcendental
+                    '(imag-part (atan (make-rectangular 1.0 4e153)))
+                    #:comparison '(flonum-ulps 8)
+                    #:gate? #t
+                    #:note "Complex atan preserves the tiny imaginary part for huge imaginary inputs.")
    (nt-case 'complex-asinh-shape
             'complex-transcendental
             '(let ([z (asinh 1+2i)])
@@ -1441,16 +1635,30 @@
                (and (number? z) (complex? z) (not (real? z)) (inexact? z)))
             #:gate? #t
             #:note "Complex atanh uses the logarithmic branch formula.")
-   (nt-case 'complex-atanh-value
-            'complex-transcendental
-            '(atanh 1+2i)
-            #:comparison '(complex-ulps 4)
-            #:gate? #t
-            #:note "Complex atanh value matches CS within a small ULP budget.")
-   (nt-case 'asin-real-out-of-domain-exact
-            'complex-transcendental
-            '(let ([z (asin 2)])
-               (and (number? z) (complex? z) (not (real? z)) (inexact? z)))
+           (nt-case 'complex-atanh-value
+                    'complex-transcendental
+                    '(atanh 1+2i)
+                    #:comparison '(complex-ulps 4)
+                    #:gate? #t
+                    #:note "Complex atanh value matches CS within a small ULP budget.")
+           (nt-case 'complex-asin-large-real-rounded
+                    'complex-transcendental
+                    '(let ([z (* 100 (asin 6e200))])
+                       (list (round (real-part z))
+                             (round (imag-part z))))
+                    #:gate? #t
+                    #:note "Complex asin handles a very large finite real input.")
+           (nt-case 'complex-acos-large-real-rounded
+                    'complex-transcendental
+                    '(let ([z (* 100 (acos 6e200))])
+                       (list (round (real-part z))
+                             (round (imag-part z))))
+                    #:gate? #t
+                    #:note "Complex acos handles a very large finite real input.")
+           (nt-case 'asin-real-out-of-domain-exact
+                    'complex-transcendental
+                    '(let ([z (asin 2)])
+                       (and (number? z) (complex? z) (not (real? z)) (inexact? z)))
             #:gate? #t
             #:note "asin exits the real line for exact values above 1.")
    (nt-case 'acos-real-out-of-domain-exact
@@ -1507,15 +1715,37 @@
                (and (number? z) (complex? z) (not (real? z)) (inexact? z)))
             #:gate? #t
             #:note "Non-integer complex exponentiation uses exp/log composition; ULP comparison is not available yet.")
-   (nt-case 'complex-expt-complex-exponent
-            'complex-expt
-            '(expt 2 1+i)
-            #:gate? #t
-            #:note "Complex exponents on real bases use exp/log composition.")
-   (nt-case 'fasl-bignum-roundtrip
-            'numeric-fasl
-            '(let ([x (expt 2 40)])
-               (equal? (fasl->s-exp (s-exp->fasl x)) x))
+           (nt-case 'complex-expt-complex-exponent
+                    'complex-expt
+                    '(expt 2 1+i)
+                    #:gate? #t
+                    #:note "Complex exponents on real bases use exp/log composition.")
+           (nt-case 'complex-expt-large-half
+                    'complex-expt
+                    '(expt (make-rectangular 1e300 1e300) 0.5)
+                    #:comparison '(complex-ulps 16)
+                    #:gate? #t
+                    #:note "General complex expt inherits the scaled complex square root path.")
+           (nt-case 'complex-expt-tiny-half
+                    'complex-expt
+                    '(expt (make-rectangular 1e-300 1e-300) 0.5)
+                    #:comparison '(complex-ulps 16)
+                    #:gate? #t
+                    #:note "General complex expt inherits the stable tiny-magnitude logarithm path.")
+           (nt-case 'complex-expt-zero-zero
+                    'complex-expt
+                    '(expt 0 0)
+                    #:gate? #t
+                    #:note "Zero-base exponentiation keeps the documented exact zero-exponent identity.")
+           (nt-case 'complex-expt-negative-zero-half
+                    'complex-expt
+                    '(expt -0.0 1/2)
+                    #:gate? #t
+                    #:note "Zero-base exponentiation preserves the negative-zero square-root branch.")
+           (nt-case 'fasl-bignum-roundtrip
+                    'numeric-fasl
+                    '(let ([x (expt 2 40)])
+                       (equal? (fasl->s-exp (s-exp->fasl x)) x))
             #:gate? #t
             #:note "FASL preserves exact bignums.")
    (nt-case 'fasl-rational-roundtrip
