@@ -174,7 +174,8 @@
     $expt
     $complex-hypot/f64
     $complex-log-magnitude/f64
-    $complex-log1p-cs/f64
+    $complex-log1p/f64
+    $complex-real-asinh/f64
     $complex-exp
     $complex-log
     $exp
@@ -1283,19 +1284,24 @@
                (call $js-raw-math-log (local.get $hi))
                (f64.mul
                 (f64.const 0.5)
-                (call $js-raw-math-log
-                      (f64.add
-                       (f64.const 1.0)
-                       (f64.mul (local.get $r) (local.get $r)))))))
+                (call $complex-log1p/f64
+                      (f64.mul (local.get $r) (local.get $r))))))
 
-        ;; complex-log1p-cs/f64 : f64 -> f64
-        ;;   Match Racket CS's Chez fllog1+ behavior used by complex atanh.
-        (func $complex-log1p-cs/f64
+        ;; complex-log1p/f64 : f64 -> f64
+        ;;   Compute log(1+x) without losing tiny corrections when x is small.
+        (func $complex-log1p/f64
               (param $x f64)
               (result f64)
 
-              (call $js-raw-math-log
-                    (f64.add (f64.const 1.0) (local.get $x))))
+              (call $js-raw-math-log1p (local.get $x)))
+
+        ;; complex-real-asinh/f64 : f64 -> f64
+        ;;   Compute real asinh through the host's range-safe primitive.
+        (func $complex-real-asinh/f64
+              (param $x f64)
+              (result f64)
+
+              (call $js-raw-math-asinh (local.get $x)))
 
         ;; complex-exp : complex? -> number?
         ;;   Compute exp(a+bi) as exp(a) * (cos(b) + i sin(b)).
@@ -1926,6 +1932,7 @@
     $real->f64/checked
     $flonum-negative-sign?/i32
     $real-negate
+    $number-negate
     $make-rectangular/canonical
     $make-rectangular
     $real-part
@@ -1934,6 +1941,9 @@
     $magnitude
     $angle
     $conjugate
+    $complex-asin-kahan
+    $complex-acos-kahan
+    $complex-acosh-kahan
     $complex-asin
     $complex-acos
     $complex-atan
@@ -3384,7 +3394,37 @@
                                 (i32.const 0)
                                 (f64.neg
                                  (struct.get $Flonum $v (local.get $fl)))))))
-              (call $-/2 (global.get $zero) (local.get $x)))
+              (if (call $exact-rational?/i32 (local.get $x))
+                  (then (return (call $exact-rational-negate
+                                      (local.get $x)))))
+              (call $raise-expected-real
+                    (global.get $symbol:-)
+                    (local.get $x))
+              (unreachable))
+
+        ;; number-negate : number? -> number?
+        ;;   Negate a number componentwise while preserving flonum signed zero.
+        (func $number-negate
+              (param $x (ref eq))
+              (result (ref eq))
+
+              (local $c (ref $Complex))
+
+              (if (ref.test (ref $Complex) (local.get $x))
+                  (then
+                   (local.set $c (ref.cast (ref $Complex) (local.get $x)))
+                   (return
+                    (call $make-rectangular/canonical
+                          (call $real-negate
+                                (struct.get $Complex $real (local.get $c)))
+                          (call $real-negate
+                                (struct.get $Complex $imag (local.get $c)))))))
+              (if (call $real-number?/i32 (local.get $x))
+                  (then (return (call $real-negate (local.get $x)))))
+              (call $raise-expected-number/who
+                    (global.get $symbol:-)
+                    (local.get $x))
+              (unreachable))
 
         ;; make-rectangular/canonical : real? real? -> number?
         ;;   Build a complex number, collapsing only exact zero imaginary parts.
@@ -3644,48 +3684,203 @@
                     (local.get $z))
               (unreachable))
 
+        ;; complex-asin-kahan : number? boolean? -> number?
+        ;;   Compute asin z using Kahan's stable sqrt-product formula.
+        (func $complex-asin-kahan
+              (param $z (ref eq))
+              (param $real-input? i32)
+              (result (ref eq))
+
+              (local $z-  (ref eq))
+              (local $z+  (ref eq))
+              (local $a   f64)
+              (local $b   f64)
+              (local $c   f64)
+              (local $d   f64)
+              (local $x   f64)
+              (local $den f64)
+
+              (local.set $z-
+                         (call $sqrt
+                               (call $-/2
+                                     (global.get $one)
+                                     (local.get $z))))
+              (local.set $z+
+                         (call $sqrt
+                               (call $+/2
+                                     (global.get $one)
+                                     (local.get $z))))
+              (local.set $a
+                         (call $real->f64/checked
+                               (global.get $symbol:asin)
+                               (call $real-part (local.get $z-))))
+              (local.set $b
+                         (call $real->f64/checked
+                               (global.get $symbol:asin)
+                               (call $imag-part (local.get $z-))))
+              (local.set $c
+                         (call $real->f64/checked
+                               (global.get $symbol:asin)
+                               (call $real-part (local.get $z+))))
+              (local.set $d
+                         (call $real->f64/checked
+                               (global.get $symbol:asin)
+                               (call $imag-part (local.get $z+))))
+              (local.set $x
+                         (call $real->f64/checked
+                               (global.get $symbol:asin)
+                               (call $real-part (local.get $z))))
+              (local.set $den
+                         (if (result f64)
+                             (local.get $real-input?)
+                             (then (f64.const 0.0))
+                             (else
+                              (f64.sub
+                               (f64.mul (local.get $a) (local.get $c))
+                               (f64.mul (local.get $b) (local.get $d))))))
+              (call $make-rectangular/canonical
+                    (struct.new $Flonum
+                                (i32.const 0)
+                                (call $js-raw-math-atan2
+                                      (local.get $x)
+                                      (local.get $den)))
+                    (struct.new $Flonum
+                                (i32.const 0)
+                                (call $complex-real-asinh/f64
+                                      (f64.sub
+                                       (f64.mul (local.get $a)
+                                                (local.get $d))
+                                       (f64.mul (local.get $b)
+                                                (local.get $c)))))))
+
+        ;; complex-acos-kahan : number? -> number?
+        ;;   Compute acos z using Kahan's stable sqrt-product formula.
+        (func $complex-acos-kahan
+              (param $z (ref eq))
+              (result (ref eq))
+
+              (local $z- (ref eq))
+              (local $z+ (ref eq))
+              (local $a  f64)
+              (local $b  f64)
+              (local $c  f64)
+              (local $d  f64)
+
+              (local.set $z-
+                         (call $sqrt
+                               (call $-/2
+                                     (global.get $one)
+                                     (local.get $z))))
+              (local.set $z+
+                         (call $sqrt
+                               (call $+/2
+                                     (global.get $one)
+                                     (local.get $z))))
+              (local.set $a
+                         (call $real->f64/checked
+                               (global.get $symbol:acos)
+                               (call $real-part (local.get $z-))))
+              (local.set $b
+                         (call $real->f64/checked
+                               (global.get $symbol:acos)
+                               (call $imag-part (local.get $z-))))
+              (local.set $c
+                         (call $real->f64/checked
+                               (global.get $symbol:acos)
+                               (call $real-part (local.get $z+))))
+              (local.set $d
+                         (call $real->f64/checked
+                               (global.get $symbol:acos)
+                               (call $imag-part (local.get $z+))))
+              (call $make-rectangular/canonical
+                    (struct.new $Flonum
+                                (i32.const 0)
+                                (f64.mul
+                                 (f64.const 2.0)
+                                 (call $js-raw-math-atan2
+                                       (local.get $a)
+                                       (local.get $c))))
+                    (struct.new $Flonum
+                                (i32.const 0)
+                                (call $complex-real-asinh/f64
+                                      (f64.sub
+                                       (f64.mul (local.get $b)
+                                                (local.get $c))
+                                       (f64.mul (local.get $a)
+                                                (local.get $d)))))))
+
+        ;; complex-acosh-kahan : number? -> number?
+        ;;   Compute acosh z using Kahan's stable sqrt-product formula.
+        (func $complex-acosh-kahan
+              (param $z (ref eq))
+              (result (ref eq))
+
+              (local $z- (ref eq))
+              (local $z+ (ref eq))
+              (local $a  f64)
+              (local $b  f64)
+              (local $c  f64)
+              (local $d  f64)
+
+              (local.set $z-
+                         (call $sqrt
+                               (call $-/2
+                                     (local.get $z)
+                                     (global.get $one))))
+              (local.set $z+
+                         (call $sqrt
+                               (call $+/2
+                                     (local.get $z)
+                                     (global.get $one))))
+              (local.set $a
+                         (call $real->f64/checked
+                               (global.get $symbol:acosh)
+                               (call $real-part (local.get $z-))))
+              (local.set $b
+                         (call $real->f64/checked
+                               (global.get $symbol:acosh)
+                               (call $imag-part (local.get $z-))))
+              (local.set $c
+                         (call $real->f64/checked
+                               (global.get $symbol:acosh)
+                               (call $real-part (local.get $z+))))
+              (local.set $d
+                         (call $real->f64/checked
+                               (global.get $symbol:acosh)
+                               (call $imag-part (local.get $z+))))
+              (call $make-rectangular/canonical
+                    (struct.new $Flonum
+                                (i32.const 0)
+                                (call $complex-real-asinh/f64
+                                      (f64.add
+                                       (f64.mul (local.get $a)
+                                                (local.get $c))
+                                       (f64.mul (local.get $b)
+                                                (local.get $d)))))
+                    (struct.new $Flonum
+                                (i32.const 0)
+                                (f64.mul
+                                 (f64.const 2.0)
+                                 (call $js-raw-math-atan
+                                       (f64.div (local.get $b)
+                                                (local.get $c)))))))
+
         ;; complex-asin : number? -> number?
-        ;;   Compute asin z as -i * log(i*z + sqrt(1 - z*z)).
+        ;;   Compute asin z with Kahan's sqrt-product formula.
         (func $complex-asin
               (param $z (ref eq))
               (result (ref eq))
 
-              (local $i   (ref eq))
-              (local $-i  (ref eq))
-              (local $iz  (ref eq))
-              (local $rad (ref eq))
-
-              (local.set $i
-                         (call $make-rectangular/canonical
-                               (global.get $zero)
-                               (global.get $one)))
-              (local.set $-i
-                         (call $make-rectangular/canonical
-                               (global.get $zero)
-                               (ref.i31 (i32.const -2))))
-              (local.set $iz (call $*/2 (local.get $i) (local.get $z)))
-              (local.set $rad
-                         (call $sqrt
-                               (call $-/2
-                                     (global.get $one)
-                                     (call $*/2 (local.get $z)
-                                                (local.get $z)))))
-              (call $*/2
-                    (local.get $-i)
-                    (call $log
-                          (call $+/2 (local.get $iz) (local.get $rad))
-                          (global.get $missing))))
+              (call $complex-asin-kahan
+                    (local.get $z)
+                    (call $real-number?/i32 (local.get $z))))
 
         ;; complex-acos : number? -> number?
-        ;;   Compute acos z as pi/2 - asin z.
+        ;;   Compute acos z with Kahan's sqrt-product formula.
         (func $complex-acos
               (param $z (ref eq))
               (result (ref eq))
-              (call $-/2
-                    (struct.new $Flonum
-                                (i32.const 0)
-                                (f64.const 1.5707963267948966))
-                    (call $complex-asin (local.get $z))))
+              (call $complex-acos-kahan (local.get $z)))
 
         ;; complex-atan : number? -> number?
         ;;   Compute atan z, using atan(z) = atanh(i*z)/i for inexact complex inputs.
@@ -3803,6 +3998,11 @@
 
               (local $a    f64)
               (local $b    f64)
+              (local $abs-b f64)
+              (local $sin-a f64)
+              (local $cos-a f64)
+              (local $sinh-b f64)
+              (local $cosh-b f64)
               (local $t    f64)
               (local $den  f64)
               (local $real f64)
@@ -3816,11 +4016,43 @@
                          (call $real->f64/checked
                                (global.get $symbol:tan)
                                (struct.get $Complex $imag (local.get $z))))
+              (local.set $abs-b (f64.abs (local.get $b)))
+              (if (f64.le (local.get $abs-b)
+                           (f64.const 177.61896501848597))
+                  (then
+                   (local.set $sin-a
+                              (call $js-raw-math-sin (local.get $a)))
+                   (local.set $cos-a
+                              (call $js-raw-math-cos (local.get $a)))
+                   (local.set $sinh-b
+                              (call $js-raw-math-sinh (local.get $b)))
+                   (local.set $cosh-b
+                              (call $js-raw-math-cosh (local.get $b)))
+                   (local.set $den
+                              (f64.add
+                               (f64.mul (local.get $cos-a)
+                                        (local.get $cos-a))
+                               (f64.mul (local.get $sinh-b)
+                                        (local.get $sinh-b))))
+                   (return
+                    (call $make-rectangular/canonical
+                          (struct.new $Flonum
+                                      (i32.const 0)
+                                      (f64.div
+                                       (f64.mul (local.get $sin-a)
+                                                (local.get $cos-a))
+                                       (local.get $den)))
+                          (struct.new $Flonum
+                                      (i32.const 0)
+                                      (f64.div
+                                       (f64.mul (local.get $sinh-b)
+                                                (local.get $cosh-b))
+                                       (local.get $den)))))))
               (local.set $t
                          (call $js-raw-math-exp
                                (f64.mul
                                 (f64.const -2.0)
-                                (f64.abs (local.get $b)))))
+                                (local.get $abs-b))))
               (local.set $den
                          (f64.add
                           (f64.const 1.0)
@@ -3895,6 +4127,11 @@
 
               (local $a    f64)
               (local $b    f64)
+              (local $abs-a f64)
+              (local $sinh-a f64)
+              (local $cosh-a f64)
+              (local $sin-b f64)
+              (local $cos-b f64)
               (local $t    f64)
               (local $den  f64)
               (local $real f64)
@@ -3908,11 +4145,43 @@
                          (call $real->f64/checked
                                (global.get $symbol:tanh)
                                (struct.get $Complex $imag (local.get $z))))
+              (local.set $abs-a (f64.abs (local.get $a)))
+              (if (f64.le (local.get $abs-a)
+                           (f64.const 177.61896501848597))
+                  (then
+                   (local.set $sinh-a
+                              (call $js-raw-math-sinh (local.get $a)))
+                   (local.set $cosh-a
+                              (call $js-raw-math-cosh (local.get $a)))
+                   (local.set $sin-b
+                              (call $js-raw-math-sin (local.get $b)))
+                   (local.set $cos-b
+                              (call $js-raw-math-cos (local.get $b)))
+                   (local.set $den
+                              (f64.add
+                               (f64.mul (local.get $sinh-a)
+                                        (local.get $sinh-a))
+                               (f64.mul (local.get $cos-b)
+                                        (local.get $cos-b))))
+                   (return
+                    (call $make-rectangular/canonical
+                          (struct.new $Flonum
+                                      (i32.const 0)
+                                      (f64.div
+                                       (f64.mul (local.get $sinh-a)
+                                                (local.get $cosh-a))
+                                       (local.get $den)))
+                          (struct.new $Flonum
+                                      (i32.const 0)
+                                      (f64.div
+                                       (f64.mul (local.get $sin-b)
+                                                (local.get $cos-b))
+                                       (local.get $den)))))))
               (local.set $t
                          (call $js-raw-math-exp
                                (f64.mul
                                 (f64.const -2.0)
-                                (f64.abs (local.get $a)))))
+                                (local.get $abs-a))))
               (local.set $den
                          (f64.add
                           (f64.const 1.0)
@@ -3942,43 +4211,43 @@
                     (struct.new $Flonum (i32.const 0) (local.get $imag))))
 
         ;; complex-asinh : number? -> number?
-        ;;   Compute asinh z as log(z + sqrt(z*z + 1)).
+        ;;   Compute asinh z using asinh(z) = asin(i*z)/i.
         (func $complex-asinh
               (param $z (ref eq))
               (result (ref eq))
-              (call $log
-                    (call $+/2
-                          (local.get $z)
-                          (call $sqrt
-                                (call $+/2
-                                      (call $*/2 (local.get $z)
-                                                 (local.get $z))
-                                      (global.get $one))))
-                    (global.get $missing)))
+
+              (local $w (ref eq))
+              (local $x f64)
+              (local $y f64)
+
+              (local.set $x
+                         (call $real->f64/checked
+                               (global.get $symbol:asinh)
+                               (call $real-part (local.get $z))))
+              (local.set $y
+                         (call $real->f64/checked
+                               (global.get $symbol:asinh)
+                               (call $imag-part (local.get $z))))
+              (local.set $w
+                         (call $complex-asin
+                               (call $make-rectangular/canonical
+                                     (struct.new $Flonum
+                                                 (i32.const 0)
+                                                 (f64.neg (local.get $y)))
+                                     (struct.new $Flonum
+                                                 (i32.const 0)
+                                                 (local.get $x)))))
+              (call $make-rectangular/canonical
+                    (call $imag-part (local.get $w))
+                    (call $real-negate
+                          (call $real-part (local.get $w)))))
 
         ;; complex-acosh : number? -> number?
-        ;;   Compute acosh z as log(z + sqrt(z + 1) * sqrt(z - 1)).
+        ;;   Compute acosh z with Kahan's sqrt-product formula.
         (func $complex-acosh
               (param $z (ref eq))
               (result (ref eq))
-
-              (local $sqrt+ (ref eq))
-              (local $sqrt- (ref eq))
-
-              (local.set $sqrt+
-                         (call $sqrt
-                               (call $+/2 (local.get $z)
-                                          (global.get $one))))
-              (local.set $sqrt-
-                         (call $sqrt
-                               (call $-/2 (local.get $z)
-                                          (global.get $one))))
-              (call $log
-                    (call $+/2
-                          (local.get $z)
-                          (call $*/2 (local.get $sqrt+)
-                                     (local.get $sqrt-)))
-                    (global.get $missing)))
+              (call $complex-acosh-kahan (local.get $z)))
 
         ;; complex-atanh : number? -> number?
         ;;   Compute atanh z, using Kahan's stable formula for inexact complex inputs.
@@ -4118,7 +4387,7 @@
                                   (local.set $out-real
                                              (f64.mul
                                               (f64.const 0.25)
-                                              (call $complex-log1p-cs/f64
+                                              (call $complex-log1p/f64
                                                     (f64.div
                                                      (f64.mul
                                                       (f64.const 4.0)
@@ -4948,7 +5217,21 @@
                      (call $number-imag-part/unchecked (local.get $y))))
 
          ,@(let ()
-             (define (binop $op $who $flop $intop $ratop $complexop)
+             (define (zero-identity-forms mode)
+               (case mode
+                 [(add)
+                  `((if (call $exact-zero-value?/i32 (local.get $x))
+                        (then (return (local.get $y))))
+                    (if (call $exact-zero-value?/i32 (local.get $y))
+                        (then (return (local.get $x)))))]
+                 [(sub)
+                  `((if (call $exact-zero-value?/i32 (local.get $y))
+                        (then (return (local.get $x))))
+                    (if (call $exact-zero-value?/i32 (local.get $x))
+                        (then (return (call $number-negate
+                                            (local.get $y))))))]
+                 [else '()]))
+             (define (binop $op $who $flop $intop $ratop $complexop [zero-mode #f])
                `(func ,$op (type $Prim2)
                       (param $x (ref eq))
                       (param $y (ref eq))
@@ -4961,6 +5244,21 @@
 
                       (local.set $x/is-complex (ref.test (ref $Complex) (local.get $x)))
                       (local.set $y/is-complex (ref.test (ref $Complex) (local.get $y)))
+                      (if (i32.eqz
+                           (i32.or (local.get $x/is-complex)
+                                   (call $real-number?/i32 (local.get $x))))
+                          (then (call $raise-expected-number/who
+                                      (global.get ,$who)
+                                      (local.get $x))
+                                (unreachable)))
+                      (if (i32.eqz
+                           (i32.or (local.get $y/is-complex)
+                                   (call $real-number?/i32 (local.get $y))))
+                          (then (call $raise-expected-number/who
+                                      (global.get ,$who)
+                                      (local.get $y))
+                                (unreachable)))
+                      ,@(zero-identity-forms zero-mode)
                       (if (i32.or (local.get $x/is-complex)
                                   (local.get $y/is-complex))
                           (then
@@ -5111,8 +5409,8 @@
                                                           (global.get ,$who)
                                                           (local.get $x))
                                                     (unreachable)))))))))
-            (list (binop '$+/2 '$symbol:+ '$fl+ '$integer-add/2 '$exact-rational-add/2 '$complex-add/2)
-                  (binop '$-/2 '$symbol:- '$fl- '$integer-sub/2 '$exact-rational-sub/2 '$complex-sub/2)
+            (list (binop '$+/2 '$symbol:+ '$fl+ '$integer-add/2 '$exact-rational-add/2 '$complex-add/2 'add)
+                  (binop '$-/2 '$symbol:- '$fl- '$integer-sub/2 '$exact-rational-sub/2 '$complex-sub/2 'sub)
                   (binop '$*/2 '$symbol:* '$fl* '$integer-mul/2 '$exact-rational-mul/2 '$complex-mul/2)))
 
         (func $+ (type $Prim>=0)

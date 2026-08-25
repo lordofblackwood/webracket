@@ -608,6 +608,26 @@
             '(- 1/2 2/3)
             #:gate? #t
             #:note "Exact rational subtraction must normalize signs.")
+   (nt-case 'exact-zero-add-preserves-negative-flonum-zero
+            'rational-arithmetic
+            '(eqv? (+ 0 -0.0) -0.0)
+            #:gate? #t
+            #:note "Exact zero is the additive identity for inexact negative zero.")
+   (nt-case 'exact-zero-sub-preserves-negative-flonum-zero
+            'rational-arithmetic
+            '(eqv? (- 0 0.0) -0.0)
+            #:gate? #t
+            #:note "Subtracting a positive flonum zero from exact zero negates its sign.")
+   (nt-case 'exact-zero-add-right-preserves-negative-flonum-zero
+            'rational-arithmetic
+            '(eqv? (+ -0.0 0) -0.0)
+            #:gate? #t
+            #:note "Exact zero is the right additive identity for inexact negative zero.")
+   (nt-case 'exact-zero-sub-right-preserves-negative-flonum-zero
+            'rational-arithmetic
+            '(eqv? (- -0.0 0) -0.0)
+            #:gate? #t
+            #:note "Subtracting exact zero from a flonum leaves the flonum unchanged.")
    (nt-case 'rational-multiply
             'rational-arithmetic
             '(* 2/3 9/4)
@@ -1436,6 +1456,17 @@
                              (round (imag-part z))))
                     #:gate? #t
                     #:note "Complex log computes log magnitude without underflowing magnitude to zero.")
+           (nt-case 'complex-log-small-log1p-correction
+                    'complex-transcendental
+                    '(positive?
+                      (real-part
+                       (log
+                        (make-rectangular
+                         1.0
+                         7.450580596923828e-9))))
+                    #:comparison 'webracket-true
+                    #:gate? #t
+                    #:note "Accurate log1p keeps the tiny log-magnitude correction that CS 9.3.0.2 rounds to zero.")
            (nt-case 'complex-log-negative-real-positive-zero-branch
                     'complex-transcendental
                     '(positive? (imag-part
@@ -1496,6 +1527,24 @@
                     #:comparison '(complex-ulps 4)
                     #:gate? #t
                     #:note "Complex tan reaches its finite large-negative-imaginary asymptote.")
+           (nt-case 'complex-tan-near-pole-zero-imaginary
+                    'complex-transcendental
+                    '(tan
+                      (make-rectangular
+                       1.5707963277948966
+                       0.0))
+                    #:comparison '(complex-ulps 64)
+                    #:gate? #t
+                    #:note "Complex tan uses a non-cancelling denominator near real-axis poles.")
+           (nt-case 'complex-tan-near-pole-tiny-imaginary
+                    'complex-transcendental
+                    '(tan
+                      (make-rectangular
+                       1.5707963267948966
+                       1e-20))
+                    #:comparison '(complex-ulps 64)
+                    #:gate? #t
+                    #:note "Complex tan remains finite near a pole with a tiny imaginary part.")
    (nt-case 'complex-sinh-shape
             'complex-transcendental
             '(let ([z (sinh 1+i)])
@@ -1556,6 +1605,24 @@
                     #:comparison 'webracket-true
                     #:gate? #t
                     #:note "Complex tanh reaches its finite large-negative-real asymptote; CS 9.3.0.2 overflows to NaN here.")
+           (nt-case 'complex-tanh-near-pole-zero-real
+                    'complex-transcendental
+                    '(tanh
+                      (make-rectangular
+                       0.0
+                       1.5707963277948966))
+                    #:comparison '(complex-ulps 64)
+                    #:gate? #t
+                    #:note "Complex tanh uses a non-cancelling denominator near imaginary-axis poles.")
+           (nt-case 'complex-tanh-near-pole-tiny-real
+                    'complex-transcendental
+                    '(tanh
+                      (make-rectangular
+                       1e-20
+                       1.5707963267948966))
+                    #:comparison '(complex-ulps 64)
+                    #:gate? #t
+                    #:note "Complex tanh remains finite near a pole with a tiny real part.")
    (nt-case 'complex-asin-shape
             'complex-transcendental
             '(let ([z (asin 1+2i)])
@@ -1605,6 +1672,26 @@
                     #:comparison '(flonum-ulps 8)
                     #:gate? #t
                     #:note "Complex atan preserves the tiny imaginary part for huge imaginary inputs.")
+           (nt-case 'complex-atan-log1p-tiny-components-preserved
+                    'complex-transcendental
+                    '(let ([z1 (atan (make-rectangular -1.3342887237668038e-254
+                                                       1.3261434754822404e+142))]
+                           [z2 (atan (make-rectangular 1.3915569067467006e+63
+                                                       -1.0450731650926173e-10))]
+                           [z3 (atan (make-rectangular -8.15e-322
+                                                       -1.853e-321))]
+                           [z4 (atan (make-rectangular 7.5e-322
+                                                       1.117e-321))]
+                           [z5 (atan (make-rectangular -4.896e-321
+                                                       -3.483e-321))])
+                       (and (positive? (imag-part z1))
+                            (negative? (imag-part z2))
+                            (negative? (imag-part z3))
+                            (positive? (imag-part z4))
+                            (negative? (imag-part z5))))
+                    #:comparison 'webracket-true
+                    #:gate? #t
+                    #:note "Accurate log1p in atan preserves tiny components that CS 9.3.0.2 rounds to signed zero.")
    (nt-case 'complex-asinh-shape
             'complex-transcendental
             '(let ([z (asinh 1+2i)])
@@ -1629,6 +1716,30 @@
             #:comparison '(complex-ulps 4)
             #:gate? #t
             #:note "Complex acosh value matches CS within a small ULP budget.")
+   (nt-case 'complex-asin-acos-positive-cut-signed-zero-conjugates
+            'complex-transcendental
+            '(let* ([above (make-rectangular 2.0 0.0)]
+                    [below (make-rectangular 2.0 -0.0)])
+               (and (= (asin below) (conjugate (asin above)))
+                    (= (acos below) (conjugate (acos above)))))
+            #:gate? #t
+            #:note "asin and acos preserve the lower branch on the positive real cut.")
+   (nt-case 'complex-asin-acos-acosh-negative-cut-signed-zero-conjugates
+            'complex-transcendental
+            '(let* ([above (make-rectangular -2.0 0.0)]
+                    [below (make-rectangular -2.0 -0.0)])
+               (and (= (asin below) (conjugate (asin above)))
+                    (= (acos below) (conjugate (acos above)))
+                    (= (acosh below) (conjugate (acosh above)))))
+            #:gate? #t
+            #:note "Inverse functions preserve the lower branch on the negative real cut.")
+   (nt-case 'complex-asinh-imaginary-cut-signed-zero-conjugates
+            'complex-transcendental
+            '(let* ([above (make-rectangular 0.0 2.0)]
+                    [below (conjugate above)])
+               (= (asinh below) (conjugate (asinh above))))
+            #:gate? #t
+            #:note "asinh preserves conjugation across its imaginary-axis cut.")
    (nt-case 'complex-atanh-shape
             'complex-transcendental
             '(let ([z (atanh 1+2i)])
@@ -1655,6 +1766,48 @@
                              (round (imag-part z))))
                     #:gate? #t
                     #:note "Complex acos handles a very large finite real input.")
+           (nt-case 'asinh-large-real-finite
+                    'complex-transcendental
+                    '(let ([z (asinh 1e300)])
+                       (and (real? z)
+                            (inexact? z)
+                            (not (infinite? z))
+                            (not (nan? z))))
+                    #:gate? #t
+                    #:note "Real asinh avoids overflowing the intermediate square for large finite inputs.")
+           (nt-case 'acosh-large-real-finite
+                    'complex-transcendental
+                    '(let ([z (acosh 1e300)])
+                       (and (real? z)
+                            (inexact? z)
+                            (not (infinite? z))
+                            (not (nan? z))))
+                    #:gate? #t
+                    #:note "Real acosh avoids overflowing the intermediate square for large finite inputs.")
+           (nt-case 'complex-asin-large-complex
+                    'complex-transcendental
+                    '(asin (make-rectangular 1e300 1e300))
+                    #:comparison '(complex-ulps 64)
+                    #:gate? #t
+                    #:note "Complex asin stays finite for large finite complex inputs.")
+           (nt-case 'complex-acos-large-complex
+                    'complex-transcendental
+                    '(acos (make-rectangular 1e300 1e300))
+                    #:comparison '(complex-ulps 64)
+                    #:gate? #t
+                    #:note "Complex acos stays finite for large finite complex inputs.")
+           (nt-case 'complex-asinh-large-complex
+                    'complex-transcendental
+                    '(asinh (make-rectangular 1e300 1e300))
+                    #:comparison '(complex-ulps 64)
+                    #:gate? #t
+                    #:note "Complex asinh stays finite for large finite complex inputs.")
+           (nt-case 'complex-acosh-large-complex
+                    'complex-transcendental
+                    '(acosh (make-rectangular 1e300 1e300))
+                    #:comparison '(complex-ulps 64)
+                    #:gate? #t
+                    #:note "Complex acosh stays finite for large finite complex inputs.")
            (nt-case 'asin-real-out-of-domain-exact
                     'complex-transcendental
                     '(let ([z (asin 2)])

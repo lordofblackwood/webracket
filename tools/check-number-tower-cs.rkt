@@ -286,28 +286,64 @@
                  (flonum? (real-part x))
                  (flonum? (imag-part x))))
 
+          (define number-tower-log2 (log 2.0))
+
+          (define (number-tower-log1p x)
+            (cond [(eqv? x +inf.0) +inf.0]
+                  [else
+                   (let ([u (+ 1.0 x)])
+                     (if (= u 1.0)
+                         x
+                         (* (log u) (/ x (- u 1.0)))))]))
+
+          (define (number-tower-flasinh-positive a)
+            (cond [(< a 1e-8) a]
+                  [(> a 1e154) (+ (log a) number-tower-log2)]
+                  [else
+                   (number-tower-log1p
+                    (+ a (/ (* a a)
+                            (+ 1.0 (sqrt (+ 1.0 (* a a)))))))]))
+
           (define (number-tower-flasinh x)
-            (log (+ x (sqrt (+ (* x x) 1.0)))))
+            (cond [(zero? x) x]
+                  [(negative? x) (- (number-tower-flasinh-positive (- x)))]
+                  [else (number-tower-flasinh-positive x)]))
 
           (define (number-tower-flacosh x)
             (if (< x 1.0)
                 +nan.0
-                (log (+ x (* (sqrt (+ x 1.0))
-                             (sqrt (- x 1.0)))))))
+                (cond [(= x 1.0) 0.0]
+                      [(> x 1e154) (+ (log x) number-tower-log2)]
+                      [else
+                       (number-tower-log1p
+                        (+ (- x 1.0)
+                           (* (sqrt (- x 1.0))
+                              (sqrt (+ x 1.0)))))])))
 
           (define (number-tower-flatanh x)
             (cond [(= x 1.0) +inf.0]
                   [(= x -1.0) -inf.0]
                   [(or (< x -1.0) (> x 1.0)) +nan.0]
-                  [else (* 0.5 (- (log (+ 1.0 x))
-                                  (log (- 1.0 x))))]))
+                  [else (* 0.5 (- (number-tower-log1p x)
+                                  (number-tower-log1p (- x))))]))
+
+          (define (number-tower-cflacosh z)
+            (let* ([z- (sqrt (- z 1.0))]
+                   [z+ (sqrt (+ z 1.0))]
+                   [a  (real-part z-)]
+                   [b  (imag-part z-)]
+                   [c  (real-part z+)]
+                   [d  (imag-part z+)])
+              (make-rectangular
+               (number-tower-flasinh (+ (* a c) (* b d)))
+               (* 2.0 (atan (/ b c))))))
 
           (define (asinh x)
             (cond [(flonum? x) (number-tower-flasinh x)]
                   [(eqv? x 0) 0]
                   [(real? x) (number-tower-flasinh (real->double-flonum x))]
                   [(number-tower-float-complex? x)
-                   (log (+ x (sqrt (+ (* x x) 1.0))))]
+                   (/ (asin (* +i x)) +i)]
                   [else
                    (log (+ x (sqrt (+ (* x x) 1))))]))
 
@@ -317,7 +353,7 @@
                   [(and (real? x) (>= x 1))
                    (number-tower-flacosh (real->double-flonum x))]
                   [(number-tower-float-complex? x)
-                   (log (+ x (* (sqrt (+ x 1.0)) (sqrt (- x 1.0)))))]
+                   (number-tower-cflacosh x)]
                   [else
                    (log (+ x (* (sqrt (+ x 1)) (sqrt (- x 1)))))]))
 
@@ -718,6 +754,7 @@
             (number-tower-case-id c))
     (when (memq status '(fail recorded-mismatch recorded-match))
       (printf "  note: ~a\n" (number-tower-outcome-message outcome))
+      (printf "  expr: ~s\n" (number-tower-case-expr c))
       (printf "  cs:   ~a\n" (one-line-record (number-tower-outcome-cs-record outcome)))
       (printf "  wr:   ~a\n" (one-line-record (number-tower-outcome-webracket-record outcome))))))
 

@@ -10,6 +10,7 @@
 
 (require racket/cmdline
          racket/list
+         racket/match
          racket/string
          "../test/number-tower/cases.rkt"
          "check-number-tower-cs.rkt")
@@ -89,46 +90,98 @@
 (define (random-complex-case id expr comparison note)
   (number-tower-case id 'random-complex expr comparison #t note))
 
-;; finite-operation-cases : string? any/c string? -> (listof number-tower-case?)
+;; finite-operation-cases :
+;;   string? any/c string? [#:include-atan? boolean?]
+;;   [#:include-inverse? boolean?] [#:include-pole-sensitive? boolean?]
+;;   -> (listof number-tower-case?)
 ;;   Build cases for finite complex inputs where Racket CS is the compatibility oracle.
-(define (finite-operation-cases prefix z note)
-  (list
-   (random-complex-case
-    (string->symbol (format "~a-magnitude" prefix))
-    `(magnitude ,z)
-    '(flonum-ulps 16)
-    note)
-   (random-complex-case
-    (string->symbol (format "~a-sqrt" prefix))
-    `(sqrt ,z)
-    '(complex-ulps 32)
-    note)
-   (random-complex-case
-    (string->symbol (format "~a-log" prefix))
-    `(log ,z)
-    '(complex-ulps 32)
-    note)
-   (random-complex-case
-    (string->symbol (format "~a-atan" prefix))
-    `(atan ,z)
-    '(complex-ulps 32)
-    note)
-   (random-complex-case
-    (string->symbol (format "~a-log-base" prefix))
-    `(log ,z (make-rectangular 2.0 1.0))
-    '(complex-ulps 32)
-    note)
-   (random-complex-case
-    (string->symbol (format "~a-expt-half" prefix))
-    `(expt ,z 0.5)
-    '(complex-ulps 32)
-    note)))
+(define (finite-operation-cases prefix z note
+                                #:include-atan? [include-atan? #t]
+                                #:include-inverse? [include-inverse? #t]
+                                #:include-pole-sensitive? [include-pole-sensitive? #t])
+  (append
+   (list
+    (random-complex-case
+     (string->symbol (format "~a-magnitude" prefix))
+     `(magnitude ,z)
+     '(flonum-ulps 16)
+     note)
+    (random-complex-case
+     (string->symbol (format "~a-sqrt" prefix))
+     `(sqrt ,z)
+     '(complex-ulps 32)
+     note)
+    (random-complex-case
+     (string->symbol (format "~a-log" prefix))
+     `(log ,z)
+     '(complex-ulps 32)
+     note))
+   (if include-inverse?
+       (list
+        (random-complex-case
+         (string->symbol (format "~a-asin" prefix))
+         `(asin ,z)
+         '(complex-ulps 64)
+         note)
+        (random-complex-case
+         (string->symbol (format "~a-acos" prefix))
+         `(acos ,z)
+         '(complex-ulps 64)
+         note)
+        (random-complex-case
+         (string->symbol (format "~a-asinh" prefix))
+         `(asinh ,z)
+         '(complex-ulps 64)
+         note)
+        (random-complex-case
+         (string->symbol (format "~a-acosh" prefix))
+         `(acosh ,z)
+         '(complex-ulps 64)
+         note))
+       '())
+   (if include-atan?
+       (list
+        (random-complex-case
+         (string->symbol (format "~a-atan" prefix))
+         `(atan ,z)
+         '(complex-ulps 32)
+         note))
+       '())
+   (if include-pole-sensitive?
+       (list
+        (random-complex-case
+         (string->symbol (format "~a-tan" prefix))
+         `(tan ,z)
+         '(complex-ulps 64)
+         note)
+        (random-complex-case
+         (string->symbol (format "~a-tanh" prefix))
+         `(tanh ,z)
+         '(complex-ulps 64)
+         note))
+       '())
+   (list
+    (random-complex-case
+     (string->symbol (format "~a-log-base" prefix))
+     `(log ,z (make-rectangular 2.0 1.0))
+     '(complex-ulps 32)
+     note)
+    (random-complex-case
+     (string->symbol (format "~a-expt-half" prefix))
+     `(expt ,z 0.5)
+     '(complex-ulps 32)
+     note))))
 
 ;; generated-finite-cases :
 ;;   symbol? string? generator exact-nonnegative-integer? exact-nonnegative-integer?
+;;   [#:include-atan? boolean?]
+;;   [#:include-inverse? boolean?] [#:include-pole-sensitive? boolean?]
 ;;   -> (values (listof number-tower-case?) exact-nonnegative-integer?)
 ;;   Generate one finite-input family.
-(define (generated-finite-cases tag note generator count state)
+(define (generated-finite-cases tag note generator count state
+                                #:include-atan? [include-atan? #t]
+                                #:include-inverse? [include-inverse? #t]
+                                #:include-pole-sensitive? [include-pole-sensitive? #t])
   (for/fold ([cases '()]
              [next-state state])
             ([index (in-range count)])
@@ -139,7 +192,10 @@
      (append cases
              (finite-operation-cases prefix
                                      (rect-expr real imag)
-                                     note))
+                                     note
+                                     #:include-atan? include-atan?
+                                     #:include-inverse? include-inverse?
+                                     #:include-pole-sensitive? include-pole-sensitive?))
      (next-u32 state1))))
 
 ;; signed-zero-cases : -> (listof number-tower-case?)
@@ -160,6 +216,60 @@
             (log (make-rectangular -1.0 ,imag)))
      'complex-ulps
      "Signed-zero complex branch-cut sample.")))
+
+;; inverse-branch-cut-cases : -> (listof number-tower-case?)
+;;   Build near-cut samples for inverse complex functions.
+(define (inverse-branch-cut-cases)
+  (define samples
+    `((asin positive-real-upper (asin (make-rectangular 2.0 5e-324)))
+      (asin positive-real-lower (asin (make-rectangular 2.0 -5e-324)))
+      (acos positive-real-upper (acos (make-rectangular 2.0 5e-324)))
+      (acos positive-real-lower (acos (make-rectangular 2.0 -5e-324)))
+      (asin negative-real-upper (asin (make-rectangular -2.0 5e-324)))
+      (asin negative-real-lower (asin (make-rectangular -2.0 -5e-324)))
+      (acos negative-real-upper (acos (make-rectangular -2.0 5e-324)))
+      (acos negative-real-lower (acos (make-rectangular -2.0 -5e-324)))
+      (acosh negative-real-upper (acosh (make-rectangular -2.0 5e-324)))
+      (acosh negative-real-lower (acosh (make-rectangular -2.0 -5e-324)))
+      (asinh positive-imaginary-right (asinh (make-rectangular 5e-324 2.0)))
+      (asinh positive-imaginary-left (asinh (make-rectangular -5e-324 2.0)))
+      (asinh negative-imaginary-right (asinh (make-rectangular 5e-324 -2.0)))
+      (asinh negative-imaginary-left (asinh (make-rectangular -5e-324 -2.0)))))
+  (for/list ([sample (in-list samples)])
+    (match-define (list op cut expr) sample)
+    (random-complex-case
+     (string->symbol (format "random-complex-~a-~a-branch" op cut))
+     expr
+     '(complex-ulps 64)
+     "Near-branch-cut inverse complex sample.")))
+
+;; near-pole-cases : -> (listof number-tower-case?)
+;;   Build samples near the tan and tanh pole lines.
+(define (near-pole-cases)
+  (define samples
+    `((tan left-real-pole
+           (tan (make-rectangular
+                 (- (/ pi 2) (expt 2 -28))
+                 5e-324)))
+      (tan right-real-pole
+           (tan (make-rectangular
+                 (+ (/ pi 2) (expt 2 -28))
+                 -5e-324)))
+      (tanh lower-imaginary-pole
+            (tanh (make-rectangular
+                   5e-324
+                   (- (/ pi 2) (expt 2 -28)))))
+      (tanh upper-imaginary-pole
+            (tanh (make-rectangular
+                   -5e-324
+                   (+ (/ pi 2) (expt 2 -28)))))))
+  (for/list ([sample (in-list samples)])
+    (match-define (list op pole expr) sample)
+    (random-complex-case
+     (string->symbol (format "random-complex-~a-~a" op pole))
+     expr
+     '(complex-ulps 128)
+     "Near-pole complex tangent sample.")))
 
 ;; nonfinite-cases : exact-nonnegative-integer? exact-nonnegative-integer?
 ;;                -> (values (listof number-tower-case?) exact-nonnegative-integer?)
@@ -200,20 +310,26 @@
      "Log-distributed finite complex sample."
      log-component
      count
-     state1))
+     state1
+     #:include-atan? #f
+     #:include-pole-sensitive? #f))
   (define-values (subnormal-cases state3)
     (generated-finite-cases
      'subnormal
      "Subnormal finite complex sample."
      subnormal-component
      count
-     state2))
+     state2
+     #:include-atan? #f
+     #:include-pole-sensitive? #f))
   (define-values (nonfinite-samples _state4)
     (nonfinite-cases count state3))
   (append normal-cases
           log-cases
           subnormal-cases
           (signed-zero-cases)
+          (inverse-branch-cut-cases)
+          (near-pole-cases)
           (reverse nonfinite-samples)))
 
 
