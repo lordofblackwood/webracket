@@ -327,6 +327,55 @@
                   [else (* 0.5 (- (number-tower-log1p x)
                                   (number-tower-log1p (- x))))]))
 
+          (define (number-tower-negated-flonum? x)
+            (or (< x 0.0)
+                (eqv? x -0.0)))
+
+          (define number-tower-atanh-theta 3.351951982485649e153)
+          (define number-tower-atanh-rho 2.983336292480083e-154)
+          (define number-tower-pi/2 (atan 1.0 0.0))
+
+          (define (number-tower-cflatanh-core x y)
+            ;; Match Chez Scheme's Kahan-style cflatanh helper.
+            (define ay (abs y))
+            (cond
+              [(or (> x number-tower-atanh-theta)
+                   (> ay number-tower-atanh-theta))
+               (make-rectangular
+                (if (>= x ay)
+                    (/ 1.0 (+ x (* (/ y x) y)))
+                    (let ([r (/ x y)])
+                      (/ r (+ y (* r x)))))
+                (if (number-tower-negated-flonum? y)
+                    number-tower-pi/2
+                    (- number-tower-pi/2)))]
+              [(= x 1.0)
+               (define k (+ ay number-tower-atanh-rho))
+               (make-rectangular
+                (log (/ (sqrt (sqrt (+ 4.0 (* y y))))
+                        (sqrt k)))
+                (/ (+ number-tower-pi/2 (atan (/ k 2.0)))
+                   (if (number-tower-negated-flonum? y) 2.0 -2.0)))]
+              [else
+               (define 1-x (- 1.0 x))
+               (define k (let ([k (+ ay number-tower-atanh-rho)])
+                           (* k k)))
+               (make-rectangular
+                (/ (number-tower-log1p
+                    (/ (* 4.0 x)
+                       (+ (* 1-x 1-x) k)))
+                   4.0)
+                (/ (atan (* 2.0 y)
+                         (- (* 1-x (+ 1.0 x)) k))
+                   -2.0))]))
+
+          (define (number-tower-cflatanh z)
+            (define x (real-part z))
+            (define y (imag-part z))
+            (if (number-tower-negated-flonum? x)
+                (- (number-tower-cflatanh-core (- x) y))
+                (number-tower-cflatanh-core x (- y))))
+
           (define (number-tower-cflacosh z)
             (let* ([z- (sqrt (- z 1.0))]
                    [z+ (sqrt (+ z 1.0))]
@@ -362,7 +411,7 @@
                   [(eqv? x 0) 0]
                   [(real? x) (number-tower-flatanh (real->double-flonum x))]
                   [(number-tower-float-complex? x)
-                   (* 0.5 (- (log (+ 1.0 x)) (log (- 1.0 x))))]
+                   (number-tower-cflatanh x)]
                   [else
                    (* 1/2 (- (log (+ 1 x)) (log (- 1 x))))])))
        out)

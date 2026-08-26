@@ -649,6 +649,26 @@
             #:comparison 'ignore-fixnum-width
             #:gate? #t
             #:note "Exact division can preserve a bignum numerator.")
+   (nt-case 'exact-zero-divide-inexact-finite
+            'rational-arithmetic
+            '(/ 0 2.0)
+            #:gate? #t
+            #:note "Exact zero divided by an inexact finite value remains exact zero.")
+   (nt-case 'exact-zero-divide-inexact-zero
+            'rational-arithmetic
+            '(/ 0 0.0)
+            #:gate? #t
+            #:note "Exact zero divided by an inexact zero remains exact zero.")
+   (nt-case 'exact-zero-divide-inexact-infinity
+            'rational-arithmetic
+            '(/ 0 +inf.0)
+            #:gate? #t
+            #:note "Exact zero divided by infinity remains exact zero.")
+   (nt-case 'exact-zero-divide-inexact-nan
+            'rational-arithmetic
+            '(/ 0 +nan.0)
+            #:gate? #t
+            #:note "Exact zero divided by NaN remains exact zero.")
    (nt-case 'rational-equal-comparison
             'rational-arithmetic
             '(= 2/4 1/2)
@@ -851,6 +871,166 @@
                     (eqv? (* x 1.0) (exact->inexact upper))))
             #:gate? #t
             #:note "Mixed exact/inexact arithmetic uses the same one-round bignum conversion.")
+   (nt-case 'floatable-exact-flonum-add-rounding-order
+            'rational-conversion
+            '(let ([x 9007199254740993])
+               (+ x -9007199254740992.0))
+            #:gate? #t
+            #:note "Floatable exact operands are rounded before mixed flonum addition.")
+   (nt-case 'floatable-flonum-exact-add-rounding-order
+            'rational-conversion
+            '(let ([x 9007199254740993])
+               (+ -9007199254740992.0 x))
+            #:gate? #t
+            #:note "Floatable exact operands are rounded before reverse mixed flonum addition.")
+   (nt-case 'floatable-exact-flonum-sub-rounding-order
+            'rational-conversion
+            '(let ([x 9007199254740993])
+               (- x 9007199254740992.0))
+            #:gate? #t
+            #:note "Floatable exact operands are rounded before mixed exact-minus-flonum subtraction.")
+   (nt-case 'floatable-flonum-exact-sub-rounding-order
+            'rational-conversion
+            '(let ([x 9007199254740993])
+               (- 9007199254740992.0 x))
+            #:gate? #t
+            #:note "Floatable exact operands are rounded before mixed flonum-minus-exact subtraction.")
+   (nt-case 'floatable-exact-flonum-mul-rounding-order
+            'rational-conversion
+            '(* 9007199254740993 3.0)
+            #:gate? #t
+            #:note "Floatable exact operands are rounded before mixed flonum multiplication.")
+   (nt-case 'floatable-flonum-exact-mul-rounding-order
+            'rational-conversion
+            '(* 3.0 9007199254740993)
+            #:gate? #t
+            #:note "Floatable exact operands are rounded before reverse mixed flonum multiplication.")
+   (nt-case 'floatable-exact-flonum-div-rounding-order
+            'rational-conversion
+            '(/ 9007199254740993 3.0)
+            #:gate? #t
+            #:note "Floatable exact operands are rounded before mixed exact-over-flonum division.")
+   (nt-case 'floatable-flonum-exact-div-rounding-order
+            'rational-conversion
+            '(/ 9007199254740992.0 9007199254740993)
+            #:gate? #t
+            #:note "Floatable exact operands are rounded before mixed flonum-over-exact division.")
+   (nt-case 'mixed-tiny-negative-add-zero-signed-zero
+            'rational-conversion
+            '(eqv?
+              (+ (- (/ 1 (expt 2 1075))) 0.0)
+              0.0)
+            #:gate? #t
+            #:note "Adding zero to a tiny nonfloatable exact follows Racket's signed-zero branch.")
+   (nt-case 'mixed-tiny-sub-zero-signed-zero
+            'rational-conversion
+            '(eqv?
+              (- 0.0 (/ 1 (expt 2 1075)))
+              0.0)
+            #:gate? #t
+            #:note "Subtracting a tiny nonfloatable exact from zero follows Racket's signed-zero branch.")
+   (nt-case 'floatable-rational-flonum-add-rounding-order
+            'rational-conversion
+            '(+ (+ 1 (/ 1 (expt 2 54))) -1.0)
+            #:gate? #t
+            #:note "Floatable exact rationals are rounded before mixed flonum addition.")
+   (nt-case 'floatability-boundary-positive-2^1022
+            'rational-conversion
+            '(+ (expt 2 1022) 0.0)
+            #:gate? #t
+            #:note "Positive 2^1022 is still floatable by Racket CS's integer-length bound.")
+   (nt-case 'floatability-boundary-positive-2^1023
+            'rational-conversion
+            '(let ([x (expt 2 1023)])
+               (+ x (- (exact->inexact x))))
+            #:gate? #t
+            #:note "Positive 2^1023 is just outside the integer floatability bound.")
+   (nt-case 'floatability-boundary-negative-2^1023
+            'rational-conversion
+            '(let ([x (- (expt 2 1023))]
+                   [y (exact->inexact (expt 2 1023))])
+               (+ x y))
+            #:gate? #t
+            #:note "Negative -2^1023 remains floatable because integer-length is asymmetric.")
+   (nt-case 'floatability-boundary-negative-2^1023-minus-one
+            'rational-conversion
+            '(let ([x (sub1 (- (expt 2 1023)))]
+                   [y (exact->inexact (expt 2 1023))])
+               (+ x y))
+            #:gate? #t
+            #:note "Negative -2^1023-1 is just outside the integer floatability bound.")
+   (nt-case 'bignum-f64-mixed-subnormal-product
+            'rational-conversion
+            '(let ([m (exact->inexact (/ 1 (expt 2 1074)))])
+               (* (expt 2 1075) m))
+            #:gate? #t
+            #:note "Mixed multiplication exactifies finite flonums before combining with huge exact values.")
+   (nt-case 'rational-f64-mixed-subnormal-product
+            'rational-conversion
+            '(let ([m (exact->inexact (/ 1 (expt 2 1074)))])
+               (* (/ (expt 2 1075) 3) m))
+            #:gate? #t
+            #:note "Mixed multiplication exactifies finite flonums before combining with huge exact rationals.")
+   (nt-case 'bignum-f64-mixed-positive-zero-product
+            'rational-conversion
+            '(* (expt 10 400) 0.0)
+            #:gate? #t
+            #:note "Huge positive exact values times positive flonum zero produce positive zero, not NaN.")
+   (nt-case 'bignum-f64-mixed-negative-zero-product
+            'rational-conversion
+            '(* (- (expt 10 400)) 0.0)
+            #:gate? #t
+            #:note "Huge negative exact values times positive flonum zero preserve the negative zero sign.")
+   (nt-case 'bignum-f64-mixed-negative-zero-product-left
+            'rational-conversion
+            '(* 0.0 (- (expt 10 400)))
+            #:gate? #t
+            #:note "Flonum zero times a huge negative exact value preserves the negative zero sign.")
+   (nt-case 'bignum-f64-mixed-flonum-negative-zero-product-left
+            'rational-conversion
+            '(* -0.0 (- (expt 10 400)))
+            #:gate? #t
+            #:note "Negative flonum zero times a negative exact value flips back to positive zero.")
+   (nt-case 'bignum-f64-mixed-infinity-add
+            'rational-conversion
+            '(+ (expt 10 400) -inf.0)
+            #:gate? #t
+            #:note "Adding a huge exact value to infinity returns the original infinity.")
+   (nt-case 'bignum-f64-mixed-infinity-sub
+            'rational-conversion
+            '(- (expt 10 400) +inf.0)
+            #:gate? #t
+            #:note "Subtracting infinity from a huge exact value negates the infinity.")
+   (nt-case 'bignum-f64-mixed-infinity-div
+            'rational-conversion
+            '(/ (expt 10 400) +inf.0)
+            #:gate? #t
+            #:note "Huge exact values divided by infinity produce a signed flonum zero.")
+   (nt-case 'bignum-f64-mixed-divide-by-positive-zero
+            'rational-conversion
+            '(/ (expt 10 400) 0.0)
+            #:gate? #t
+            #:note "Huge exact values divided by positive flonum zero produce positive infinity.")
+   (nt-case 'bignum-f64-mixed-divide-by-negative-zero
+            'rational-conversion
+            '(/ (expt 10 400) -0.0)
+            #:gate? #t
+            #:note "Huge exact values divided by negative flonum zero produce negative infinity.")
+   (nt-case 'bignum-f64-mixed-infinity-div-left
+            'rational-conversion
+            '(/ +inf.0 (- (expt 10 400)))
+            #:gate? #t
+            #:note "Infinity divided by a huge negative exact value preserves the quotient sign.")
+   (nt-case 'bignum-f64-mixed-nan-add
+            'rational-conversion
+            '(+ (expt 10 400) +nan.0)
+            #:gate? #t
+            #:note "Adding NaN to a huge exact value returns NaN without converting the exact value first.")
+   (nt-case 'bignum-f64-mixed-nan-div
+            'rational-conversion
+            '(/ (expt 10 400) +nan.0)
+            #:gate? #t
+            #:note "Dividing a huge exact value by NaN returns NaN without converting the exact value first.")
    (nt-case 'exact->inexact-rational-double-round
             'rational-conversion
             '(exact->inexact 2106270354592/12789239550964971)
@@ -1233,11 +1413,93 @@
             '(* 1+2i 3+4i)
             #:gate? #t
             #:note "Complex multiplication uses the rectangular formula.")
+   (nt-case 'complex-mul-large-exact-subnormal-real
+            'complex-basic
+            '(let* ([m (exact->inexact (/ 1 (expt 2 1074)))]
+                    [z (* (make-rectangular (expt 2 1075) 1)
+                          (make-rectangular m 1.0))])
+               (real-part z))
+            #:gate? #t
+            #:note "Complex multiplication inherits exact/flonum precision for huge exact times subnormal.")
+   (nt-case 'complex-mul-infinite-left-flonum-scalar
+            'complex-basic
+            '(* 1.0 (make-rectangular +inf.0 -inf.0))
+            #:gate? #t
+            #:note "Exact zero imaginary scalar components must not turn infinities into NaNs.")
+   (nt-case 'complex-mul-infinite-right-flonum-scalar
+            'complex-basic
+            '(* (make-rectangular +inf.0 -inf.0) 1.0)
+            #:gate? #t
+            #:note "Complex multiplication by an inexact real scalar preserves infinite components.")
+   (nt-case 'complex-mul-infinite-exact-scalar
+            'complex-basic
+            '(* 1 (make-rectangular +inf.0 -inf.0))
+            #:gate? #t
+            #:note "Complex multiplication by an exact real scalar preserves infinite components.")
+   (nt-case 'complex-mul-infinite-negative-flonum-scalar
+            'complex-basic
+            '(* -3.0 (make-rectangular +inf.0 -inf.0))
+            #:gate? #t
+            #:note "Complex multiplication by a negative inexact scalar preserves signed infinities.")
+   (nt-case 'mul-exact-zero-times-infinity
+            'complex-basic
+            '(* 0 +inf.0)
+            #:gate? #t
+            #:note "Exact zero absorbs infinity in generic multiplication.")
+   (nt-case 'mul-exact-zero-times-infinity-exact
+            'complex-basic
+            '(exact? (* 0 +inf.0))
+            #:gate? #t
+            #:note "Exact zero times infinity remains exact zero.")
+   (nt-case 'mul-inexact-zero-times-infinity-nan
+            'complex-basic
+            '(nan? (* 0.0 +inf.0))
+            #:gate? #t
+            #:note "Inexact zero times infinity follows IEEE NaN behavior.")
+   (nt-case 'mul-zero-does-not-mask-contract-error
+            'complex-basic
+            '(with-handlers ([exn:fail:contract? (lambda (exn) #t)])
+               (* 0 'not-a-number)
+               #f)
+            #:gate? #t
+            #:note "n-ary multiplication must validate operands after an exact zero.")
    (nt-case 'complex-div-exact
             'complex-basic
             '(/ 1+2i 3+4i)
             #:gate? #t
             #:note "Exact complex division keeps rational components.")
+   (nt-case 'complex-div-infinite-by-real-one
+            'complex-basic
+            '(/ (make-rectangular +inf.0 -inf.0) 1.0)
+            #:gate? #t
+            #:note "Complex division by an inexact real scalar preserves infinite components.")
+   (nt-case 'complex-div-infinite-by-negative-real
+            'complex-basic
+            '(/ (make-rectangular +inf.0 -inf.0) -3.0)
+            #:gate? #t
+            #:note "Complex division by a negative inexact real scalar preserves signed infinities.")
+   (nt-case 'complex-div-exact-zero-numerator
+            'complex-basic
+            '(/ 0 (make-rectangular 1.0 1.0))
+            #:gate? #t
+            #:note "An exact-zero complex numerator remains exact zero.")
+   (nt-case 'complex-div-exact-zero-numerator-exact
+            'complex-basic
+            '(exact? (/ 0 (make-rectangular 1.0 1.0)))
+            #:gate? #t
+            #:note "The exact-zero numerator shortcut preserves exactness.")
+   (nt-case 'complex-div-by-unit-imaginary
+            'complex-basic
+            '(/ 1+2i 0+1i)
+            #:gate? #t
+            #:note "Exact-zero real divisor component uses (a+bi)/(di) = b/d - (a/d)i.")
+   (nt-case 'complex-div-inexact-by-exact-zero-error
+            'complex-basic
+            '(with-handlers ([exn:fail:contract:divide-by-zero? (lambda (exn) #t)])
+               (/ (make-rectangular 1.0 1.0) 0)
+               #f)
+            #:gate? #t
+            #:note "Complex division by exact zero raises the divide-by-zero exception.")
    (nt-case 'complex-div-inexact-underflow-scaled
             'complex-basic
             '(/ (make-rectangular 1e-308 1e-308)
@@ -1716,6 +1978,42 @@
             #:comparison '(complex-ulps 4)
             #:gate? #t
             #:note "Complex acosh value matches CS within a small ULP budget.")
+   (nt-case 'complex-asin-positive-cut-upper-orientation
+            'complex-transcendental
+            '(asin (make-rectangular 2.0 0.0))
+            #:comparison '(complex-ulps 4)
+            #:gate? #t
+            #:note "asin follows Racket CS on the upper side of the positive real cut.")
+   (nt-case 'complex-asin-positive-cut-lower-orientation
+            'complex-transcendental
+            '(asin (make-rectangular 2.0 -0.0))
+            #:comparison '(complex-ulps 4)
+            #:gate? #t
+            #:note "asin follows Racket CS on the lower side of the positive real cut.")
+   (nt-case 'complex-acos-positive-cut-upper-orientation
+            'complex-transcendental
+            '(acos (make-rectangular 2.0 0.0))
+            #:comparison '(complex-ulps 4)
+            #:gate? #t
+            #:note "acos follows Racket CS on the upper side of the positive real cut.")
+   (nt-case 'complex-acos-positive-cut-lower-orientation
+            'complex-transcendental
+            '(acos (make-rectangular 2.0 -0.0))
+            #:comparison '(complex-ulps 4)
+            #:gate? #t
+            #:note "acos follows Racket CS on the lower side of the positive real cut.")
+   (nt-case 'complex-acosh-negative-cut-upper-orientation
+            'complex-transcendental
+            '(acosh (make-rectangular -2.0 0.0))
+            #:comparison '(complex-ulps 4)
+            #:gate? #t
+            #:note "acosh follows Racket CS on the upper side of the negative real cut.")
+   (nt-case 'complex-acosh-negative-cut-lower-orientation
+            'complex-transcendental
+            '(acosh (make-rectangular -2.0 -0.0))
+            #:comparison '(complex-ulps 4)
+            #:gate? #t
+            #:note "acosh follows Racket CS on the lower side of the negative real cut.")
    (nt-case 'complex-asin-acos-positive-cut-signed-zero-conjugates
             'complex-transcendental
             '(let* ([above (make-rectangular 2.0 0.0)]
@@ -1740,6 +2038,18 @@
                (= (asinh below) (conjugate (asinh above))))
             #:gate? #t
             #:note "asinh preserves conjugation across its imaginary-axis cut.")
+   (nt-case 'complex-asinh-positive-cut-positive-zero-side
+            'complex-transcendental
+            '(asinh (make-rectangular 0.0 2.0))
+            #:comparison '(complex-ulps 4)
+            #:gate? #t
+            #:note "asinh follows Racket CS on the positive-real side of the positive imaginary cut.")
+   (nt-case 'complex-asinh-positive-cut-negative-zero-side
+            'complex-transcendental
+            '(asinh (make-rectangular -0.0 2.0))
+            #:comparison '(complex-ulps 4)
+            #:gate? #t
+            #:note "asinh follows Racket CS on the negative-real side of the positive imaginary cut.")
    (nt-case 'complex-atanh-shape
             'complex-transcendental
             '(let ([z (atanh 1+2i)])

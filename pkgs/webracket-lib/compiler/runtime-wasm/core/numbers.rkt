@@ -4965,6 +4965,18 @@
     $complex-mul/2
     $complex-div/2
     $complex=/2
+    $mixed-f64-nonfinite?/i32
+    $exact-integer-length/i32
+    $exact-rational-floatable?/i32
+    $exact-sign->flonum
+    $mixed-exact-flonum-add/2
+    $mixed-flonum-exact-add/2
+    $mixed-exact-flonum-sub/2
+    $mixed-flonum-exact-sub/2
+    $mixed-exact-flonum-mul/2
+    $mixed-flonum-exact-mul/2
+    $mixed-exact-flonum-div/2
+    $mixed-flonum-exact-div/2
     $+/2
     $-/2
     $*/2
@@ -5103,6 +5115,27 @@
                (local.set $b (call $number-imag-part/unchecked (local.get $x)))
                (local.set $c (call $number-real-part/unchecked (local.get $y)))
                (local.set $d (call $number-imag-part/unchecked (local.get $y)))
+               (if (i32.and
+                    (call $exact-zero-value?/i32 (local.get $a))
+                    (call $exact-zero-value?/i32 (local.get $b)))
+                   (then (return (global.get $zero))))
+               (if (call $exact-zero-value?/i32 (local.get $c))
+                   (then
+                    (return
+                     (call $make-rectangular/canonical
+                           (call $/2 (local.get $b)
+                                      (local.get $d))
+                           (call $real-negate
+                                 (call $/2 (local.get $a)
+                                            (local.get $d)))))))
+               (if (call $exact-zero-value?/i32 (local.get $d))
+                   (then
+                    (return
+                     (call $make-rectangular/canonical
+                           (call $/2 (local.get $a)
+                                      (local.get $c))
+                           (call $/2 (local.get $b)
+                                     (local.get $c))))))
                (local.set $inexact?
                           (i32.or
                            (i32.or
@@ -5216,6 +5249,368 @@
                      (call $number-imag-part/unchecked (local.get $x))
                      (call $number-imag-part/unchecked (local.get $y))))
 
+         ;; mixed-f64-nonfinite?/i32 : f64 -> i32
+         ;;   Return 1 for NaN and infinities, which cannot be exactified.
+         (func $mixed-f64-nonfinite?/i32
+               (param $x f64)
+               (result i32)
+
+               (i32.or
+                (f64.ne (local.get $x) (local.get $x))
+                (i32.or
+                 (f64.eq (local.get $x) (f64.const +inf))
+                 (f64.eq (local.get $x) (f64.const -inf)))))
+
+         ;; exact-integer-length/i32 : exact-integer? -> i32
+         ;;   Return Racket's integer-length as an i32.
+         (func $exact-integer-length/i32
+               (param $n (ref eq))
+               (result i32)
+
+               (local $n/fx  i32)
+               (local $bn    (ref $Bignum))
+               (local $limbs (ref $I32Array))
+               (local $len   i32)
+               (local $top   i32)
+               (local $mag-len i32)
+               (local $power-shift i32)
+
+               (if (ref.test (ref i31) (local.get $n))
+                   (then
+                    (local.set $n/fx
+                               (i32.shr_s
+                                (i31.get_s
+                                 (ref.cast (ref i31) (local.get $n)))
+                                (i32.const 1)))
+                    (if (i32.ge_s (local.get $n/fx) (i32.const 0))
+                        (then
+                         (if (i32.eqz (local.get $n/fx))
+                             (then (return (i32.const 0))))
+                         (return
+                          (i32.sub
+                           (i32.const 32)
+                           (i32.clz (local.get $n/fx)))))
+                        (else
+                         (return
+                          (i32.sub
+                           (i32.const 32)
+                           (i32.clz
+                            (i32.xor (local.get $n/fx) (i32.const -1)))))))))
+
+               (local.set $bn (ref.cast (ref $Bignum) (local.get $n)))
+               (if (i32.gt_s (struct.get $Bignum $sign (local.get $bn))
+                             (i32.const 0))
+                   (then
+                    (return
+                     (call $integer-nonnegative-bit-length/i32
+                           (local.get $n)))))
+               (local.set $limbs (struct.get $Bignum $limbs (local.get $bn)))
+               (local.set $len (array.len (local.get $limbs)))
+               (local.set $top
+                          (array.get $I32Array
+                                     (local.get $limbs)
+                           (i32.sub (local.get $len) (i32.const 1))))
+               (local.set $mag-len
+                          (call $bignum-size-add/i32
+                                (call $bignum-size-mul/i32
+                                      (i32.sub (local.get $len) (i32.const 1))
+                                      (i32.const 32))
+                                (i32.sub (i32.const 32)
+                                         (i32.clz (local.get $top)))))
+               (local.set $power-shift
+                          (call $bignum-power-of-two-shift/i32
+                                (local.get $bn)))
+               (if (i32.ge_s (local.get $power-shift) (i32.const 0))
+                   (then
+                    (return
+                     (i32.sub (local.get $mag-len) (i32.const 1)))))
+               (local.get $mag-len))
+
+         ;; exact-rational-floatable?/i32 : exact-rational? -> i32
+         ;;   Implement Racket CS's range-based floatable? classification.
+         (func $exact-rational-floatable?/i32
+               (param $x (ref eq))
+               (result i32)
+
+               (local $q    (ref $Rational))
+               (local $diff i32)
+
+               (if (ref.test (ref $Rational) (local.get $x))
+                   (then
+                    (local.set $q (ref.cast (ref $Rational) (local.get $x)))
+                    (local.set $diff
+                               (i32.sub
+                                (call $exact-integer-length/i32
+                                      (struct.get $Rational $num (local.get $q)))
+                                (call $exact-integer-length/i32
+                                      (struct.get $Rational $den (local.get $q)))))
+                    (return
+                     (i32.and
+                      (i32.ge_s (local.get $diff) (i32.const -1023))
+                      (i32.le_s (local.get $diff) (i32.const 1023))))))
+               (i32.le_s
+                (call $exact-integer-length/i32 (local.get $x))
+                (i32.const 1023)))
+
+         ;; exact-sign->flonum : exact-rational? -> flonum?
+         ;;   Return a flonum sign proxy, either 1.0 or -1.0.
+         (func $exact-sign->flonum
+               (param $x (ref eq))
+               (result (ref $Flonum))
+
+               (struct.new $Flonum
+                           (i32.const 0)
+                           (if (result f64)
+                               (i32.lt_s
+                                (call $exact-rational-sign/i32 (local.get $x))
+                                (i32.const 0))
+                               (then (f64.const -1.0))
+                               (else (f64.const 1.0)))))
+
+         ;; mixed-exact-flonum-add/2 : exact-rational? flonum? -> number?
+         ;;   Add an exact value and a flonum without overflow from early coercion.
+         (func $mixed-exact-flonum-add/2
+               (param $x (ref eq))
+               (param $y/fl (ref $Flonum))
+               (result (ref eq))
+
+               (local $y f64)
+
+               (local.set $y (struct.get $Flonum $v (local.get $y/fl)))
+               (if (i32.or
+                    (call $exact-rational-floatable?/i32 (local.get $x))
+                    (f64.eq (local.get $y) (f64.const 0.0)))
+                   (then
+                    (return
+                     (call $fl+
+                           (struct.new $Flonum
+                                       (i32.const 0)
+                                       (call $exact-rational->f64
+                                             (local.get $x)))
+                           (local.get $y/fl)))))
+               (if (call $mixed-f64-nonfinite?/i32 (local.get $y))
+                   (then (return (local.get $y/fl))))
+               (call $exact->inexact
+                     (call $exact-rational-add/2
+                           (local.get $x)
+                           (call $f64->exact-rational (local.get $y)))))
+
+         ;; mixed-flonum-exact-add/2 : flonum? exact-rational? -> number?
+         ;;   Add a flonum and an exact value without overflow from early coercion.
+         (func $mixed-flonum-exact-add/2
+               (param $x/fl (ref $Flonum))
+               (param $y (ref eq))
+               (result (ref eq))
+
+               (local $x f64)
+
+               (local.set $x (struct.get $Flonum $v (local.get $x/fl)))
+               (if (i32.or
+                    (call $exact-rational-floatable?/i32 (local.get $y))
+                    (f64.eq (local.get $x) (f64.const 0.0)))
+                   (then
+                    (return
+                     (call $fl+
+                           (local.get $x/fl)
+                           (struct.new $Flonum
+                                       (i32.const 0)
+                                       (call $exact-rational->f64
+                                             (local.get $y)))))))
+               (if (call $mixed-f64-nonfinite?/i32 (local.get $x))
+                   (then (return (local.get $x/fl))))
+               (call $exact->inexact
+                     (call $exact-rational-add/2
+                           (call $f64->exact-rational (local.get $x))
+                           (local.get $y))))
+
+         ;; mixed-exact-flonum-sub/2 : exact-rational? flonum? -> number?
+         ;;   Subtract a flonum from an exact value without overflow from early coercion.
+         (func $mixed-exact-flonum-sub/2
+               (param $x (ref eq))
+               (param $y/fl (ref $Flonum))
+               (result (ref eq))
+
+               (local $y f64)
+
+               (local.set $y (struct.get $Flonum $v (local.get $y/fl)))
+               (if (i32.or
+                    (call $exact-rational-floatable?/i32 (local.get $x))
+                    (f64.eq (local.get $y) (f64.const 0.0)))
+                   (then
+                    (return
+                     (call $fl-
+                           (struct.new $Flonum
+                                       (i32.const 0)
+                                       (call $exact-rational->f64
+                                             (local.get $x)))
+                           (local.get $y/fl)))))
+               (if (call $mixed-f64-nonfinite?/i32 (local.get $y))
+                   (then
+                    (return
+                     (struct.new $Flonum
+                                 (i32.const 0)
+                                 (f64.neg (local.get $y))))))
+               (call $exact->inexact
+                     (call $exact-rational-sub/2
+                           (local.get $x)
+                           (call $f64->exact-rational (local.get $y)))))
+
+         ;; mixed-flonum-exact-sub/2 : flonum? exact-rational? -> number?
+         ;;   Subtract an exact value from a flonum without overflow from early coercion.
+         (func $mixed-flonum-exact-sub/2
+               (param $x/fl (ref $Flonum))
+               (param $y (ref eq))
+               (result (ref eq))
+
+               (local $x f64)
+
+               (local.set $x (struct.get $Flonum $v (local.get $x/fl)))
+               (if (i32.or
+                    (call $exact-rational-floatable?/i32 (local.get $y))
+                    (f64.eq (local.get $x) (f64.const 0.0)))
+                   (then
+                    (return
+                     (call $fl-
+                           (local.get $x/fl)
+                           (struct.new $Flonum
+                                       (i32.const 0)
+                                       (call $exact-rational->f64
+                                             (local.get $y)))))))
+               (if (call $mixed-f64-nonfinite?/i32 (local.get $x))
+                   (then (return (local.get $x/fl))))
+               (call $exact->inexact
+                     (call $exact-rational-sub/2
+                           (call $f64->exact-rational (local.get $x))
+                           (local.get $y))))
+
+         ;; mixed-exact-flonum-mul/2 : exact-rational? flonum? -> number?
+         ;;   Multiply exact and flonum values without overflow from early coercion.
+         (func $mixed-exact-flonum-mul/2
+               (param $x (ref eq))
+               (param $y/fl (ref $Flonum))
+               (result (ref eq))
+
+               (local $y f64)
+
+               (local.set $y (struct.get $Flonum $v (local.get $y/fl)))
+               (if (call $exact-rational-floatable?/i32 (local.get $x))
+                   (then
+                    (return
+                     (call $fl*
+                           (struct.new $Flonum
+                                       (i32.const 0)
+                                       (call $exact-rational->f64
+                                             (local.get $x)))
+                           (local.get $y/fl)))))
+               (if (i32.or
+                    (call $mixed-f64-nonfinite?/i32 (local.get $y))
+                    (f64.eq (local.get $y) (f64.const 0.0)))
+                   (then
+                    (return
+                     (call $fl*
+                           (call $exact-sign->flonum (local.get $x))
+                           (local.get $y/fl)))))
+               (call $exact->inexact
+                     (call $exact-rational-mul/2
+                           (local.get $x)
+                           (call $f64->exact-rational (local.get $y)))))
+
+         ;; mixed-flonum-exact-mul/2 : flonum? exact-rational? -> number?
+         ;;   Multiply flonum and exact values without overflow from early coercion.
+         (func $mixed-flonum-exact-mul/2
+               (param $x/fl (ref $Flonum))
+               (param $y (ref eq))
+               (result (ref eq))
+
+               (local $x f64)
+
+               (local.set $x (struct.get $Flonum $v (local.get $x/fl)))
+               (if (call $exact-rational-floatable?/i32 (local.get $y))
+                   (then
+                    (return
+                     (call $fl*
+                           (local.get $x/fl)
+                           (struct.new $Flonum
+                                       (i32.const 0)
+                                       (call $exact-rational->f64
+                                             (local.get $y)))))))
+               (if (i32.or
+                    (call $mixed-f64-nonfinite?/i32 (local.get $x))
+                    (f64.eq (local.get $x) (f64.const 0.0)))
+                   (then
+                    (return
+                     (call $fl*
+                           (local.get $x/fl)
+                           (call $exact-sign->flonum (local.get $y))))))
+               (call $exact->inexact
+                     (call $exact-rational-mul/2
+                           (call $f64->exact-rational (local.get $x))
+                           (local.get $y))))
+
+         ;; mixed-exact-flonum-div/2 : exact-rational? flonum? -> number?
+         ;;   Divide an exact value by a flonum without overflow from early coercion.
+         (func $mixed-exact-flonum-div/2
+               (param $x (ref eq))
+               (param $y/fl (ref $Flonum))
+               (result (ref eq))
+
+               (local $y f64)
+
+               (local.set $y (struct.get $Flonum $v (local.get $y/fl)))
+               (if (call $exact-rational-floatable?/i32 (local.get $x))
+                   (then
+                    (return
+                     (call $fl/
+                           (struct.new $Flonum
+                                       (i32.const 0)
+                                       (call $exact-rational->f64
+                                             (local.get $x)))
+                           (local.get $y/fl)))))
+               (if (i32.or
+                    (call $mixed-f64-nonfinite?/i32 (local.get $y))
+                    (f64.eq (local.get $y) (f64.const 0.0)))
+                   (then
+                    (return
+                     (call $fl/
+                           (call $exact-sign->flonum (local.get $x))
+                           (local.get $y/fl)))))
+               (call $exact->inexact
+                     (call $exact-rational-div/2
+                           (local.get $x)
+                           (call $f64->exact-rational (local.get $y)))))
+
+         ;; mixed-flonum-exact-div/2 : flonum? exact-rational? -> number?
+         ;;   Divide a flonum by an exact value without overflow from early coercion.
+         (func $mixed-flonum-exact-div/2
+               (param $x/fl (ref $Flonum))
+               (param $y (ref eq))
+               (result (ref eq))
+
+               (local $x f64)
+
+               (local.set $x (struct.get $Flonum $v (local.get $x/fl)))
+               (if (call $exact-rational-floatable?/i32 (local.get $y))
+                   (then
+                    (return
+                     (call $fl/
+                           (local.get $x/fl)
+                           (struct.new $Flonum
+                                       (i32.const 0)
+                                       (call $exact-rational->f64
+                                             (local.get $y)))))))
+               (if (i32.or
+                    (call $mixed-f64-nonfinite?/i32 (local.get $x))
+                    (f64.eq (local.get $x) (f64.const 0.0)))
+                   (then
+                    (return
+                     (call $fl/
+                           (local.get $x/fl)
+                           (call $exact-sign->flonum (local.get $y))))))
+               (call $exact->inexact
+                     (call $exact-rational-div/2
+                           (call $f64->exact-rational (local.get $x))
+                           (local.get $y))))
+
          ,@(let ()
              (define (zero-identity-forms mode)
                (case mode
@@ -5230,8 +5625,14 @@
                     (if (call $exact-zero-value?/i32 (local.get $x))
                         (then (return (call $number-negate
                                             (local.get $y))))))]
+                 [(mul)
+                  `((if (call $exact-zero-value?/i32 (local.get $x))
+                        (then (return (global.get $zero))))
+                    (if (call $exact-zero-value?/i32 (local.get $y))
+                        (then (return (global.get $zero)))))]
                  [else '()]))
-             (define (binop $op $who $flop $intop $ratop $complexop [zero-mode #f])
+             (define (binop $op $who $flop $intop $ratop $complexop
+                            $exact-flop $fl-exactop [zero-mode #f])
                `(func ,$op (type $Prim2)
                       (param $x (ref eq))
                       (param $y (ref eq))
@@ -5293,22 +5694,18 @@
                                         (call $fl?/i32 (local.get $y)))
                                (then
                                 (return
-                                 (call ,$flop
-                                       (struct.new $Flonum
-                                                   (i32.const 0)
-                                                   (call $exact-rational->f64
-                                                         (local.get $x)))
-                                       (local.get $y)))))
+                                 (call ,$exact-flop
+                                       (local.get $x)
+                                       (ref.cast (ref $Flonum)
+                                                 (local.get $y))))))
                            (if (i32.and (call $fl?/i32 (local.get $x))
                                         (local.get $y/is-rat))
                                (then
                                 (return
-                                 (call ,$flop
-                                       (local.get $x)
-                                       (struct.new $Flonum
-                                                   (i32.const 0)
-                                                   (call $exact-rational->f64
-                                                         (local.get $y)))))))
+                                 (call ,$fl-exactop
+                                       (ref.cast (ref $Flonum)
+                                                 (local.get $x))
+                                       (local.get $y)))))
                            (if (local.get $x/is-rat)
                                (then (call $raise-expected-number/who
                                            (global.get ,$who)
@@ -5363,12 +5760,10 @@
                                                         (else (if (result (ref eq))
                                                                   (ref.test (ref $Bignum) (local.get $y))
                                                                   ; x flonum, y bignum
-                                                                  (then (call ,$flop
-                                                                              (local.get $x)
-                                                                              (struct.new $Flonum
-                                                                                          (i32.const 0)
-                                                                                          (call $integer->f64
-                                                                                                (local.get $y)))))
+                                                                  (then (call ,$fl-exactop
+                                                                              (ref.cast (ref $Flonum)
+                                                                                        (local.get $x))
+                                                                              (local.get $y)))
                                                                   ; x flonum, y not a number
                                                                   (else (call $raise-expected-number/who
                                                                               (global.get ,$who)
@@ -5393,12 +5788,10 @@
                                                                   (else (if (result (ref eq))
                                                                             (call $fl?/i32 (local.get $y))
                                                                             ; x bignum, y flonum
-                                                                            (then (call ,$flop
-                                                                                        (struct.new $Flonum
-                                                                                                    (i32.const 0)
-                                                                                                    (call $integer->f64
-                                                                                                          (local.get $x)))
-                                                                                        (local.get $y)))
+                                                                            (then (call ,$exact-flop
+                                                                                        (local.get $x)
+                                                                                        (ref.cast (ref $Flonum)
+                                                                                                  (local.get $y))))
                                                                             ; x bignum, y not a number
                                                                             (else (call $raise-expected-number/who
                                                                                         (global.get ,$who)
@@ -5409,9 +5802,18 @@
                                                           (global.get ,$who)
                                                           (local.get $x))
                                                     (unreachable)))))))))
-            (list (binop '$+/2 '$symbol:+ '$fl+ '$integer-add/2 '$exact-rational-add/2 '$complex-add/2 'add)
-                  (binop '$-/2 '$symbol:- '$fl- '$integer-sub/2 '$exact-rational-sub/2 '$complex-sub/2 'sub)
-                  (binop '$*/2 '$symbol:* '$fl* '$integer-mul/2 '$exact-rational-mul/2 '$complex-mul/2)))
+            (list (binop '$+/2 '$symbol:+ '$fl+ '$integer-add/2
+                         '$exact-rational-add/2 '$complex-add/2
+                         '$mixed-exact-flonum-add/2
+                         '$mixed-flonum-exact-add/2 'add)
+                  (binop '$-/2 '$symbol:- '$fl- '$integer-sub/2
+                         '$exact-rational-sub/2 '$complex-sub/2
+                         '$mixed-exact-flonum-sub/2
+                         '$mixed-flonum-exact-sub/2 'sub)
+                  (binop '$*/2 '$symbol:* '$fl* '$integer-mul/2
+                         '$exact-rational-mul/2 '$complex-mul/2
+                         '$mixed-exact-flonum-mul/2
+                         '$mixed-flonum-exact-mul/2 'mul)))
 
         (func $+ (type $Prim>=0)
                (param $xs0 (ref eq)) (result (ref eq))
@@ -5460,10 +5862,7 @@
                             (br_if $done (ref.eq (local.get $xs) (global.get $null)))
                             (local.set $node (ref.cast (ref $Pair) (local.get $xs)))
                             (local.set $v    (struct.get $Pair $a (local.get $node)))
-                            (if (ref.eq (call $fxzero? (local.get $v)) (global.get $true))
-                                (then (local.set $r (global.get $zero))
-                                      (br $done))
-                                (else (local.set $r (call $*/2 (local.get $r) (local.get $v)))))
+                            (local.set $r (call $*/2 (local.get $r) (local.get $v)))
                             (local.set $xs   (struct.get $Pair $d (local.get $node)))
                             (br $loop)))
               (local.get $r))
@@ -5502,8 +5901,6 @@
               (param $y (ref eq))
               (result   (ref eq))
 
-               (local $x/fl (ref $Flonum))
-               (local $y/fl (ref $Flonum))
                (local $x/exact i32)
                (local $y/exact i32)
                (local $x/inexact i32)
@@ -5552,30 +5949,31 @@
                    (then
                     (if (call $exact-rational-zero?/i32 (local.get $y))
                         (then (call $raise-division-by-zero) (unreachable)))))
+               (if (i32.and
+                    (local.get $x/exact)
+                    (call $exact-rational-zero?/i32 (local.get $x)))
+                   (then (return (global.get $zero))))
                (if (i32.and (local.get $x/exact) (local.get $y/exact))
                    (then
                     (return
                      (call $exact-rational-div/2
                            (local.get $x)
                            (local.get $y)))))
-
-               (local.set $x/fl
-                          (if (result (ref $Flonum))
-                              (local.get $x/inexact)
-                              (then (ref.cast (ref $Flonum) (local.get $x)))
-                              (else (struct.new $Flonum
-                                                (i32.const 0)
-                                                (call $exact-rational->f64
-                                                      (local.get $x))))))
-               (local.set $y/fl
-                          (if (result (ref $Flonum))
-                              (local.get $y/inexact)
-                              (then (ref.cast (ref $Flonum) (local.get $y)))
-                              (else (struct.new $Flonum
-                                                (i32.const 0)
-                                                (call $exact-rational->f64
-                                                      (local.get $y))))))
-               (call $fl/ (local.get $x/fl) (local.get $y/fl)))
+               (if (i32.and (local.get $x/exact) (local.get $y/inexact))
+                   (then
+                    (return
+                     (call $mixed-exact-flonum-div/2
+                           (local.get $x)
+                           (ref.cast (ref $Flonum) (local.get $y))))))
+               (if (i32.and (local.get $x/inexact) (local.get $y/exact))
+                   (then
+                    (return
+                     (call $mixed-flonum-exact-div/2
+                           (ref.cast (ref $Flonum) (local.get $x))
+                           (local.get $y)))))
+               (call $fl/
+                     (ref.cast (ref $Flonum) (local.get $x))
+                     (ref.cast (ref $Flonum) (local.get $y))))
 
         (func $/ (type $Prim>=1)
                (param $a1   (ref eq))

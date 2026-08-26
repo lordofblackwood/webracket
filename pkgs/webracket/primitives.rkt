@@ -1784,14 +1784,69 @@ current-parameterization    ; poor-man dynamic parameterization overlay
 (define (flatanh x)
   (* 0.5 (- (log (+ 1.0 x)) (log (- 1.0 x)))))
 
-;; The inverse hyperbolic functions are from
+;; The inverse hyperbolic functions are adapted from
 ;;   math/private/base/base-functions.rkt
+;; Complex atanh uses the Kahan/Chez path to match the compiled runtime.
 
 (define (float-complex? x)
   (and (complex? x)
        (not (real? x))
        (flonum? (real-part x))
        (flonum? (imag-part x))))
+
+(define (negated-flonum? x)
+  (or (< x 0.0)
+      (eqv? x -0.0)))
+
+(define (local-log1p x)
+  (cond [(eqv? x +inf.0) +inf.0]
+        [else
+         (let ([u (+ 1.0 x)])
+           (if (= u 1.0)
+               x
+               (* (log u) (/ x (- u 1.0)))))]))
+
+(define atanh-theta 3.351951982485649e153)
+(define atanh-rho 2.983336292480083e-154)
+(define pi/2 (atan 1.0 0.0))
+
+(define (cflatanh-core x y)
+  (define ay (abs y))
+  (cond
+    [(or (> x atanh-theta)
+         (> ay atanh-theta))
+     (make-rectangular
+      (if (>= x ay)
+          (/ 1.0 (+ x (* (/ y x) y)))
+          (let ([r (/ x y)])
+            (/ r (+ y (* r x)))))
+      (if (negated-flonum? y) pi/2 (- pi/2)))]
+    [(= x 1.0)
+     (define k (+ ay atanh-rho))
+     (make-rectangular
+      (log (/ (sqrt (sqrt (+ 4.0 (* y y))))
+              (sqrt k)))
+      (/ (+ pi/2 (atan (/ k 2.0)))
+         (if (negated-flonum? y) 2.0 -2.0)))]
+    [else
+     (define 1-x (- 1.0 x))
+     (define k (let ([k (+ ay atanh-rho)])
+                 (* k k)))
+     (make-rectangular
+      (/ (local-log1p
+          (/ (* 4.0 x)
+             (+ (* 1-x 1-x) k)))
+         4.0)
+      (/ (atan (* 2.0 y)
+               (- (* 1-x (+ 1.0 x)) k))
+         -2.0))]))
+
+(define (cflatanh z)
+  (define x (real-part z))
+  (define y (imag-part z))
+  (if (negated-flonum? x)
+      (- (cflatanh-core (- x) y))
+      (cflatanh-core x (- y))))
 
 (define (asinh x)
   (cond [(flonum? x)  (flasinh x)]
@@ -1811,7 +1866,7 @@ current-parameterization    ; poor-man dynamic parameterization overlay
   (cond [(flonum? x)  (flatanh x)]
         [(eqv? x 0)  0]
         [(real? x)  (flatanh (real->double-flonum x))]
-        [(float-complex? x)  (* 0.5 (- (log (+ 1.0 x)) (log (- 1.0 x))))]
+        [(float-complex? x)  (cflatanh x)]
         [else  (* 1/2 (- (log (+ 1 x)) (log (- 1 x))))]))
 
 ;; Full Racket does not expose unsafe hyperbolic flonum operations,

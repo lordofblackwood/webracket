@@ -630,7 +630,7 @@
                             (call $format/display (local.get $who))
                             (global.get $string:fx-division-by-zero)))
            (local.set $exn
-                      (call $exn:fail:contract/make
+                      (call $exn:fail:contract:divide-by-zero/make
                             (ref.cast (ref eq) (local.get $message))
                             (call $current-continuation-marks
                                   (global.get $missing))))
@@ -648,7 +648,7 @@
                             (call $format/display (global.get $symbol:/))
                             (global.get $string:division-by-zero)))
            (local.set $exn
-                      (call $exn:fail:contract/make
+                      (call $exn:fail:contract:divide-by-zero/make
                             (ref.cast (ref eq) (local.get $message))
                             (call $current-continuation-marks
                                   (global.get $missing))))
