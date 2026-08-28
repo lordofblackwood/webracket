@@ -59,6 +59,18 @@
   (environment-variables-set! env #"PLTCOMPILEDROOTS" #"/private/tmp/webracket-raco-compiled-92")
   env)
 
+;; module-bridge-provider-cache-dir : -> path?
+;;   Use a stable explicit cache root for package module-bridge smoke runs.
+(define (module-bridge-provider-cache-dir)
+  (build-path (find-system-path 'temp-dir)
+              "webracket-web-easy-module-bridge-provider-cache-v1"))
+
+;; module-bridge-runtime-cache-dir : -> path?
+;;   Use a stable explicit runtime cache root for package module-bridge smoke runs.
+(define (module-bridge-runtime-cache-dir)
+  (build-path (find-system-path 'temp-dir)
+              "webracket-web-easy-module-bridge-runtime-cache-v1"))
+
 ;; validate-wasm-output : string? path? -> void?
 ;;   Validate generated Wasm so browser compile errors are caught by the smoke.
 (define (validate-wasm-output label wasm-path)
@@ -80,22 +92,38 @@
                    (get-output-string stdout)
                    (get-output-string stderr)))))
 
-;; compile-web-easy-smoke : path? path? string? string? -> void
-;;   Compile a small module-bridge program and reject exact wide FFI call types.
-(define (compile-web-easy-smoke repo-root racket-exe label source-text)
+;; exact-wide-ffi-primitive? : string? -> boolean?
+;;   Check whether one generated WAT line names a wide exact FFI primitive type.
+(define (exact-wide-ffi-primitive? line)
+  (or (string-contains? line "$Prim7")
+      (string-contains? line "$Prim8")
+      (string-contains? line "$Prim9")
+      (string-contains? line "$Prim10")))
+
+;; wat-has-exact-wide-ffi-primitive? : path? -> boolean?
+;;   Scan generated WAT without running regexp matching over the whole file.
+(define (wat-has-exact-wide-ffi-primitive? wat-path)
+  (call-with-input-file wat-path
+    (lambda (in)
+      (let loop ()
+        (define line (read-line in 'any))
+        (cond
+          [(eof-object? line) #f]
+          [(exact-wide-ffi-primitive? line) #t]
+          [else (loop)])))))
+
+;; compile-web-easy-source : path? path? string? path? -> void
+;;   Compile one module-bridge source and reject exact wide FFI call types.
+(define (compile-web-easy-source repo-root racket-exe label source-path)
   (printf "compiling ~a module bridge smoke\n" label)
   (flush-output)
   (define base (make-temporary-file (format "webracket-~a-~a" label "~a") 'directory))
-  (define source-path (build-path base "main.rkt"))
   (define wasm-path   (build-path base "main.wasm"))
   (define wat-path    (build-path base "main.wat"))
   (define host-path   (build-path base "main.js"))
   (dynamic-wind
     void
     (lambda ()
-      (call-with-output-file source-path
-        (lambda (out) (display source-text out))
-        #:exists 'truncate/replace)
       (define stdout (open-output-string))
       (define stderr (open-output-string))
       (define status
@@ -112,6 +140,10 @@
            "--wasm-file" (path->string wasm-path)
            "--wat-file"  (path->string wat-path)
            "--host-file" (path->string host-path)
+           "--provider-cache-dir"
+           (path->string (module-bridge-provider-cache-dir))
+           "--runtime-provider-cache-dir"
+           (path->string (module-bridge-runtime-cache-dir))
            (path->string source-path))))
       (define output
         (string-append (get-output-string stdout)
@@ -126,10 +158,27 @@
         (error 'test-web-easy-module-bridge
                (format "~a compile did not produce Wasm output" label)))
       (validate-wasm-output label wasm-path)
-      (define wat (file->string wat-path))
-      (when (regexp-match? #rx"\\$Prim(7|8|9|10)" wat)
+      (when (wat-has-exact-wide-ffi-primitive? wat-path)
         (error 'test-web-easy-module-bridge
-               (format "~a generated exact wide FFI primitive types" label))))
+               (format "~a generated exact wide FFI primitive types" label)))
+      (printf "compiled ~a module bridge smoke\n" label)
+      (flush-output))
+    (lambda ()
+      (with-handlers ([exn:fail:filesystem? void])
+        (delete-directory/files base)))))
+
+;; compile-web-easy-smoke : path? path? string? string? -> void
+;;   Compile a small generated module-bridge program.
+(define (compile-web-easy-smoke repo-root racket-exe label source-text)
+  (define base (make-temporary-file (format "webracket-~a-src-~a" label "~a") 'directory))
+  (define source-path (build-path base "main.rkt"))
+  (dynamic-wind
+    void
+    (lambda ()
+      (call-with-output-file source-path
+        (lambda (out) (display source-text out))
+        #:exists 'truncate/replace)
+      (compile-web-easy-source repo-root racket-exe label source-path))
     (lambda ()
       (with-handlers ([exn:fail:filesystem? void])
         (delete-directory/files base)))))
@@ -143,11 +192,11 @@
      (path-replace-extension
       (file-name-from-path example-path)
       #"")))
-  (compile-web-easy-smoke
+  (compile-web-easy-source
    repo-root
    racket-exe
    label
-   (file->string example-path)))
+   example-path))
 
 (module+ main
   (define repo-root

@@ -6,7 +6,9 @@
          racket/path
          racket/string
          webracket/define-key
-         (only-in webracket/private/kw
+         ;; The DOM-like backend is a host-Racket test/probe entry point, so
+         ;; its element constructors need native Racket keyword metadata.
+         (only-in racket/base
                   make-keyword-procedure
                   keyword-apply
                   procedure-reduce-keyword-arity)
