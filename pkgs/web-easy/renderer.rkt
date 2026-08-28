@@ -1263,6 +1263,24 @@
     (define (build-node v register-cleanup!)
       (define kind      (view-kind v))
       (define root-node #f)
+      ;; make-cleanup-scope : -> list?
+      ;;   Build a registrar/run pair for replaceable child subtrees.
+      (define (make-cleanup-scope)
+        (define cleanups '())
+        (define (register! cleanup)
+          (set! cleanups (cons cleanup cleanups)))
+        (define (run!)
+          (for-each (lambda (cleanup) (cleanup)) cleanups)
+          (set! cleanups '()))
+        (list register! run!))
+      ;; cleanup-scope-register : list? -> procedure?
+      ;;   Extract the cleanup registrar from a cleanup scope.
+      (define (cleanup-scope-register scope)
+        (car scope))
+      ;; cleanup-scope-run! : list? -> void?
+      ;;   Run and clear all cleanups in a cleanup scope.
+      (define (cleanup-scope-run! scope)
+        ((cadr scope)))
       ;; append-view-child! : view-node? view? -> void?
       ;;   Append child view to parent, flattening Fragment children without wrapper nodes.
       (define (append-view-child! parent child)
@@ -1609,6 +1627,13 @@
            (define after-render
              (let ([v0 (maybe-observable-value raw-after-render)])
                (if (procedure? v0) v0 #f)))
+           (define current-generation-register-cleanup! register-cleanup!)
+           (define current-generation-cleanup! (lambda () (void)))
+           (define (run-current-generation-cleanups!)
+             (current-generation-cleanup!)
+             (set! current-generation-register-cleanup! register-cleanup!)
+             (set! current-generation-cleanup! (lambda () (void))))
+           (register-cleanup! run-current-generation-cleanups!)
            (define after-render-api
              (list (cons 'dom-node-attr-ref dom-node-attr-ref)
                    (cons 'find-node-by-widget find-node-by-widget)
@@ -1616,9 +1641,18 @@
                    (cons 'view-node-on-click view-node-on-click)
                    (cons 'set-view-node-on-click! set-view-node-on-click!)
                    (cons 'backend-replace-children! backend-replace-children!)
+                   (cons 'register-lifetime-cleanup! register-cleanup!)
                    (cons 'build-node
                          (lambda (child)
-                           (build-node child register-cleanup!)))
+                           (build-node child current-generation-register-cleanup!)))
+                   (cons 'build-node/scoped
+                         (lambda (child)
+                           (define scope (make-cleanup-scope))
+                           (define child-node
+                             (build-node child (cleanup-scope-register scope)))
+                           (list child-node
+                                 (lambda ()
+                                   (cleanup-scope-run! scope)))))
                    (cons 'backend-set-timeout! backend-set-timeout!)
                    (cons 'backend-clear-timeout! backend-clear-timeout!)
                    (cons 'backend-scrollspy-observe-scroll! backend-scrollspy-observe-scroll!)
@@ -1656,17 +1690,26 @@
            (define last-value #f)
            (define have-last? #f)
            (define (render-from-value! value)
+             (run-current-generation-cleanups!)
+             (define generation-scope (make-cleanup-scope))
+             (set! current-generation-register-cleanup!
+                   (cleanup-scope-register generation-scope))
+             (set! current-generation-cleanup!
+                   (lambda ()
+                     (cleanup-scope-run! generation-scope)))
              (set! have-last? #t)
              (set! last-value value)
              (define children
                (map (lambda (child)
-                      (build-node child register-cleanup!))
+                      (build-node child current-generation-register-cleanup!))
                     (ensure-list (make-children value)
                                  'observable-element-children
                                  "children")))
              (backend-replace-children! node children)
              (when after-render
-               (after-render node value register-cleanup! after-render-api)))
+               (after-render node value
+                             current-generation-register-cleanup!
+                             after-render-api)))
            (cond
              [(obs? raw-tag)
               (set-tag! (obs-peek raw-tag))

@@ -19,29 +19,42 @@
                 "could not find repository root containing webracket.rkt"))
        (loop (path->complete-path parent))])))
 
+;; racket-has-compiler-deps? : path? -> boolean?
+;;   Check whether racket-exe can load compiler package dependencies.
+(define (racket-has-compiler-deps? racket-exe)
+  (define stdout (open-output-string))
+  (define stderr (open-output-string))
+  (zero?
+   (parameterize ([current-output-port stdout]
+                  [current-error-port stderr])
+     (system*/exit-code racket-exe "-e" "(require nanopass/base)"))))
+
 ;; repo-racket-executable : path? -> path?
-;;   Prefer the adjacent Racket checkout with machine-independent linklet tools.
+;;   Prefer the adjacent Racket checkout when it has compiler dependencies.
 (define (repo-racket-executable repo-root)
   (define candidate
     (build-path repo-root ".." "racket" "racket" "bin" "racket"))
+  (define fallback
+    (find-executable-path "racket"))
   (cond
-    [(file-exists? candidate) candidate]
+    [(and (file-exists? candidate)
+          (racket-has-compiler-deps? candidate))
+     candidate]
+    [(and fallback
+          (racket-has-compiler-deps? fallback))
+     fallback]
     [else
-     (or (find-executable-path "racket")
-         (error 'test-web-easy-module-bridge
-                "could not find a racket executable"))]))
+     (error 'test-web-easy-module-bridge
+            "could not find a racket executable with nanopass/base")]))
 
 ;; env-with-collections : path? -> environment-variables?
 ;;   Build a subprocess environment for the package-root collection layout.
 (define (env-with-collections repo-root)
   (define env (environment-variables-copy (current-environment-variables)))
-  (define racket-collects
-    (build-path repo-root ".." "racket" "racket" "collects"))
   (define collects
     (string-append
      (path->string (build-path repo-root "pkgs"))
-     ":"
-     (path->string racket-collects)))
+     ":"))
   (environment-variables-set! env #"PLTCOLLECTS" (string->bytes/utf-8 collects))
   (environment-variables-set! env #"PLTCOMPILEDROOTS" #"/private/tmp/webracket-raco-compiled-92")
   env)
@@ -144,11 +157,11 @@
   (compile-web-easy-example
    repo-root
    racket-exe
-   '("pkgs" "web-easy" "examples" "hello-world.rkt"))
+   '("pkgs" "web-easy" "examples" "hello-world" "hello-world.rkt"))
   (compile-web-easy-example
    repo-root
    racket-exe
-   '("pkgs" "web-easy" "examples" "single-counter.rkt"))
+   '("pkgs" "web-easy" "examples" "a-single-counter" "a-single-counter.rkt"))
   (compile-web-easy-smoke
    repo-root
    racket-exe

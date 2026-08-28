@@ -1483,7 +1483,6 @@
                      @hovered
                      @on-close))
       (define toast-timeout-handle #f)
-      (define toast-cleanup-registered? #f)
       (define (clear-toast-timeout! backend-clear-timeout!)
         (when toast-timeout-handle
           (backend-clear-timeout! toast-timeout-handle)
@@ -1501,11 +1500,9 @@
           (api-proc 'backend-set-timeout!))
         (define backend-clear-timeout!
           (api-proc 'backend-clear-timeout!))
-        (unless toast-cleanup-registered?
-          (set! toast-cleanup-registered? #t)
-          (register-cleanup!
-           (lambda ()
-             (clear-toast-timeout! backend-clear-timeout!))))
+        (register-cleanup!
+         (lambda ()
+           (clear-toast-timeout! backend-clear-timeout!)))
         (clear-toast-timeout! backend-clear-timeout!)
         (define open?
           (not (eq? (car state) #f)))
@@ -4657,6 +4654,7 @@
     ;;   Optional parameter equal-proc defaults to equal?.
     ;;   Optional parameter attrs defaults to '().
     ;;   Optional parameter after-render defaults to #f and is invoked by renderer after each children update.
+    ;;   after-render receives an update-scoped cleanup registrar; use the API lifetime registrar for keyed reuse.
     (define (observable-element-children tag
                                          data
                                          make-children
@@ -5794,7 +5792,6 @@
                    #:data-we-widget "carousel-controls"
                    #:class "we-carousel-controls")))
       (define carousel-timeout-handle #f)
-      (define carousel-cleanup-registered? #f)
       (define (carousel-after-render root-node state register-cleanup! api)
         (define (api-proc key)
           (define p (assq key api))
@@ -5816,11 +5813,9 @@
           (when carousel-timeout-handle
             (backend-clear-timeout! carousel-timeout-handle)
             (set! carousel-timeout-handle #f)))
-        (unless carousel-cleanup-registered?
-          (set! carousel-cleanup-registered? #t)
-          (register-cleanup!
-           (lambda ()
-             (clear-carousel-timeout!))))
+        (register-cleanup!
+         (lambda ()
+           (clear-carousel-timeout!)))
         (clear-carousel-timeout!)
         (define autoplay?
           (not (eq? (carousel-state-ref state 'autoplay?) #f)))
@@ -6816,31 +6811,67 @@
     ;;   Optional parameter key defaults to values.
     (define (list-view entries make-view [key values])
       (define items '())
+      (define cleanup-registered? #f)
+      ;; item-node : list? -> view-node?
+      ;;   Extract the rendered node from an internal list-view item.
+      (define (item-node item)
+        (list-ref item 2))
+      ;; item-cleanup! : list? -> void?
+      ;;   Run the cleanup associated with an internal list-view item.
+      (define (item-cleanup! item)
+        ((list-ref item 3)))
+      ;; cleanup-items! : -> void?
+      ;;   Clean up every currently retained keyed list-view item.
+      (define (cleanup-items!)
+        (for-each item-cleanup! items)
+        (set! items '())
+        (set! cleanup-registered? #f))
       (define (list-view-after-render node entries0 register-cleanup! api)
         (define backend-replace-children!/api
           (cdr (assq 'backend-replace-children! api)))
-        (define build-node/api
-          (cdr (assq 'build-node api)))
+        (define build-node/scoped/api
+          (cdr (assq 'build-node/scoped api)))
+        (define register-lifetime-cleanup!/api
+          (cdr (assq 'register-lifetime-cleanup! api)))
+        (unless cleanup-registered?
+          (set! cleanup-registered? #t)
+          (register-lifetime-cleanup!/api cleanup-items!))
         (define normalized-entries
           (ensure-list/internal entries0 'list-view "entries"))
+        (define retained-old-items '())
+        (define retired-old-items '())
+        ;; build-item : any/c -> list?
+        ;;   Reuse unchanged keyed items and create scoped cleanup for new items.
+        (define (build-item entry)
+          (define entry-key
+            (key entry))
+          (define old-item
+            (assoc entry-key items))
+          (if (and old-item
+                   (equal? (list-ref old-item 1) entry))
+              (let ()
+                (set! retained-old-items (cons old-item retained-old-items))
+                old-item)
+              (let ()
+                (when old-item
+                  (set! retired-old-items (cons old-item retired-old-items)))
+                (define built
+                  (build-node/scoped/api (make-view entry-key entry)))
+                (list entry-key
+                      entry
+                      (car built)
+                      (cadr built)))))
         (define new-items
-          (map (lambda (entry)
-                 (define entry-key
-                   (key entry))
-                 (define old-item
-                   (assoc entry-key items))
-                 (if (and old-item
-                          (equal? (list-ref old-item 1) entry))
-                     (list entry-key
-                           entry
-                           (list-ref old-item 2))
-                     (list entry-key
-                           entry
-                           (build-node/api (make-view entry-key entry)))))
-               normalized-entries))
+          (map build-item normalized-entries))
+        (for-each
+         (lambda (old-item)
+           (unless (or (memq old-item retained-old-items)
+                       (memq old-item retired-old-items))
+             (item-cleanup! old-item)))
+         items)
+        (for-each item-cleanup! retired-old-items)
         (set! items new-items)
-        (backend-replace-children!/api node (map (lambda (item) (list-ref item 2))
-                                                 new-items)))
+        (backend-replace-children!/api node (map item-node new-items)))
       (observable-element-children
        'div
        entries
