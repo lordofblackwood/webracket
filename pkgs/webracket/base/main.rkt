@@ -5,6 +5,10 @@
                     fprintf
                     printf
                     eprintf
+                    write
+                    writeln
+                    print
+                    println
                     make-keyword-procedure
                     keyword-apply
                     procedure-keywords
@@ -13,6 +17,11 @@
                     print-as-expression
                     read-bytes-line
                     sort)
+         (only-in racket/base
+                  [write racket-write]
+                  [writeln racket-writeln]
+                  [print racket-print]
+                  [println racket-println])
          "../js/main.rkt"
          "../private/kw.rkt"
          (only-in "../private/for.rkt"
@@ -31,6 +40,26 @@
 
 ;; `webracket/base` is the small foundation, mirroring Racket's distinction
 ;; between `racket/base` and the broader `racket` language.
+;; write : any/c [output-port?] -> void?
+;;   Host-compatible wrapper that gives Webify a fresh language binding.
+(define (write v [o (current-output-port)])
+  (racket-write v o))
+
+;; writeln : any/c [output-port?] -> void?
+;;   Host-compatible wrapper that gives Webify a fresh language binding.
+(define (writeln v [o (current-output-port)])
+  (racket-writeln v o))
+
+;; print : any/c [output-port?] [any/c] -> void?
+;;   Host-compatible wrapper that gives Webify a fresh language binding.
+(define (print v [o (current-output-port)] [quote-depth 0])
+  (racket-print v o quote-depth))
+
+;; println : any/c [output-port?] [any/c] -> void?
+;;   Host-compatible wrapper that gives Webify a fresh language binding.
+(define (println v [o (current-output-port)] [quote-depth 0])
+  (racket-println v o quote-depth))
+
 (provide (except-out (all-from-out racket/base)
                      format
                      fprintf
@@ -40,6 +69,10 @@
                      [wr-fprintf fprintf]
                      [wr-printf printf]
                      [wr-eprintf eprintf])
+         write
+         writeln
+         print
+         println
          read-bytes-line
          sort
          prop:gen-sequence

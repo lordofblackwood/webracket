@@ -3438,6 +3438,14 @@
   (define sym (primitive-symbol v))
   (and sym
        (set-member? (current-provider-owned-primitive-aliases) sym)
+       #t))
+
+;; provider-owned-runtime-primitive-alias? : any/c -> boolean?
+;;   Detect provider-owned aliases that still have a runtime primitive fallback.
+(define (provider-owned-runtime-primitive-alias? v)
+  (define sym (primitive-symbol v))
+  (and sym
+       (provider-owned-primitive-alias? v)
        (primitive? sym)
        #t))
 
@@ -12279,9 +12287,11 @@
                  ;; lexical imports by the module bridge. Keep them visible to
                  ;; the ordinary scope subtraction below so nested lambdas
                  ;; capture local aliases instead of becoming unbound later.
-                 ;; Bare, unbound provider-owned names still fall back to the
-                 ;; runtime primitive path during code generation.
-                 (values AE (if (lexical-bound-variable? x)
+                 ;; Bare aliases fall back only when there is a runtime primitive
+                 ;; underneath; provider-only names like `write` must be resolved
+                 ;; to real imported top bindings.
+                 (values AE (if (or (lexical-bound-variable? x)
+                                    (not (primitive? (primitive-symbol sym))))
                                 (make-id-set x)
                                 empty-set))]
                 [(and (syntax? sym)
@@ -19076,7 +19086,7 @@
         ;; bare primitive imports rather than staged provider aliases. If alpha
         ;; renaming did not find a real top/module/local binding, keep the old
         ;; primitive fallback.
-        [(provider-owned-primitive-alias? v) 'runtime-primitive]
+        [(provider-owned-runtime-primitive-alias? v) 'runtime-primitive]
         [(ffi-variable?    v) 'ffi]
         [else
          ;; (displayln (list 'top (map unparse-variable (id-set->list top-vars))))

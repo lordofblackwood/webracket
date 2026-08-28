@@ -5,6 +5,10 @@
                     fprintf
                     printf
                     eprintf
+                    write
+                    writeln
+                    print
+                    println
                     make-keyword-procedure
                     sort
                     andmap
@@ -34,6 +38,11 @@
                     remv
                     remw
                     reverse)
+         (only-in racket/base
+                  [write racket-write]
+                  [writeln racket-writeln]
+                  [print racket-print]
+                  [println racket-println])
          racket/bool
          racket/bytes
          racket/class
@@ -116,6 +125,26 @@
       [(= i (vector-length vec)) #f]
       [(same? v (vector-ref vec i)) i]
       [else (loop (add1 i))])))
+
+;; write : any/c [output-port?] -> void?
+;;   Host-compatible wrapper that gives Webify a fresh language binding.
+(define (write v [o (current-output-port)])
+  (racket-write v o))
+
+;; writeln : any/c [output-port?] -> void?
+;;   Host-compatible wrapper that gives Webify a fresh language binding.
+(define (writeln v [o (current-output-port)])
+  (racket-writeln v o))
+
+;; print : any/c [output-port?] [any/c] -> void?
+;;   Host-compatible wrapper that gives Webify a fresh language binding.
+(define (print v [o (current-output-port)] [quote-depth 0])
+  (racket-print v o quote-depth))
+
+;; println : any/c [output-port?] [any/c] -> void?
+;;   Host-compatible wrapper that gives Webify a fresh language binding.
+(define (println v [o (current-output-port)] [quote-depth 0])
+  (racket-println v o quote-depth))
 
 ;; extract-sort-keywords : symbol? (listof keyword?) list? -> values
 ;;   Decode the keyword options supported by WebRacket's primitive sort bridge.
@@ -228,6 +257,10 @@
                      [wr-fprintf fprintf]
                      [wr-printf printf]
                      [wr-eprintf eprintf])
+         write
+         writeln
+         print
+         println
          sort
          (all-from-out racket/bool)
          (all-from-out racket/bytes)

@@ -496,6 +496,9 @@
 (define io-format-provider-owned-export-symbols
   '(format fprintf printf eprintf))
 
+(define io-print-provider-owned-export-symbols
+  '(print println write writeln))
+
 (define (provider-owned-primitive-alias-scope-blocked? module-name)
   (define local-report-names
     (current-module-bridge-local-report-names))
@@ -516,7 +519,8 @@
            (symbol? module-name)
            (set-member? support-provider-names module-name))
       (implementation-prefix? "racket-src/expander/read/")
-      (implementation-prefix? "racket-src/expander/read-syntax/")))
+      (implementation-prefix? "racket-src/expander/read-syntax/")
+      (implementation-prefix? "racket-src/io/print/")))
 
 (define (staged-read-private-context? module-name)
   (define (implementation-prefix? prefix)
@@ -586,6 +590,8 @@
           (active-exports webify-regexp-provider-owned-symbols))
         (define io-format-exports
           (active-exports io-format-provider-owned-export-symbols))
+        (define io-print-exports
+          (active-exports io-print-provider-owned-export-symbols))
         (filter values
                 (list
                  (and (pair? read-exports)
@@ -593,7 +599,9 @@
                  (and (pair? regexp-exports)
                       (list 'regexp regexp-exports))
                  (and (pair? io-format-exports)
-                      (list 'io/format io-format-exports)))))))
+                      (list 'io/format io-format-exports))
+                 (and (pair? io-print-exports)
+                      (list 'io/print io-print-exports)))))))
 
 ;; dependency-exports/add-synthetic-rows : dependency-exports -> dependency-exports
 ;;   Add synthetic provider rows for kernel and staged provider-owned primitive aliases.
@@ -724,6 +732,19 @@
      '(expander/read)]
     [else candidates]))
 
+;; prefer-staged-io-print-public-candidates : (or/c symbol? #f) symbol? (listof symbol?) -> (listof symbol?)
+;;   Prefer the staged io/print facade for high-level print aliases.
+(define (prefer-staged-io-print-public-candidates module-name external candidates)
+  (define public-io-print-alias?
+    (for/or ([name (in-list io-print-provider-owned-export-symbols)])
+      (symbolic-name=? external name)))
+  (cond
+    [(and public-io-print-alias?
+          (not (provider-owned-primitive-alias-scope-blocked? module-name))
+          (memq 'io/print candidates))
+     '(io/print)]
+    [else candidates]))
+
 ;; prefer-list-member-candidates : symbol? (listof symbol?) -> (listof symbol?)
 ;;   Prefer the list-layer `member` only when export scanning found it.
 (define (prefer-list-member-candidates external candidates)
@@ -748,6 +769,7 @@
           [_ #f])
         (match dependency
           ['racket-src/racket/format-web 'racket/format]
+          ['racket-src/io/print/main-web 'io/print]
           [_ #f]))))
 
 ;; prefer-public-provider-candidates : (listof symbol?) -> (listof symbol?)
@@ -929,10 +951,13 @@
          (prefer-exact-export-candidates
           dependency-exports
           external
-          (prefer-staged-read-public-candidates
+          (prefer-staged-io-print-public-candidates
            module-name
            external
-           (prefer-provider-candidates candidates external))))))
+           (prefer-staged-read-public-candidates
+            module-name
+            external
+            (prefer-provider-candidates candidates external)))))))
      (cond
        [(null? candidates)
         (raise-arguments-error who

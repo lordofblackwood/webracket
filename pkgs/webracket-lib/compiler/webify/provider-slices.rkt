@@ -43,7 +43,7 @@
     #f
     'staged
     webify-io-print-export-symbols
-    "staged original-Racket print provider seed; cell-only smokes pass, public aliases remain disabled")))
+    "staged original-Racket print provider seed; public aliases are available on demand")))
 
 ;; provider-slice-by-name : symbol? -> (or/c provider-slice? #f)
 ;;   Look up a known provider slice.

@@ -180,8 +180,12 @@
                   webify-io-format-public-alias-forms)
          (only-in "webify/io-print-bridge.rkt"
                   webify-io-print-root-name
+                  webify-io-print-adapter-name
+                  webify-io-print-export-symbols
+                  webify-io-print-reports
                   webify-io-print-registry
-                  webify-io-print-private-alias-forms)
+                  webify-io-print-private-alias-forms
+                  webify-io-print-public-alias-forms)
          (only-in "webify/regexp-provider.rkt"
                   webify-regexp-default-cache-root
                   webify-regexp-bootstrap-helper-symbols
@@ -630,6 +634,34 @@
   (hash-ref (module-bridge-datum-operator-counts datum (list target))
             target
             0))
+
+;; module-bridge-datum-contains-unquoted-symbol? : any/c symbol? -> boolean?
+;;   Detect a symbol in executable syntax while skipping quoted/template data.
+(define (module-bridge-datum-contains-unquoted-symbol? datum target)
+  (define found? #f)
+  (define visited-pairs (make-weak-hasheq))
+  (define (walk v)
+    (unless found?
+      (cond
+        [(symbol? v)
+         (when (eq? v target)
+           (set! found? #t))]
+        [(pair? v)
+         (unless (hash-ref visited-pairs v #f)
+           (hash-set! visited-pairs v #t)
+           (match v
+             [`(,(or 'quote 'quote-syntax 'syntax 'quasiquote) . ,_)
+              (void)]
+             [`(,head . ,rest)
+              (walk head)
+              (walk rest)]
+             [_ (void)]))]
+        [(vector? v)
+         (for ([elt (in-vector v)])
+           (walk elt))]
+        [else (void)])))
+  (walk datum)
+  found?)
 
 ;; module-bridge-report-reexport-count : webify-module-report? -> exact-nonnegative-integer?
 ;;   Approximate phase-0 reexports as names that are both imported and exported.
@@ -3602,16 +3634,16 @@
      forms]))
 
 ;; io-print-provider-forms : #:public-aliases? boolean? -> (listof datum?)
-;;   Compose the staged original-Racket io/print provider seed and expose
-;;   private export cells. Public aliases stay disabled until ownership flips.
+;;   Compose the staged original-Racket io/print provider seed and expose export
+;;   cells, optionally publishing public top-level aliases.
 (define (io-print-provider-forms #:public-aliases? [public-aliases? #f])
-  (when public-aliases?
-    (error 'io-print-provider-forms
-           "io/print public aliases are not ready; use private export cells"))
   (define cache-path
-    (runtime-provider-cache-path "io-print-provider-private.rktd"))
+    (runtime-provider-cache-path
+     (if public-aliases?
+         "io-print-provider-public.rktd"
+         "io-print-provider-private.rktd")))
   (define fingerprint
-    `(io-print-lowered-provider-cache 1 ,(io-print-source-fingerprint)))
+    `(io-print-lowered-provider-cache 2 ,public-aliases? ,(io-print-source-fingerprint)))
   (define cached (read-provider-cache cache-path fingerprint))
   (cond
     [cached
@@ -3640,7 +3672,10 @@
      (define forms
        (cdr (webify-module-composition-with-tail
              composition
-             (webify-io-print-private-alias-forms composition))))
+             ((if public-aliases?
+                  webify-io-print-public-alias-forms
+                  webify-io-print-private-alias-forms)
+              composition))))
      (write-provider-cache! cache-path fingerprint forms)
      forms]))
 
@@ -3668,6 +3703,24 @@
 ;;   are report names but not real collection-path module names.
 (define (io-format-provider-report/ref name)
   (for/or ([report (in-list (io-format-provider-reports))])
+    (and (eq? name (webify-module-report-name report))
+         report)))
+
+;; io-print-provider-reports : -> (listof webify-module-report?)
+;;   Expose staged io/print as the implementation report for high-level printing.
+(define (io-print-provider-reports)
+  (define-values (adapter-report main-report)
+    (webify-io-print-reports))
+  (list adapter-report
+        (webify-module-report/rename adapter-report 'racket-src/io/format/printf-adapter)
+        main-report
+        (webify-module-report/rename main-report 'racket-src/io/print/main-web)
+        (webify-module-report/rename main-report 'io/print)))
+
+;; io-print-provider-report/ref : symbol? -> (or/c webify-module-report? #f)
+;;   Resolve staged io/print support aliases without generic module extraction.
+(define (io-print-provider-report/ref name)
+  (for/or ([report (in-list (io-print-provider-reports))])
     (and (eq? name (webify-module-report-name report))
          report)))
 
@@ -4148,11 +4201,17 @@
         stdlib-form ...
         #,stx)))
 
+;; io-print-provider-owned-alias-symbols : (listof symbol?)
+;;   High-level print names that currently come only from the staged io/print seed.
+(define io-print-provider-owned-alias-symbols
+  '(print println write writeln))
+
 ;; provider-owned-primitive-alias-symbols : ... -> (listof symbol?)
 ;;   Compute public primitive names that must resolve through provider cells.
 (define (provider-owned-primitive-alias-symbols
          #:expander-read-provider? [expander-read-provider? #f]
          #:io-format-provider? [io-format-provider? #f]
+         #:io-print-provider? [io-print-provider? #f]
          #:formatting-numbers? [formatting-numbers? #f])
   (append webify-regexp-export-symbols
           (if expander-read-provider?
@@ -4160,6 +4219,9 @@
               '())
           (if io-format-provider?
               webify-io-format-export-symbols
+              '())
+          (if io-print-provider?
+              io-print-provider-owned-alias-symbols
               '())
           (if formatting-numbers?
               '(~r/precision)
@@ -4702,7 +4764,8 @@
     (provider-owned-primitive-alias-symbols
      #:expander-read-provider? (or expander-read-provider?
                                    source-file-module-input?/pre-read)
-     #:io-format-provider? #f))
+     #:io-format-provider? #f
+     #:io-print-provider? source-file-module-input?/pre-read))
   (current-module-bridge-needs-expander-read-provider? #f)
 
   ; 1. Read the top-level forms from `filename`.
@@ -4745,6 +4808,11 @@
     (if module-input?
         (current-module-bridge-needs-regexp-provider?)
         (module-bridge-datum-needs-regexp-provider? (syntax->datum stx-for-compile))))
+  (define source-needs-io-print-provider?
+    (and module-input?
+         (let ([datum (syntax->datum stx-for-compile)])
+           (for/or ([name (in-list io-print-provider-owned-alias-symbols)])
+             (module-bridge-datum-contains-unquoted-symbol? datum name)))))
   (define effective-regexp-provider?
     (or source-needs-regexp-provider?
         effective-expander-read-provider?
@@ -4837,7 +4905,16 @@
                              [effective-formatting-numbers-slice?
                               "enabled-script-demand"]
                              [else
-                              "skipped-script-no-demand"]))))
+                              "skipped-script-no-demand"]))
+     (stdlib-decision-note "io-print-provider-mode"
+                           (cond
+                             [(and module-input?
+                                   source-needs-io-print-provider?)
+                              "satisfied-module-bridge"]
+                             [module-input?
+                              "skipped-module-no-demand"]
+                             [else
+                              "disabled-script-input"]))))
 
   ; 2. Handle ffi-files.
   (define t-ffi-setup-start  (now-ms))
@@ -5052,6 +5129,7 @@
     (provider-owned-primitive-alias-symbols
      #:expander-read-provider? effective-expander-read-provider?
      #:io-format-provider? effective-io-format-provider?
+     #:io-print-provider? source-needs-io-print-provider?
      #:formatting-numbers? effective-formatting-numbers-slice?))
   (define split-runtime-provider-fragment-cache?
     (and split-runtime?
@@ -6963,10 +7041,23 @@
      (lambda ()
        (for/or ([name (in-list webify-io-format-export-symbols)])
          (set-member? (current-provider-owned-primitive-aliases) name)))))
+  (define needs-io-print-support?
+    (with-module-bridge-timing
+     'module-graph-io-print-support-demand
+     (lambda ()
+       (and
+        (for/or ([name (in-list io-print-provider-owned-alias-symbols)])
+          (set-member? (current-provider-owned-primitive-aliases) name))
+        (for*/or ([report (in-list bridge-reports)]
+                  [name (in-list io-print-provider-owned-alias-symbols)])
+          (module-bridge-datum-contains-unquoted-symbol?
+           (webify-module-report-phase0-linklet-datum report)
+           name))))))
   (define registry
     (cond
      [(or (webracket/base-reports-demand-external-providers? bridge-reports)
-          needs-expander-read-support?)
+          needs-expander-read-support?
+          needs-io-print-support?)
        (with-module-bridge-timing
         'module-graph-check-provider-allowlist
         (lambda ()
@@ -7001,6 +7092,8 @@
        (define (fetch-provider/erased-contracts name)
          (define staged-io-format-report
            (io-format-provider-report/ref name))
+         (define staged-io-print-report
+           (io-print-provider-report/ref name))
          (define staged-read-report
            (read-provider-report/ref name))
          (define substitute-name (webracket/base-provider-substitute name))
@@ -7023,58 +7116,60 @@
            ;; public providers must keep their generated provide/contract
            ;; export names while their contract implementation dependencies
            ;; remain eligible for erased-provider routing.
-          (or (memq name '(racket/dict
-                           racket/math
-                           racket/private/for
-                           racket/private/map
-                           racket/private/define-struct
-                           racket/private/kernstruct
-                           racket/private/class-internal
-                           racket/private/class-struct
-                           racket/private/class-wrapped
-                           racket/private/stx
-                           syntax/context
-                           syntax/intdef
-                           syntax/kerncase
-                           syntax/name
-                           syntax/parse/private/lib
-                           syntax/parse/private/residual
-                           syntax/parse/private/residual/parse-util
-                           syntax/parse/private/residual/state
-                           syntax/private/id-table
-                           syntax/stx
-                           racket/unit
-                           racket/private/unit/contract
-                           racket/private/unit/contract-syntax
-                           racket/private/unit/keywords
-                           racket/private/unit/runtime
-                           racket/private/unit/signature
-                           racket/private/unit/unit-core
-                           racket/private/unit/unit-infer
-                           racket/private/unit/util
-                           racket/private/unit/exptime/import-export
-                           racket/private/unit/exptime/signature
-                           racket/private/unit/exptime/syntax
-                           racket/private/unit/exptime/unit-infer
-                           racket/private/unit/exptime/util
-                           contract
-                           contract-syntax
-                           exptime/import-export
-                           exptime/signature
-                           exptime/syntax
-                           exptime/unit-infer
-                           exptime/util
-                           keywords
-                           runtime
-                           signature
-                           unit-core
-                           unit-infer
-                           util
-                           racket/private/serialize-structs))
-              (webracket-owned-ffi-provider-name? name)))
+           (or (memq name '(racket/dict
+                            racket/math
+                            racket/private/for
+                            racket/private/map
+                            racket/private/define-struct
+                            racket/private/kernstruct
+                            racket/private/class-internal
+                            racket/private/class-struct
+                            racket/private/class-wrapped
+                            racket/private/stx
+                            syntax/context
+                            syntax/intdef
+                            syntax/kerncase
+                            syntax/name
+                            syntax/parse/private/lib
+                            syntax/parse/private/residual
+                            syntax/parse/private/residual/parse-util
+                            syntax/parse/private/residual/state
+                            syntax/private/id-table
+                            syntax/stx
+                            racket/unit
+                            racket/private/unit/contract
+                            racket/private/unit/contract-syntax
+                            racket/private/unit/keywords
+                            racket/private/unit/runtime
+                            racket/private/unit/signature
+                            racket/private/unit/unit-core
+                            racket/private/unit/unit-infer
+                            racket/private/unit/util
+                            racket/private/unit/exptime/import-export
+                            racket/private/unit/exptime/signature
+                            racket/private/unit/exptime/syntax
+                            racket/private/unit/exptime/unit-infer
+                            racket/private/unit/exptime/util
+                            contract
+                            contract-syntax
+                            exptime/import-export
+                            exptime/signature
+                            exptime/syntax
+                            exptime/unit-infer
+                            exptime/util
+                            keywords
+                            runtime
+                            signature
+                            unit-core
+                            unit-infer
+                            util
+                            racket/private/serialize-structs))
+               (webracket-owned-ffi-provider-name? name)))
          (cond
            [staged-io-format-report
             staged-io-format-report]
+           [staged-io-print-report
+            staged-io-print-report]
            [staged-read-report
             staged-read-report]
            [else
@@ -7083,22 +7178,22 @@
               ;; routing rule. Keep installed/support provider extraction in its
               ;; ordinary world so private support modules do not grow spurious
               ;; facade dependencies like `expander/read`.
-             (parameterize ([current-provider-owned-primitive-aliases (seteq)])
-               (webify-module-report/rename
-                (if (eq? fetch-provider webify-module-path->report)
-                    (if (or normal-export-shape?
-                            webracket-owned-provider?)
-                        (webify-module-path->report extraction-name)
-                        (webify-module-path->report extraction-name
-                                                    #:namespace (provider-namespace/ref)))
+              (parameterize ([current-provider-owned-primitive-aliases (seteq)])
+                (webify-module-report/rename
+                 (if (eq? fetch-provider webify-module-path->report)
+                     (if (or normal-export-shape?
+                             webracket-owned-provider?)
+                         (webify-module-path->report extraction-name)
+                         (webify-module-path->report extraction-name
+                                                     #:namespace (provider-namespace/ref)))
                      (fetch-provider extraction-name))
-                name)))
+                 name)))
             (if (or normal-export-shape?
                     webracket-owned-provider?)
                 (extract)
                 (parameterize ([current-namespace (provider-namespace/ref)]
                                [current-module-name-resolver (provider-module-name-resolver/ref)])
-                  (extract)))]) )
+                  (extract)))]))
        (define provider-cache
          (make-webify-module-provider-cache
           (webracket/base-fetch-provider/timed fetch-provider/erased-contracts)))
@@ -7247,6 +7342,16 @@
                 (member webify-io-format-adapter-name external-names)
                 (member 'racket-src/io/format/printf-adapter external-names)
                 (member 'racket-src/racket/format-web external-names)))))
+       (define needs-io-print-closure?
+         (with-module-bridge-timing
+          'module-graph-io-print-closure-demand
+          (lambda ()
+            (or needs-io-print-support?
+                (member webify-io-print-root-name external-names)
+                (member 'racket-src/io/print/main-web external-names)
+                (member webify-io-print-adapter-name external-names)
+                (member 'racket-src/io/format/printf-adapter external-names)
+                (member 'io/print external-names)))))
        (define expander-read-support-report-names
          (with-module-bridge-timing
           'module-graph-expander-read-support-report-names
@@ -7273,6 +7378,17 @@
                       'racket-src/racket/format-web
                       'racket/format)
                 '()))))
+       (define io-print-support-report-names
+         (with-module-bridge-timing
+          'module-graph-io-print-support-report-names
+          (lambda ()
+            (if needs-io-print-closure?
+                (list webify-io-print-adapter-name
+                      'racket-src/io/format/printf-adapter
+                      webify-io-print-root-name
+                      'racket-src/io/print/main-web
+                      'io/print)
+                '()))))
        (set! support-report-names
              (with-module-bridge-timing
               'module-graph-support-report-name-assembly
@@ -7288,7 +7404,8 @@
                      '())
                  ffi-support-report-names
                  expander-read-support-report-names
-                 io-format-support-report-names))))
+                 io-format-support-report-names
+                 io-print-support-report-names))))
        (define (unit-support-reports)
          (append
           (for/list ([name (in-list '(racket/private/unit/contract
@@ -7400,6 +7517,9 @@
                      '())
                  (if needs-io-format-closure?
                      (io-format-provider-reports)
+                     '())
+                 (if needs-io-print-closure?
+                     (io-print-provider-reports)
                      '())))
               (with-module-bridge-timing
                'discover-provider-graph

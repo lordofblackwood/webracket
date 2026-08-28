@@ -11,7 +11,8 @@
          webify-io-print-inputs
          webify-io-print-registry
          webify-io-print-private-cell-symbol
-         webify-io-print-private-alias-forms)
+         webify-io-print-private-alias-forms
+         webify-io-print-public-alias-forms)
 
 (require racket/runtime-path
          "module-extractor.rkt"
@@ -72,7 +73,7 @@
   (webify-module-linklet-inputs->registry (webify-io-print-inputs)))
 
 ;; webify-io-print-private-cell-symbol : symbol? -> symbol?
-;;   Private top-level cell used by the cell-only print provider smoke.
+;;   Private top-level cell used before publishing staged print aliases.
 (define (webify-io-print-private-cell-symbol export)
   (unless (memq export webify-io-print-export-symbols)
     (raise-argument-error 'webify-io-print-private-cell-symbol
@@ -92,3 +93,12 @@
     (define private-cell
       (webify-io-print-private-cell-symbol export))
     `(define ,private-cell ,provider-cell)))
+
+;; webify-io-print-public-alias-forms : composition -> (listof datum?)
+;;   Bind private cells, then publish public aliases through module-variable-ref.
+(define (webify-io-print-public-alias-forms composition)
+  (append
+   (webify-io-print-private-alias-forms composition)
+   (for/list ([export (in-list webify-io-print-export-symbols)])
+     `(define ,export
+        (module-variable-ref ,(webify-io-print-private-cell-symbol export))))))
