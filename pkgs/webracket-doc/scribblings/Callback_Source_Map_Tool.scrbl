@@ -6,7 +6,8 @@
 @title{Callback Source-Map Tool}
 
 This chapter documents the helper script
-@tt{tools/find-callback-source.rkt}.
+@tt{tools/find-callback-source.rkt} and the browser WebAssembly frame helper
+@tt{tools/wasm-frame-source.rkt}.
 
 The tool is meant for callback debugging. When WebRacket reports a callback
 error, the message may include a debug label such as @tt{label.4054}. That
@@ -113,6 +114,34 @@ In that case, use the label from the @tt{debug-id} line directly:
 @shellblock{
 racket tools/find-callback-source.rkt path/to/program.wasm.map.sexp label.4054
 }
+
+@section{Browser Wasm Stack Frames}
+
+Browser stack traces sometimes omit WebRacket's callback @tt{debug-id} and
+only print numeric wasm frames:
+
+@verbatim[#:indent 2]{
+RangeError: Maximum call stack size exceeded
+    at wasm://wasm/...:wasm-function[6785]:0x260d1e
+}
+
+Use @tt{tools/wasm-frame-source.rkt} for those frames:
+
+@shellblock{
+racket tools/wasm-frame-source.rkt program.wasm program.wasm.map.sexp \
+  'wasm-function[6785]:0x260d1e'
+}
+
+The command accepts multiple frame arguments. Each report prints the wasm
+function index, the generated @tt{label.N} when the binary metadata exposes one,
+the corresponding source-map entry when present, and a diagnostic when the
+label is absent from the @tt{.wasm.map.sexp} file. For missing or unknown
+entries, the report also prints nearby source-map-backed function labels by
+function index.
+
+The frame tool reads the @tt{.wasm} binary directly. It uses the custom
+@tt{name} section when available and falls back to function export names, so it
+does not parse generated @tt{.wat} files with Racket @racket[read].
 
 @section{Requirements}
 
