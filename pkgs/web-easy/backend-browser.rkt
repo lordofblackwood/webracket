@@ -458,6 +458,36 @@
           [(eq? (car xs) native) (cdr xs)]
           [else (cons (car xs) (loop (cdr xs)))])))
 
+    ;; remove-view-node-listeners! : any/c -> void?
+    ;;   Remove all browser event listeners tracked for native.
+    (define (remove-view-node-listeners! native)
+      (when (and native (not (extern-nullish? native)))
+        (define old-listeners (native-mapping-ref view-node-listeners native))
+        (when old-listeners
+          (for-each
+           (lambda (entry)
+             (js-send native "removeEventListener" (vector (car entry) (cdr entry))))
+           old-listeners)
+          (set! view-node-listeners
+                (native-mapping-remove view-node-listeners native))))
+      (void))
+
+    ;; remove-scrollspy-bindings! : any/c -> void?
+    ;;   Disconnect scrollspy observer/listener state tracked for native.
+    (define (remove-scrollspy-bindings! native)
+      (when (and native (not (extern-nullish? native)))
+        (define observer* (native-mapping-ref scrollspy-observers native))
+        (when (and observer* (not (extern-nullish? observer*)))
+          (js-send observer* "disconnect" (vector)))
+        (define listener* (native-mapping-ref scrollspy-listeners native))
+        (when (and listener* (not (extern-nullish? listener*)))
+          (js-send native "removeEventListener" (vector "scroll" listener*)))
+        (set! scrollspy-observers (native-mapping-remove scrollspy-observers native))
+        (set! scrollspy-listeners (native-mapping-remove scrollspy-listeners native))
+        (set! scrollspy-cleanup-registered
+              (native-remove scrollspy-cleanup-registered native)))
+      (void))
+
     ;; focus-first-dialog-target! : any/c -> void?
     ;;   Focus the first focusable dialog descendant, falling back to the dialog node.
     (define (focus-first-dialog-target! dialog-native)
@@ -712,8 +742,12 @@
       (for-each handle-node-removal! (view-node-record-children n))
       (define native (view-node-record-native n))
       (define attrs  (view-node-record-attrs n))
+      (remove-view-node-listeners! native)
+      (remove-scrollspy-bindings! native)
       (when (menu-popup-attr? attrs)
-        (handle-menu-popup-close-transition! native))
+        (handle-menu-popup-close-transition! native)
+        (set! menu-typeahead-state
+              (native-mapping-remove menu-typeahead-state native)))
       (when (and (eq? (view-node-record-tag n) 'dialog)
                  (dialog-open-attr? attrs))
         (handle-dialog-close-transition! native))
@@ -1839,6 +1873,8 @@
       (unless (eq? old-tag tag)
         (define old-native (view-node-record-native n))
         (define old-parent (js-ref/extern old-native "parentElement"))
+        (remove-view-node-listeners! old-native)
+        (remove-scrollspy-bindings! old-native)
         (define replacement
           (view-node tag
                     (view-node-record-attrs n)
@@ -1906,6 +1942,7 @@
                                         (value->attr-string text)
                                         "")))
          (define old-parent (js-ref/extern old-native "parentNode"))
+         (remove-view-node-listeners! old-native)
          (when (and old-parent (not (extern-nullish? old-parent)))
            (js-send old-parent "replaceChild" (vector replacement old-native)))
          (set-view-node-record-native! n replacement)
