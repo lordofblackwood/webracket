@@ -89,13 +89,19 @@
            [`(pong ,_) #t]
            [_ #f]))))
 
+;; find-racket-executable : path? path? -> path?
+;;   Prefer Racket's executable path over the script being run.
+(define (find-racket-executable exec-file run-file)
+  (or (find-executable-path (path->string exec-file))
+      (find-executable-path (path->string run-file))
+      (find-executable-path "racket")
+      (error 'webracket-client "unable to locate a racket executable")))
+
 ;; current-racket-executable : -> path?
 ;;   Return the active Racket executable for spawning the server.
 (define (current-racket-executable)
-  (or (find-executable-path (path->string (find-system-path 'run-file)))
-      (find-executable-path (path->string (find-system-path 'exec-file)))
-      (find-executable-path "racket")
-      (error 'webracket-client "unable to locate a racket executable")))
+  (find-racket-executable (find-system-path 'exec-file)
+                          (find-system-path 'run-file)))
 
 ;; shell-quote : string? -> string?
 ;;   Quote one string for a POSIX shell command.
@@ -285,6 +291,15 @@
 ;;   Run the compile server in the current process until it is stopped.
 (define (run-compile-server-foreground)
   (server:main #()))
+
+(module+ test
+  (require rackunit)
+
+  (test-case "compile-server launcher prefers the Racket executable"
+    (define racket-executable (find-system-path 'exec-file))
+    (define wrapper-script (build-path (current-directory) "webracket.rkt"))
+    (check-equal? (find-racket-executable racket-executable wrapper-script)
+                  (find-executable-path (path->string racket-executable)))))
 
 ;; main : -> void?
 ;;   Parse ordinary CLI arguments and execute them through the compile server when relevant.

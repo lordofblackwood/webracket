@@ -2399,9 +2399,9 @@
   (make-parameter #f))
 
 ;; provider-report-cache-directory : -> path?
-;;   Return the directory used for installed provider report cache entries.
+;;   Return the shared runtime-cache directory for installed provider reports.
 (define (provider-report-cache-directory)
-  (provider-cache-path "installed-provider-reports"))
+  (runtime-provider-cache-path "installed-provider-reports"))
 
 ;; provider-report-cache-entries : -> (listof (list/c path? integer? integer?))
 ;;   Report installed-provider cache files for diagnostics and tests.
@@ -3286,8 +3286,8 @@
 ;;   Reuse extracted installed-provider reports across driver runs.
 (define (cached-installed-provider-report name fetch-provider)
   (define cache-path
-    (provider-cache-path
-     "installed-provider-reports"
+    (build-path
+     (provider-report-cache-directory)
      (string-append (provider-cache-symbol-segment name) ".rktd")))
   (define fingerprint
     `(installed-provider-report-cache

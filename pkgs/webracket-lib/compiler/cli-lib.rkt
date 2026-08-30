@@ -11,6 +11,8 @@
          (only-in raco/command-name
                   current-command-name)
          "driver.rkt"
+         (only-in "private/parameters.rkt"
+                  current-runtime-cache-dir)
          (only-in "webify/provider-slices.rkt"
                   provider-slice-report-lines))
 
@@ -761,7 +763,7 @@
      [("--list-provider-slices") "Print original-Racket provider slices and exit"
                                  (set! list-provider-slices? #t)]
      [("--provider-cache-report")
-      "Print installed-provider report cache entries and exit"
+      "Print shared installed-provider report cache entries and exit"
       (set! provider-cache-report? #t)]
      [("--tree-shake-report") filename
                               "Write the runtime primitive report to <filename>"
@@ -805,7 +807,7 @@
     [list-provider-slices?
      (webracket-cli-command 'list-provider-slices #f)]
     [provider-cache-report?
-     (webracket-cli-command 'provider-cache-report provider-cache-dir)]
+     (webracket-cli-command 'provider-cache-report runtime-provider-cache-dir)]
     [server-command
      (ensure-no-positional-filenames! 'webracket)
      (webracket-cli-command
@@ -973,11 +975,11 @@
        (displayln line))
      0]
     ['provider-cache-report
-     (current-provider-cache-dir
+     (current-runtime-cache-dir
       (path->complete-path
        (if (webracket-cli-command-payload command)
            (string->path (webracket-cli-command-payload command))
-           default-provider-cache-project-root)))
+           default-runtime-provider-cache-root)))
      (for ([entry (in-list (provider-report-cache-entries))])
        (match-define (list path size mtime) entry)
        (printf "~a\t~a\t~a\n" path size mtime))

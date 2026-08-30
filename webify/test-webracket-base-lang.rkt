@@ -28,6 +28,8 @@
                   webracket/base-provider-substitution-pairs
                   webracket/base-reports->module-graph
                   webracket/base-reports-demand-external-providers?)
+         (only-in "../pkgs/webracket-lib/compiler/private/parameters.rkt"
+                  current-runtime-cache-dir)
          (only-in "../pkgs/webracket-lib/compiler/webify/module-extractor.rkt"
                   webify-compile-module-report)
          (only-in "../pkgs/webracket-lib/compiler/webify/provider-trials.rkt"
@@ -1238,8 +1240,13 @@
       (with-handlers ([exn:fail:filesystem? void])
         (delete-directory/files source-dir)))))
 
-(test-case "#lang webracket/base installed provider reports are disk-cached"
-  (define cache-dir (make-temporary-file "webracket-provider-report-cache-~a" 'directory))
+(test-case "#lang webracket/base installed provider reports use the shared runtime cache"
+  (define project-cache-dir-1
+    (make-temporary-file "webracket-provider-project-cache-~a" 'directory))
+  (define project-cache-dir-2
+    (make-temporary-file "webracket-provider-project-cache-~a" 'directory))
+  (define runtime-cache-dir
+    (make-temporary-file "webracket-provider-runtime-cache-~a" 'directory))
   (dynamic-wind
     void
     (lambda ()
@@ -1247,10 +1254,13 @@
       (define (fetch name)
         (set! fetch-count (add1 fetch-count))
         (synthetic-provider-report name '(answer)))
-      (parameterize ([current-provider-cache-dir cache-dir]
+      (parameterize ([current-runtime-cache-dir runtime-cache-dir]
+                     [current-provider-cache-dir project-cache-dir-1]
                      [current-provider-cache-force? #f])
         (define report-1 (cached-installed-provider-report 'racket/list fetch))
-        (define report-2 (cached-installed-provider-report 'racket/list fetch))
+        (define report-2
+          (parameterize ([current-provider-cache-dir project-cache-dir-2])
+            (cached-installed-provider-report 'racket/list fetch)))
         (check-equal? fetch-count 1)
         (check-equal? (webify-module-report-name report-1) 'racket/list)
         (check-equal? (webify-module-report-name report-2) 'racket/list)
@@ -1261,7 +1271,7 @@
         (check-equal? (length entries) 1)
         (match (call-with-input-file (caar entries) read)
           [(list (list 'installed-provider-report-cache
-                       8
+                       9
                        'racket/list
                        _racket-version
                        _provider-source
@@ -1275,8 +1285,11 @@
         (check-regexp-match #rx"racket_list[.]rktd$"
                             (path->string (caar entries)))))
     (lambda ()
-      (with-handlers ([exn:fail:filesystem? void])
-        (delete-directory/files cache-dir)))))
+      (for ([dir (in-list (list project-cache-dir-1
+                                 project-cache-dir-2
+                                 runtime-cache-dir))])
+        (with-handlers ([exn:fail:filesystem? void])
+          (delete-directory/files dir))))))
 
 (test-case "webracket/full dashboard tracks curated provider rows"
   (define rows (webracket-full-dashboard-rows))

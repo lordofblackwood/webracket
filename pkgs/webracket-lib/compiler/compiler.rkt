@@ -131,6 +131,53 @@
      (+ 1 (count-sexp (unbox x)))]
     [else 1]))
 
+;; stable-datum-key : any/c -> string?
+;;   Encode an acyclic quoted datum for deterministic compiler ordering.
+(define (stable-datum-key v)
+  (cond
+    [(pair? v)
+     (string-append "pair(" (stable-datum-key (car v)) ","
+                    (stable-datum-key (cdr v)) ")")]
+    [(vector? v)
+     (string-append "vector("
+                    (string-join (for/list ([x (in-vector v)])
+                                   (stable-datum-key x))
+                                 ",")
+                    ")")]
+    [(box? v)
+     (string-append "box(" (stable-datum-key (unbox v)) ")")]
+    [(hash? v)
+     (string-append
+      "hash("
+      (string-join
+       (sort (for/list ([entry (in-list (hash->list v))])
+               (string-append (stable-datum-key (car entry))
+                              "=>"
+                              (stable-datum-key (cdr entry))))
+             string<?)
+       ",")
+      ")")]
+    [else
+     (format "~s" v)]))
+
+;; stable-hash-entries : hash? -> (listof pair?)
+;;   Return hash entries in process-independent quotation order.
+(define (stable-hash-entries ht)
+  (sort (hash->list ht)
+        string<?
+        #:key (lambda (entry)
+                (stable-datum-key (car entry)))))
+
+(module+ test
+  (test-case "quoted hash entries have a canonical order"
+    (define keys
+      (map car
+           (stable-hash-entries
+            (hash (hash 'b "two") 'hash
+                  #(1 2)         'vector
+                  "alpha"        'string))))
+    (check-equal? keys '("alpha" #hash((b . "two")) #(1 2)))))
+
 (define (count-unparsed unparse-fn x)
   (count-sexp (unparse-all (unparse-fn x))))
 
@@ -8438,7 +8485,7 @@
           [(? keyword? kw) (let ([s (loop (keyword->string kw))])
                              `(app ,h ,(var:string->keyword) ,s))]
           [(? hash? ht)    (define kvs
-                              (for*/list ([kv (in-list (hash->list ht))]
+                              (for*/list ([kv (in-list (stable-hash-entries ht))]
                                            [v  (in-list (list (car kv) (cdr kv)))])
                                 (loop v)))
                             ;; Quoted hash literals are immutable. Preserve that

@@ -69,6 +69,14 @@
 
     (match lk
       [`(linklet ,im-idss ,ex-ids . ,bodys)
+       ;; Host linklet export order can vary across fresh expansion processes.
+       ;; This adapter passes export cells positionally, so use one canonical
+       ;; order for their names, formal arguments, and exported knowns.
+       (define ordered-ex-ids
+         (sort ex-ids
+               string<?
+               #:key (lambda (ex-id)
+                       (symbol->string (ex-ext-id ex-id)))))
        ;; For imports, map symbols to gensymed `variable` argument names,
        ;; keeping `import` records in groups:
        (define grps
@@ -109,7 +117,7 @@
                              (set! new-grps (cons new-grp new-grps)))))
        ;; For exports, too, map symbols to gensymed `variable` argument names
        (define exports
-         (for/fold ([exports (hasheq)]) ([ex-id (in-list ex-ids)])
+         (for/fold ([exports (hasheq)]) ([ex-id (in-list ordered-ex-ids)])
            (define id (ex-int-id ex-id))
            (hash-set exports id
                      (export (deterministic-gensym id) (ex-ext-id ex-id)))))
@@ -142,7 +150,7 @@
                   ,@(for*/list ([grp (in-list all-grps)]
                                 [im  (in-list (import-group-imports grp))])
                       (import-id im))
-                  ,@(for/list ([ex-id (in-list ex-ids)])
+                  ,@(for/list ([ex-id (in-list ordered-ex-ids)])
                       (export-id (hash-ref exports (ex-int-id ex-id)))))
            ,@new-body)
         ;; Imports (local names), possibly extended via inlining:
@@ -151,7 +159,7 @@
             (import-int-id im)))
         ;; Exports
         ;;   (external names, but paired with source name if it's different):
-        (for/list ([ex-id (in-list ex-ids)])
+        (for/list ([ex-id (in-list ordered-ex-ids)])
           (define sym     (ex-ext-id ex-id))
           (define int-sym (ex-int-id ex-id))
           (define src-sym (hash-ref src-syms int-sym sym))
@@ -182,7 +190,7 @@
                            ;; Otherwise, accept any value:
                            #t]))))))
         ;; Convert internal to external identifiers for known-value info
-        (for/fold ([knowns (hasheq)]) ([ex-id (in-list ex-ids)])
+        (for/fold ([knowns (hasheq)]) ([ex-id (in-list ordered-ex-ids)])
           (define id (ex-int-id ex-id))
           (define v (known-inline->export-known (hash-ref defn-info id #f)
                                                 prim-knowns imports exports
