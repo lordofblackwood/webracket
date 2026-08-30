@@ -28,6 +28,8 @@
 
 (define-runtime-path server-path "server.rkt")
 
+(define compile-server-startup-attempts 480)
+
 (struct compile-server-status-info
   (running?  ; whether a responsive compile server is available
    port      ; listening TCP port when running, otherwise #f
@@ -103,6 +105,11 @@
   (find-racket-executable (find-system-path 'exec-file)
                           (find-system-path 'run-file)))
 
+;; compiled-roots-env-variable : (or/c string? #f) -> (or/c string? #f)
+;;   Encode a configured compiled-root path for the server environment.
+(define (compiled-roots-env-variable roots)
+  (and roots (string-append "PLTCOMPILEDROOTS=" roots)))
+
 ;; shell-quote : string? -> string?
 ;;   Quote one string for a POSIX shell command.
 (define (shell-quote s)
@@ -135,6 +142,8 @@
 ;;   Spawn the long-lived compile server in the background.
 (define (start-server! state-dir)
   (make-directory* state-dir)
+  (define compiled-roots-env
+    (compiled-roots-env-variable (getenv "PLTCOMPILEDROOTS")))
   (define state-dir-string
     (path->string (path->complete-path state-dir)))
   (define log-path
@@ -144,23 +153,31 @@
      (define label (launchctl-label state-dir))
      (with-handlers ([exn:fail? void])
        (system* "/bin/launchctl" "remove" label))
-     (unless (system* "/bin/launchctl"
-                      "submit"
-                      "-l" label
-                      "-o" log-path
-                      "-e" log-path
-                      "--"
-                      "/usr/bin/env"
-                      (string-append "PLTCOLLECTS=" (webracket-collection-env-value))
-                      (path->string (current-racket-executable))
-                      (path->string server-path)
-                      "--state-dir"
-                      state-dir-string)
+     (unless (apply system*
+                    (append (list "/bin/launchctl"
+                                  "submit"
+                                  "-l" label
+                                  "-o" log-path
+                                  "-e" log-path
+                                  "--"
+                                  "/usr/bin/env"
+                                  (string-append "PLTCOLLECTS="
+                                                 (webracket-collection-env-value)))
+                            (if compiled-roots-env
+                                (list compiled-roots-env)
+                                null)
+                            (list (path->string (current-racket-executable))
+                                  (path->string server-path)
+                                  "--state-dir"
+                                  state-dir-string)))
        (error 'webracket-client "failed to launch compile server"))]
     [else
      (define start-command
-       (format "PLTCOLLECTS=~a nohup ~a ~a --state-dir ~a >> ~a 2>&1 </dev/null &"
+       (format "PLTCOLLECTS=~a~a nohup ~a ~a --state-dir ~a >> ~a 2>&1 </dev/null &"
                (shell-quote (webracket-collection-env-value))
+               (if compiled-roots-env
+                   (string-append " " (shell-quote compiled-roots-env))
+                   "")
                (shell-quote (path->string (current-racket-executable)))
                (shell-quote (path->string server-path))
                (shell-quote state-dir-string)
@@ -186,7 +203,7 @@
 ;; wait-for-server! : path-string? -> list?
 ;;   Poll the state file until the server responds to ping.
 (define (wait-for-server! state-dir)
-  (let loop ([remaining 120])
+  (let loop ([remaining compile-server-startup-attempts])
     (define state (read-server-state state-dir))
     (cond
       [(and state (ping-server? state)) state]
@@ -299,7 +316,12 @@
     (define racket-executable (find-system-path 'exec-file))
     (define wrapper-script (build-path (current-directory) "webracket.rkt"))
     (check-equal? (find-racket-executable racket-executable wrapper-script)
-                  (find-executable-path (path->string racket-executable)))))
+                  (find-executable-path (path->string racket-executable))))
+
+  (test-case "compile-server launcher preserves compiled roots"
+    (check-equal? (compiled-roots-env-variable "/tmp/compiled")
+                  "PLTCOMPILEDROOTS=/tmp/compiled")
+    (check-false (compiled-roots-env-variable #f))))
 
 ;; main : -> void?
 ;;   Parse ordinary CLI arguments and execute them through the compile server when relevant.
