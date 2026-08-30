@@ -134,6 +134,7 @@
                                     current-enable-simplify?
                                     current-module-bridge-elide-public-cells?
                                     current-module-bridge-elidable-module-names
+                                    current-module-bridge-local-source-paths
                                     current-module-bridge-local-report-names
                                     current-module-bridge-support-provider-names
                                     current-module-bridge-module-kinds
@@ -3181,6 +3182,7 @@
 ;; module-bridge-result-cache-payload->syntax : vector? -> syntax?
 ;;   Restore bridge side channels and return the cached lowered top-level syntax.
 (define (module-bridge-result-cache-payload->syntax payload)
+  (current-module-bridge-local-source-paths (vector-ref payload 0))
   (current-source-module-provider-names (vector-ref payload 1))
   (current-module-bridge-module-kinds (vector-ref payload 2))
   (current-module-bridge-elidable-module-names (vector-ref payload 3))
@@ -4392,6 +4394,229 @@
 (define (copy-file/replace! src dest)
   (copy-file src dest #t))
 
+;; compilation-output-cache-version : exact-positive-integer?
+;;   Bump when the cached compiler-output manifest format changes.
+(define compilation-output-cache-version 1)
+
+;; compilation-output-cache-compiler-fingerprint : -> any/c
+;;   Fingerprint compiler sources so development edits invalidate output bundles.
+(define (compilation-output-cache-compiler-fingerprint)
+  (define (racket-source-file? path)
+    (and (file-exists? path)
+         (member (path-get-extension path) '(#".rkt" #".rktl"))))
+  (path-fingerprint
+   'compilation-output-cache-compiler
+   1
+   (append
+    (find-files racket-source-file?
+                (build-path webracket-root "pkgs" "webracket-lib"))
+    (find-files racket-source-file?
+                (build-path webracket-root "pkgs" "webracket")))))
+
+;; compilation-output-cache-key-fingerprint : any/c -> string?
+;;   Encode an output-cache key into a directory-safe content address.
+(define (compilation-output-cache-key-fingerprint key)
+  (bytes->hex-string (sha1-bytes (s-exp->fasl key))))
+
+;; compilation-output-cache-manifest-path : any/c -> path?
+;;   Return the manifest path for one cached compiler-output bundle.
+(define (compilation-output-cache-manifest-path key)
+  (provider-cache-path
+   "compiled-outputs"
+   (string-append (compilation-output-cache-key-fingerprint key) ".rktd")))
+
+;; compilation-output-cache-directory : any/c -> path?
+;;   Return the directory that stores one cached compiler-output bundle.
+(define (compilation-output-cache-directory key)
+  (provider-cache-path
+   "compiled-outputs"
+   (compilation-output-cache-key-fingerprint key)))
+
+;; cache-output-file-name : path-string? -> string?
+;;   Return a single filename suitable for a compiler-output cache entry.
+(define (cache-output-file-name path)
+  (define name (file-name-from-path path))
+  (unless name
+    (raise-arguments-error
+     'cache-output-file-name
+     "expected a path with a filename"
+     "path" path))
+  (path->string name))
+
+;; cache-output-file-name? : any/c -> boolean?
+;;   Recognize safe, single-component cached output filenames.
+(define (cache-output-file-name? name)
+  (and (string? name)
+       (not (member name '("" "." "..")))
+       (not (regexp-match? #px"[/\\\\]" name))))
+
+;; compilation-output-cache-manifest : (listof pair?) (listof path-string?) -> datum?
+;;   Describe direct outputs and split sidecars in a cache-readable form.
+(define (compilation-output-cache-manifest direct-output-files sidecar-output-paths)
+  `(compilation-output-cache-files
+    ,@(append
+       (for/list ([entry (in-list direct-output-files)])
+         (list (car entry) (cache-output-file-name (cdr entry))))
+       (for/list ([path (in-list sidecar-output-paths)])
+         (list 'sidecar (cache-output-file-name path))))))
+
+;; decode-compilation-output-cache-manifest : any/c -> (or/c (listof list?) #f)
+;;   Validate and decode cached compiler-output manifest entries.
+(define (decode-compilation-output-cache-manifest payload)
+  (match payload
+    [`(compilation-output-cache-files ,entries ...)
+     (and (andmap (lambda (entry)
+                    (and (list? entry)
+                         (= (length entry) 2)
+                         (symbol? (car entry))
+                         (cache-output-file-name? (cadr entry))))
+                  entries)
+          (let ([names (map cadr entries)])
+            (and (= (length names) (length (remove-duplicates names string=?)))
+                 entries)))]
+    [_ #f]))
+
+;; direct-output-cache-entries-valid? : (listof list?) (listof pair?) -> boolean?
+;;   Check that a manifest has the direct files required by this invocation.
+(define (direct-output-cache-entries-valid? entries direct-output-files)
+  (and
+   (for/and ([entry (in-list direct-output-files)])
+     (define cached (assq (car entry) entries))
+     (and cached
+          (string=? (cadr cached) (cache-output-file-name (cdr entry)))))
+   (for/and ([entry (in-list entries)]
+             #:unless (eq? (car entry) 'sidecar))
+     (assq (car entry) direct-output-files))))
+
+;; cache-output-entry-path : path? list? -> path?
+;;   Resolve one cached entry within cache-dir after manifest validation.
+(define (cache-output-entry-path cache-dir entry)
+  (build-path cache-dir (cadr entry)))
+
+;; copy-cache-output-file! : path-string? path-string? -> void?
+;;   Materialize one cached artifact, creating its destination directory.
+(define (copy-cache-output-file! source destination)
+  (make-directory* (or (path-only destination) (current-directory)))
+  (copy-file/replace! source destination))
+
+;; materialize-compilation-output-cache! : any/c (listof pair?) [#:sidecar-count exact-nonnegative-integer?] -> (or/c 'hit 'miss)
+;;   Restore a complete compiler-output bundle when its manifest is valid.
+(define (materialize-compilation-output-cache! key
+                                                direct-output-files
+                                                #:sidecar-count [expected-sidecar-count #f])
+  (define manifest-path (compilation-output-cache-manifest-path key))
+  (define cache-dir (compilation-output-cache-directory key))
+  (define payload (read-provider-cache manifest-path key))
+  (define entries (and payload (decode-compilation-output-cache-manifest payload)))
+  (define wasm-output-path (cdr (assq 'program-wasm direct-output-files)))
+  (define wasm-output-dir
+    (or (path-only wasm-output-path) (current-directory)))
+  (cond
+    [(and entries
+          (direct-output-cache-entries-valid? entries direct-output-files)
+          (or (not expected-sidecar-count)
+              (= expected-sidecar-count
+                 (length (filter (lambda (entry)
+                                   (eq? (car entry) 'sidecar))
+                                 entries))))
+          (for/and ([entry (in-list entries)])
+            (file-exists? (cache-output-entry-path cache-dir entry))))
+     (for ([entry (in-list direct-output-files)])
+       (define cached (assq (car entry) entries))
+       (copy-cache-output-file! (cache-output-entry-path cache-dir cached)
+                                (cdr entry)))
+     (for ([entry (in-list entries)]
+           #:when (eq? (car entry) 'sidecar))
+       (copy-cache-output-file!
+        (cache-output-entry-path cache-dir entry)
+        (build-path wasm-output-dir (cadr entry))))
+     'hit]
+    [else 'miss]))
+
+;; cache-compilation-output! : any/c (listof pair?) (listof path-string?) -> (or/c 'write 'hit)
+;;   Save one complete compiler-output bundle after a successful compilation.
+(define (cache-compilation-output! key direct-output-files sidecar-output-paths)
+  (define manifest-path (compilation-output-cache-manifest-path key))
+  (define cache-dir (compilation-output-cache-directory key))
+  (define manifest
+    (compilation-output-cache-manifest direct-output-files sidecar-output-paths))
+  (define entries (decode-compilation-output-cache-manifest manifest))
+  (unless entries
+    (error 'cache-compilation-output! "invalid compiler-output cache manifest"))
+  (call-with-provider-cache-lock
+   manifest-path
+   (lambda ()
+     (cond
+       [(eq? (materialize-compilation-output-cache!
+              key
+              direct-output-files
+              #:sidecar-count (length sidecar-output-paths))
+             'hit)
+        'hit]
+       [else
+        (when (directory-exists? cache-dir)
+          (delete-directory/files cache-dir))
+        (make-directory* cache-dir)
+        (for ([entry (in-list direct-output-files)])
+          (copy-file/replace! (cdr entry)
+                              (build-path cache-dir
+                                          (cache-output-file-name (cdr entry)))))
+        (for ([path (in-list sidecar-output-paths)])
+          (copy-file/replace! path
+                              (build-path cache-dir (cache-output-file-name path))))
+        (write-provider-cache! manifest-path key manifest)
+        'write]))))
+
+(module+ test
+  (require rackunit)
+
+  (define compilation-output-cache-test-root
+    (make-temporary-file "webracket-output-cache-test~a" 'directory))
+  (define compilation-output-cache-test-output-dir
+    (build-path compilation-output-cache-test-root "output"))
+  (define compilation-output-cache-test-provider-dir
+    (build-path compilation-output-cache-test-root "provider-cache"))
+  (define (write-output-cache-test-file path text)
+    (make-directory* (or (path-only path) (current-directory)))
+    (call-with-output-file path
+      (lambda (out) (display text out))
+      #:exists 'truncate/replace))
+  (define compilation-output-cache-test-direct-files
+    (list (cons 'program-wat
+                (build-path compilation-output-cache-test-output-dir "program.wat"))
+          (cons 'program-wasm
+                (build-path compilation-output-cache-test-output-dir "program.wasm"))
+          (cons 'program-map
+                (build-path compilation-output-cache-test-output-dir "program.wasm.map.sexp"))
+          (cons 'host
+                (build-path compilation-output-cache-test-output-dir "program.html"))))
+  (define compilation-output-cache-test-sidecar
+    (build-path compilation-output-cache-test-output-dir
+                "webracket-runtime-test.wasm"))
+  (for ([entry (in-list compilation-output-cache-test-direct-files)])
+    (write-output-cache-test-file (cdr entry) (symbol->string (car entry))))
+  (write-output-cache-test-file compilation-output-cache-test-sidecar "sidecar")
+  (parameterize ([current-provider-cache-dir compilation-output-cache-test-provider-dir]
+                 [current-provider-cache-force? #f])
+    (define key '(compilation-output-cache-test 1))
+    (check-eq? (cache-compilation-output!
+                key
+                compilation-output-cache-test-direct-files
+                (list compilation-output-cache-test-sidecar))
+               'write)
+    (delete-directory/files compilation-output-cache-test-output-dir)
+    (check-eq? (materialize-compilation-output-cache!
+                key
+                compilation-output-cache-test-direct-files
+                #:sidecar-count 1)
+               'hit)
+    (for ([entry (in-list compilation-output-cache-test-direct-files)])
+      (check-equal? (file->bytes (cdr entry))
+                    (string->bytes/utf-8 (symbol->string (car entry)))))
+    (check-equal? (file->bytes compilation-output-cache-test-sidecar)
+                  #"sidecar"))
+  (delete-directory/files compilation-output-cache-test-root))
+
 ;; assemble-split-runtime-core/cached! :
 ;;   (-> list?) path-string? path-string? boolean?
 ;;   (list? path-string? path-string? -> boolean?)
@@ -4701,6 +4926,8 @@
          #:clear-runtime-provider-cache? [clear-runtime-provider-cache? #f]
          #:force-provider-cache-refresh? [force-provider-cache-refresh? #f])
 
+  (let ([result
+         (let/ec return
   (define exit-code       0)
   (define compile-timings #f)
   (define split-runtime-core-timing-rows '())
@@ -4709,6 +4936,7 @@
   (current-source-module-language #f)
   (current-source-module-provider-names #f)
   (current-module-bridge-elidable-module-names #f)
+  (current-module-bridge-local-source-paths #f)
   (current-module-bridge-module-kinds #f)
   (current-module-bridge-needs-regexp-provider? #t)
   (current-console-bridge-root-export-bindings #f)
@@ -4944,6 +5172,107 @@
   (current-ffi-funcs-wat   ffi-funcs)
   (define t-ffi-setup-end (now-ms))
 
+  (define provider-owned-primitive-aliases
+    (provider-owned-primitive-alias-symbols
+     #:expander-read-provider? effective-expander-read-provider?
+     #:io-format-provider? effective-io-format-provider?
+     #:io-print-provider? source-needs-io-print-provider?
+     #:formatting-numbers? effective-formatting-numbers-slice?))
+  (define split-runtime-ffi-module/effective?
+    (if split-runtime-ffi-module-explicit?
+        split-runtime-ffi-module?
+        (and split-runtime?
+             (not split-runtime-core-only?))))
+  (define output-cache-expected-sidecar-count
+    (+ (if (and split-runtime? (not split-runtime-core-url)) 2 0)
+       (if split-runtime-ffi-module/effective? 2 0)))
+  (define output-cache-output-paths
+    (resolve-compilation-output-paths filename
+                                      wat-filename
+                                      wasm-filename
+                                      host-filename
+                                      dest-dir
+                                      node?))
+  (define output-cache-direct-output-files
+    (list (cons 'program-wat  (compilation-output-paths-wat output-cache-output-paths))
+          (cons 'program-wasm (compilation-output-paths-wasm output-cache-output-paths))
+          (cons 'program-map  (compilation-output-paths-map output-cache-output-paths))
+          (cons 'host         (compilation-output-paths-host output-cache-output-paths))))
+  (define output-cache-local-source-paths
+    (current-module-bridge-local-source-paths))
+  (define output-cache-key
+    (and module-input?
+         output-cache-local-source-paths
+         dest-dir
+         (not wat-filename)
+         (not wasm-filename)
+         (not host-filename)
+         (not dump-passes-dir)
+         (not tree-shake-report)
+         (not alpha-rename-profile?)
+         (not simplify-profile?)
+         (not timings?)
+         (not run-after?)
+         (not split-runtime-cache-reference?)
+         (not force-provider-cache-refresh?)
+         `(compilation-output-cache
+           ,compilation-output-cache-version
+           ,(version)
+           ,(compilation-output-cache-compiler-fingerprint)
+           (module-bridge-sources
+            ,(source-path-fingerprint
+              'compilation-output-cache-module-sources
+              1
+              output-cache-local-source-paths))
+           (module-bridge-providers
+            ,(module-bridge-result-provider-fingerprints
+              (current-module-bridge-module-kinds)))
+           (runtime ,(runtime-source-fingerprint))
+           (ffi ,(path-fingerprint 'compilation-output-cache-ffi
+                                    1
+                                    resolved-ffi-files))
+           (output-layout
+            ,@(for/list ([entry (in-list output-cache-direct-output-files)])
+                (list (car entry) (cache-output-file-name (cdr entry)))))
+           (options
+            (browser? ,browser?)
+            (node? ,node?)
+            (label-map-forms? ,label-map-forms?)
+            (pretty-wat? ,pretty-wat?)
+            (console-bridge? ,console-bridge?)
+            (vfs-preloads ,vfs-preloads)
+            (vfs-mounts ,vfs-mounts)
+            (letrec-strategy ,letrec-strategy)
+            (enable-cc-analysis? ,enable-cc-analysis?)
+            (enable-simplify? ,enable-simplify?)
+            (tree-shake? ,tree-shake?)
+            (split-runtime? ,split-runtime?)
+            (split-runtime-core-url ,split-runtime-core-url)
+            (split-runtime-core-only? ,split-runtime-core-only?)
+            (split-runtime-provider-runtime? ,split-runtime-provider-runtime?)
+            (split-runtime-ffi-module? ,split-runtime-ffi-module/effective?)
+            (strip-wasm-names? ,strip-wasm-names?)
+            (print-top-level-results? ,print-top-level-results?)
+            (internal-bind-treelist-debug-shape?
+             ,internal-bind-treelist-debug-shape?)
+            (internal-bind-immutable-hash-debug-shape?
+             ,internal-bind-immutable-hash-debug-shape?)
+            (module-bridge-elide-public-cells?
+             ,module-bridge-elide-public-cells?)
+            (provider-substitutions? ,provider-substitutions?)
+            (provider-owned-primitive-aliases
+             ,(sort (remove-duplicates provider-owned-primitive-aliases)
+                    symbol<?))))))
+  (when output-cache-key
+    (when (eq? (materialize-compilation-output-cache!
+                output-cache-key
+                output-cache-direct-output-files
+                #:sidecar-count output-cache-expected-sidecar-count)
+               'hit)
+      (provider-cache-log "compiled output cache hit: ~a"
+                          (compilation-output-cache-manifest-path output-cache-key))
+      (return (lambda () (values 0 #f)))))
+
   ; 3. Prepend the standard library (if enabled)
   ;     "legacy-stdlib/stdlib-for-browser.rkt" includes "stdlib.rkt" and adds `sxml->dom`
   (define t-add-stdlib-start (now-ms))
@@ -5029,12 +5358,6 @@
       [else
        stx-with-stdlib/base]))
   (define t-add-stdlib-end (now-ms))
-
-  (define split-runtime-ffi-module/effective?
-    (if split-runtime-ffi-module-explicit?
-        split-runtime-ffi-module?
-        (and split-runtime?
-             (not split-runtime-core-only?))))
 
   (define t-preflight-start (now-ms))
 
@@ -5125,12 +5448,6 @@
   (define split-runtime-provider-fragment-splice-info #f)
   (define split-runtime-provider-runtime-merge-info #f)
   (define t-compile-start (now-ms))
-  (define provider-owned-primitive-aliases
-    (provider-owned-primitive-alias-symbols
-     #:expander-read-provider? effective-expander-read-provider?
-     #:io-format-provider? effective-io-format-provider?
-     #:io-print-provider? source-needs-io-print-provider?
-     #:formatting-numbers? effective-formatting-numbers-slice?))
   (define split-runtime-provider-fragment-cache?
     (and split-runtime?
          module-input?
@@ -5584,6 +5901,15 @@
                     #:vfs-mounts vfs-mounts)))
     #:exists 'replace)
   (ensure-generated-file-exists! 'drive-compilation out-host "host output file")
+  (when output-cache-key
+    (define cache-status
+      (cache-compilation-output!
+       output-cache-key
+       output-cache-direct-output-files
+       (map cdr sidecar-output-files)))
+    (provider-cache-log "compiled output cache ~a: ~a"
+                        cache-status
+                        (compilation-output-cache-manifest-path output-cache-key)))
   (define t-write-host-end (now-ms))
 
   ; 9. Optionally run the program via Node.js.
@@ -5766,7 +6092,8 @@
   (when simplify-profile-report
     (displayln "=== Simplify-LFE Profile ===")
     (displayln simplify-profile-report))
-  (values exit-code compile-timings))
+  (lambda () (values exit-code compile-timings)))])
+    (result)))
 
 ;;;
 ;;; READ TOP-LEVEL FORMS FROM FILE 
@@ -7712,6 +8039,7 @@
     (current-source-module-provider-names provider-names)
     (current-module-bridge-module-kinds module-kinds)
     (current-module-bridge-elidable-module-names elidable-module-names)
+    (current-module-bridge-local-source-paths local-source-paths)
     (define composition
       (with-driver-timing
        'module-bridge-compose

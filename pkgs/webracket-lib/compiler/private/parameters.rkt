@@ -12,6 +12,7 @@
          current-enable-simplify?
          current-module-bridge-elide-public-cells?
          current-module-bridge-elidable-module-names
+         current-module-bridge-local-source-paths
          current-module-bridge-local-report-names
          current-module-bridge-support-provider-names
          current-module-bridge-module-kinds
@@ -54,6 +55,8 @@
   (make-parameter #f))                                 ; boolean? expose safe module-bridge exports as plain values
 (define current-module-bridge-elidable-module-names
   (make-parameter #f))                                 ; (or/c #f (listof symbol?)) modules allowed to elide public cells
+(define current-module-bridge-local-source-paths
+  (make-parameter #f))                                 ; (or/c #f (listof path?)) local sources that formed the bridged root
 (define current-module-bridge-local-report-names
   (make-parameter #f))                                 ; (or/c #f set?) local user-report names allowed to consume user-boundary alias facades
 (define current-module-bridge-support-provider-names
