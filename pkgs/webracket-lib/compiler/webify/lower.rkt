@@ -1,6 +1,7 @@
 #lang racket/base
 
-(require "match.rkt"
+(require "gensym.rkt"
+         "match.rkt"
          "wrap.rkt")
 
 (provide lower-module-variable-ops
@@ -22,22 +23,23 @@
 ;; lower-module-variable-ops : any/c -> any/c
 ;;   Lower schemify-shaped module variable operations to WebRacket helper forms.
 (define (lower-module-variable-ops v)
-  ;; lower-module-variable-constance-check : any/c -> any/c
-  ;;   Guard constant checks so value-backed imports stay plain values.
-  (define (lower-module-variable-constance-check cell)
-    (define lowered-cell (lower cell))
-    (define cell-id (gensym 'module-variable-constance-cell))
-    `(let ([,cell-id ,lowered-cell])
-       (if (if (module-variable? ,cell-id)
-               (module-variable-constance ,cell-id)
-               (if (eq? ,cell-id 'mutable) #f #t))
-           #t
-           #f)))
+  (with-deterministic-gensym
+    ;; lower-module-variable-constance-check : any/c -> any/c
+    ;;   Guard constant checks so value-backed imports stay plain values.
+    (define (lower-module-variable-constance-check cell)
+      (define lowered-cell (lower cell))
+      (define cell-id (deterministic-gensym 'module-variable-constance-cell))
+      `(let ([,cell-id ,lowered-cell])
+         (if (if (module-variable? ,cell-id)
+                 (module-variable-constance ,cell-id)
+                 (if (eq? ,cell-id 'mutable) #f #t))
+             #t
+             #f)))
 
-  (define (lower v)
-    (reannotate
-     v
-     (match v
+    (define (lower v)
+      (reannotate
+       v
+       (match v
        [`(make-internal-variable ,name)
         `(module-variable-make ,(lower name))]
        [`(variable-ref ,cell)
@@ -80,19 +82,19 @@
         v]
        [`(,_ . ,_)
         (lower-list v)]
-       [`,_
-        v])))
+         [`,_
+          v])))
 
-  ;; lower-list : list? -> list?
-  ;;   Lower each wrapped list element.
-  (define (lower-list l)
-    (cond
-      [(wrap-null? l) '()]
-      [(wrap-pair? l) (cons (lower (wrap-car l))
-                            (lower-list (wrap-cdr l)))]
-      [else (lower l)]))
+    ;; lower-list : list? -> list?
+    ;;   Lower each wrapped list element.
+    (define (lower-list l)
+      (cond
+        [(wrap-null? l) '()]
+        [(wrap-pair? l) (cons (lower (wrap-car l))
+                              (lower-list (wrap-cdr l)))]
+        [else (lower l)]))
 
-  (lower v))
+    (lower v)))
 
 ;; lower-trivial-continuation-prompts : any/c -> any/c
 ;;   Lower prompt allocation/use needed by non-error startup paths.
@@ -188,22 +190,23 @@
 ;; lower-simple-parameters : any/c -> any/c
 ;;   Lower make-parameter calls to a local mutable closure without parameterize.
 (define (lower-simple-parameters v)
-  (define (parameter-form init guard)
-    (define cell (gensym 'parameter-cell))
-    (define guard-var (gensym 'parameter-guard))
-    (define value (gensym 'parameter-value))
-    `(let ([,cell ,init]
-           [,guard-var ,guard])
-       (case-lambda
-         [() ,cell]
-         [(,value)
-          (set! ,cell (if ,guard-var (,guard-var ,value) ,value))
-          (void)])))
+  (with-deterministic-gensym
+    (define (parameter-form init guard)
+      (define cell (deterministic-gensym 'parameter-cell))
+      (define guard-var (deterministic-gensym 'parameter-guard))
+      (define value (deterministic-gensym 'parameter-value))
+      `(let ([,cell ,init]
+             [,guard-var ,guard])
+         (case-lambda
+           [() ,cell]
+           [(,value)
+            (set! ,cell (if ,guard-var (,guard-var ,value) ,value))
+            (void)])))
 
-  (define (lower v)
-    (reannotate
-     v
-     (match v
+    (define (lower v)
+      (reannotate
+       v
+       (match v
        [`(make-parameter ,init)
         (parameter-form (lower init) #f)]
        [`(make-parameter ,init ,guard)
@@ -222,19 +225,19 @@
         v]
        [`(,_ . ,_)
         (lower-list v)]
-       [`,_
-        v])))
+         [`,_
+          v])))
 
-  ;; lower-list : list? -> list?
-  ;;   Lower each wrapped list element.
-  (define (lower-list l)
-    (cond
-      [(wrap-null? l) '()]
-      [(wrap-pair? l) (cons (lower (wrap-car l))
-                            (lower-list (wrap-cdr l)))]
-      [else (lower l)]))
+    ;; lower-list : list? -> list?
+    ;;   Lower each wrapped list element.
+    (define (lower-list l)
+      (cond
+        [(wrap-null? l) '()]
+        [(wrap-pair? l) (cons (lower (wrap-car l))
+                              (lower-list (wrap-cdr l)))]
+        [else (lower l)]))
 
-  (lower v))
+    (lower v)))
 
 ;; lower-hash-iteration-ops : any/c -> any/c
 ;;   Lower stdlib hash iteration names to runtime primitives for no-stdlib slices.
@@ -282,17 +285,18 @@
 ;; lower-unsafe-undefined-checks : any/c -> any/c
 ;;   Lower Schemify unsafe-undefined guards to explicit runtime checks.
 (define (lower-unsafe-undefined-checks v)
-  (define (guard v sym message)
-    (define val (gensym 'unsafe-undefined-val))
-    `(let ([,val ,(lower v)])
-       (if (eq? ,val unsafe-undefined)
-           (raise-arguments-error ,(lower sym) ,message)
-           ,val)))
+  (with-deterministic-gensym
+    (define (guard v sym message)
+      (define val (deterministic-gensym 'unsafe-undefined-val))
+      `(let ([,val ,(lower v)])
+         (if (eq? ,val unsafe-undefined)
+             (raise-arguments-error ,(lower sym) ,message)
+             ,val)))
 
-  (define (lower v)
-    (reannotate
-     v
-     (match v
+    (define (lower v)
+      (reannotate
+       v
+       (match v
        [`(check-not-unsafe-undefined ,v ,sym)
         (guard v sym "undefined; use before initialization")]
        [`(check-not-unsafe-undefined/assign ,v ,sym)
@@ -307,19 +311,19 @@
         v]
        [`(,_ . ,_)
         (lower-list v)]
-       [`,_
-        v])))
+         [`,_
+          v])))
 
-  ;; lower-list : list? -> list?
-  ;;   Lower each wrapped list element.
-  (define (lower-list l)
-    (cond
-      [(wrap-null? l) '()]
-      [(wrap-pair? l) (cons (lower (wrap-car l))
-                            (lower-list (wrap-cdr l)))]
-      [else (lower l)]))
+    ;; lower-list : list? -> list?
+    ;;   Lower each wrapped list element.
+    (define (lower-list l)
+      (cond
+        [(wrap-null? l) '()]
+        [(wrap-pair? l) (cons (lower (wrap-car l))
+                              (lower-list (wrap-cdr l)))]
+        [else (lower l)]))
 
-  (lower v))
+    (lower v)))
 
 ;; simplify-trivial-module-prompts : any/c -> any/c
 ;;   Erase direct module-prompt markers that do not need prompt behavior.
@@ -394,15 +398,16 @@
 ;; lower-trivial-continuation-marks : any/c -> any/c
 ;;   Erase continuation marks while preserving key/value effects and order.
 (define (lower-trivial-continuation-marks v)
-  (define (lower v)
-    (match v
+  (with-deterministic-gensym
+    (define (lower v)
+      (match v
       [`(with-continuation-mark* ,_mode parameterization-key ,val ,body)
        `(call-with-parameterization
          ,(lower val)
          (lambda () ,(lower body)))]
-      [`(with-continuation-mark* ,_mode ,key ,val ,body)
-       (define key-id (gensym 'ignored-continuation-mark-key))
-       (define val-id (gensym 'ignored-continuation-mark-val))
+        [`(with-continuation-mark* ,_mode ,key ,val ,body)
+         (define key-id (deterministic-gensym 'ignored-continuation-mark-key))
+         (define val-id (deterministic-gensym 'ignored-continuation-mark-val))
        `(let ([,key-id ,(lower key)])
           (let ([,val-id ,(lower val)])
             ,(lower body)))]
@@ -410,19 +415,19 @@
        v]
       [`(,rator . ,_)
        (lower-list v)]
-      [`,_
-       v]))
+        [`,_
+         v]))
 
-  ;; lower-list : list? -> list?
-  ;;   Lower each element in a possibly wrapped list.
-  (define (lower-list l)
-    (cond
-      [(wrap-null? l) '()]
-      [(wrap-pair? l) (cons (lower (wrap-car l))
-                            (lower-list (wrap-cdr l)))]
-      [else (lower l)]))
+    ;; lower-list : list? -> list?
+    ;;   Lower each element in a possibly wrapped list.
+    (define (lower-list l)
+      (cond
+        [(wrap-null? l) '()]
+        [(wrap-pair? l) (cons (lower (wrap-car l))
+                              (lower-list (wrap-cdr l)))]
+        [else (lower l)]))
 
-  (lower v))
+    (lower v)))
 
 ;; schemify-module-variable-free? : any/c -> boolean?
 ;;   Check that schemify-shaped module variable forms have been lowered.
