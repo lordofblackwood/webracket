@@ -1718,6 +1718,620 @@ const websocket_impl = {
   'extensions': (ws => get_websocket_property(ws, 'extensions'))
 };
 
+function streams_constructor_supported(name) {
+  return typeof globalThis[name] === 'function';
+}
+
+function streams_instanceof(value, constructorName) {
+  const ctor = globalThis[constructorName];
+  return typeof ctor === 'function' && value instanceof ctor;
+}
+
+function streams_property(value, interfaceName, propertyName) {
+  return get_required_host_property(value,
+                                    propertyName,
+                                    `${interfaceName}.${propertyName}`);
+}
+
+const streams_impl = {
+  'readable-supported?': (() => streams_constructor_supported('ReadableStream') ? 1 : 0),
+  'writable-supported?': (() => streams_constructor_supported('WritableStream') ? 1 : 0),
+  'transform-supported?': (() => streams_constructor_supported('TransformStream') ? 1 : 0),
+  'readable?': (value => streams_instanceof(value, 'ReadableStream') ? 1 : 0),
+  'writable?': (value => streams_instanceof(value, 'WritableStream') ? 1 : 0),
+  'transform?': (value => streams_instanceof(value, 'TransformStream') ? 1 : 0),
+  'default-reader?': (value => streams_instanceof(value, 'ReadableStreamDefaultReader') ? 1 : 0),
+  'default-writer?': (value => streams_instanceof(value, 'WritableStreamDefaultWriter') ? 1 : 0),
+  'read-result?': (value =>
+    value !== null &&
+    typeof value === 'object' &&
+    typeof value.done === 'boolean' &&
+    'value' in value ? 1 : 0),
+  'transform-new': (() => {
+    const ctor = require_host_constructor('TransformStream',
+                                          'Streams API',
+                                          'transform-new');
+    return new ctor();
+  }),
+  'transform-readable': (stream => streams_property(stream, 'TransformStream', 'readable')),
+  'transform-writable': (stream => streams_property(stream, 'TransformStream', 'writable')),
+  'readable-locked?': (stream => streams_property(stream, 'ReadableStream', 'locked') ? 1 : 0),
+  'readable-get-reader': (stream => call_host_function0(stream,
+                                                         'getReader',
+                                                         'ReadableStream.getReader')),
+  'readable-pipe-through': ((stream, transform) => call_host_function1(stream,
+                                                                         'pipeThrough',
+                                                                         'ReadableStream.pipeThrough',
+                                                                         transform)),
+  'readable-pipe-to': ((stream, writable) => call_host_function1(stream,
+                                                                   'pipeTo',
+                                                                   'ReadableStream.pipeTo',
+                                                                   writable)),
+  'default-reader-read': (reader => call_host_function0(reader,
+                                                         'read',
+                                                         'ReadableStreamDefaultReader.read')),
+  'default-reader-release-lock!': (reader => call_host_function0(reader,
+                                                                   'releaseLock',
+                                                                   'ReadableStreamDefaultReader.releaseLock')),
+  'read-result-done?': (result => streams_property(result,
+                                                    'ReadableStreamReadResult',
+                                                    'done') ? 1 : 0),
+  'read-result-value': (result => to_fasl(streams_property(result,
+                                                              'ReadableStreamReadResult',
+                                                              'value'))),
+  'writable-locked?': (stream => streams_property(stream, 'WritableStream', 'locked') ? 1 : 0),
+  'writable-get-writer': (stream => call_host_function0(stream,
+                                                         'getWriter',
+                                                         'WritableStream.getWriter')),
+  'default-writer-write': ((writer, value) => call_host_function1(writer,
+                                                                    'write',
+                                                                    'WritableStreamDefaultWriter.write',
+                                                                    from_fasl(value))),
+  'default-writer-close': (writer => call_host_function0(writer,
+                                                          'close',
+                                                          'WritableStreamDefaultWriter.close')),
+  'default-writer-release-lock!': (writer => call_host_function0(writer,
+                                                                   'releaseLock',
+                                                                   'WritableStreamDefaultWriter.releaseLock'))
+};
+
+function file_system_global_method_present(name) {
+  return typeof globalThis[name] === 'function';
+}
+
+function file_system_origin_private_method() {
+  const navigatorValue = globalThis.navigator;
+  if (!navigatorValue || !navigatorValue.storage) {
+    return null;
+  }
+  const method = navigatorValue.storage.getDirectory;
+  return typeof method === 'function' ? method : null;
+}
+
+function file_system_instanceof(value, constructorName) {
+  const ctor = globalThis[constructorName];
+  return typeof ctor === 'function' && value instanceof ctor;
+}
+
+function file_system_property(value, interfaceName, propertyName) {
+  return get_required_host_property(value,
+                                    propertyName,
+                                    `${interfaceName}.${propertyName}`);
+}
+
+function file_system_name(value, operation) {
+  const name = from_fasl(value);
+  if (typeof name !== 'string') {
+    throw new TypeError(`${operation} name must be a string`);
+  }
+  return name;
+}
+
+function file_system_byte_count(value, operation) {
+  const count = from_fasl(value);
+  if (!Number.isSafeInteger(count) || count < 0) {
+    throw new RangeError(`${operation} byte count must be a nonnegative safe integer`);
+  }
+  return count;
+}
+
+function file_system_write_data(value) {
+  const data = from_fasl(value);
+  if (typeof data !== 'string' && !(data instanceof hostUint8Array)) {
+    throw new TypeError('FileSystemWritableFileStream.write accepts only strings or Uint8Array values');
+  }
+  return data;
+}
+
+function file_system_first_open_handle() {
+  return call_host_function0(globalThis,
+                             'showOpenFilePicker',
+                             'Window.showOpenFilePicker')
+    .then(handles => {
+      if (!hostArrayIsArrayForFasl(handles) || handles.length === 0) {
+        throw new Error('Window.showOpenFilePicker resolved without a file handle');
+      }
+      return handles[0];
+    });
+}
+
+const file_system_impl = {
+  'open-picker-supported?': (() => file_system_global_method_present('showOpenFilePicker') ? 1 : 0),
+  'save-picker-supported?': (() => file_system_global_method_present('showSaveFilePicker') ? 1 : 0),
+  'directory-picker-supported?': (() => file_system_global_method_present('showDirectoryPicker') ? 1 : 0),
+  'origin-private-supported?': (() => file_system_origin_private_method() ? 1 : 0),
+  'file-handle?': (value => file_system_instanceof(value, 'FileSystemFileHandle') ? 1 : 0),
+  'directory-handle?': (value => file_system_instanceof(value, 'FileSystemDirectoryHandle') ? 1 : 0),
+  'writable-file-stream?': (value => file_system_instanceof(value, 'FileSystemWritableFileStream') ? 1 : 0),
+  'file?': (value => file_system_instanceof(value, 'File') ? 1 : 0),
+  'show-open-file-picker': (() => file_system_first_open_handle()),
+  'show-save-file-picker': (() => call_host_function0(globalThis,
+                                                       'showSaveFilePicker',
+                                                       'Window.showSaveFilePicker')),
+  'show-directory-picker': (() => call_host_function0(globalThis,
+                                                       'showDirectoryPicker',
+                                                       'Window.showDirectoryPicker')),
+  'origin-private-directory': (() => {
+    const navigatorValue = globalThis.navigator;
+    const method = file_system_origin_private_method();
+    if (!method) {
+      throw new Error('StorageManager.getDirectory is not available in this environment');
+    }
+    return method.call(navigatorValue.storage);
+  }),
+  'handle-name': (handle => file_system_property(handle, 'FileSystemHandle', 'name')),
+  'file-handle-get-file': (handle => call_host_function0(handle,
+                                                          'getFile',
+                                                          'FileSystemFileHandle.getFile')),
+  'file-handle-create-writable': ((handle, keepExistingData) =>
+    call_host_function1(handle,
+                        'createWritable',
+                        'FileSystemFileHandle.createWritable',
+                        { keepExistingData: keepExistingData !== 0 })),
+  'directory-handle-get-file-handle': ((directory, rawName, create) => {
+    const name = file_system_name(rawName, 'FileSystemDirectoryHandle.getFileHandle');
+    return create !== 0
+      ? call_host_function2(directory,
+                            'getFileHandle',
+                            'FileSystemDirectoryHandle.getFileHandle',
+                            name,
+                            { create: true })
+      : call_host_function1(directory,
+                            'getFileHandle',
+                            'FileSystemDirectoryHandle.getFileHandle',
+                            name);
+  }),
+  'directory-handle-get-directory-handle': ((directory, rawName, create) => {
+    const name = file_system_name(rawName, 'FileSystemDirectoryHandle.getDirectoryHandle');
+    return create !== 0
+      ? call_host_function2(directory,
+                            'getDirectoryHandle',
+                            'FileSystemDirectoryHandle.getDirectoryHandle',
+                            name,
+                            { create: true })
+      : call_host_function1(directory,
+                            'getDirectoryHandle',
+                            'FileSystemDirectoryHandle.getDirectoryHandle',
+                            name);
+  }),
+  'directory-handle-remove-entry!': ((directory, rawName, recursive) => {
+    const name = file_system_name(rawName, 'FileSystemDirectoryHandle.removeEntry');
+    return recursive !== 0
+      ? call_host_function2(directory,
+                            'removeEntry',
+                            'FileSystemDirectoryHandle.removeEntry',
+                            name,
+                            { recursive: true })
+      : call_host_function1(directory,
+                            'removeEntry',
+                            'FileSystemDirectoryHandle.removeEntry',
+                            name);
+  }),
+  'file-name': (file => file_system_property(file, 'File', 'name')),
+  'file-size': (file => to_fasl(file_system_property(file, 'File', 'size'))),
+  'file-type': (file => file_system_property(file, 'File', 'type')),
+  'file-last-modified': (file => to_fasl(file_system_property(file, 'File', 'lastModified'))),
+  'file-text': (file => call_host_function0(file, 'text', 'File.text')),
+  'writable-file-stream-write': ((stream, rawData) =>
+    call_host_function1(stream,
+                        'write',
+                        'FileSystemWritableFileStream.write',
+                        file_system_write_data(rawData))),
+  'writable-file-stream-seek': ((stream, offset) =>
+    call_host_function1(stream,
+                        'seek',
+                        'FileSystemWritableFileStream.seek',
+                        file_system_byte_count(offset, 'FileSystemWritableFileStream.seek'))),
+  'writable-file-stream-truncate': ((stream, size) =>
+    call_host_function1(stream,
+                        'truncate',
+                        'FileSystemWritableFileStream.truncate',
+                        file_system_byte_count(size, 'FileSystemWritableFileStream.truncate'))),
+  'writable-file-stream-close': (stream => call_host_function0(stream,
+                                                                 'close',
+                                                                 'FileSystemWritableFileStream.close'))
+};
+
+function web_midi_request_access_method() {
+  const navigatorValue = globalThis.navigator;
+  if (!navigatorValue || typeof navigatorValue.requestMIDIAccess !== 'function') {
+    return null;
+  }
+  return navigatorValue.requestMIDIAccess;
+}
+
+function web_midi_access_like(value) {
+  return value !== null &&
+    typeof value === 'object' &&
+    value.inputs !== null &&
+    typeof value.inputs === 'object' &&
+    typeof value.inputs.get === 'function' &&
+    value.outputs !== null &&
+    typeof value.outputs === 'object' &&
+    typeof value.outputs.get === 'function' &&
+    typeof value.addEventListener === 'function';
+}
+
+function web_midi_port_kind(value, kind, constructorName) {
+  const ctor = globalThis[constructorName];
+  if (typeof ctor === 'function') {
+    return value instanceof ctor;
+  }
+  return value !== null &&
+    typeof value === 'object' &&
+    value.type === kind &&
+    typeof value.id === 'string' &&
+    typeof value.addEventListener === 'function';
+}
+
+function web_midi_input(value) {
+  return web_midi_port_kind(value, 'input', 'MIDIInput');
+}
+
+function web_midi_output(value) {
+  return web_midi_port_kind(value, 'output', 'MIDIOutput');
+}
+
+function web_midi_port(value) {
+  return web_midi_input(value) || web_midi_output(value);
+}
+
+function web_midi_property(value, interfaceName, propertyName) {
+  return get_required_host_property(value,
+                                    propertyName,
+                                    `${interfaceName}.${propertyName}`);
+}
+
+function web_midi_port_ids(access, propertyName) {
+  const ports = web_midi_property(access, 'MIDIAccess', propertyName);
+  if (ports === null ||
+      typeof ports !== 'object' ||
+      typeof ports.keys !== 'function') {
+    throw new TypeError(`MIDIAccess.${propertyName} must be a map-like object`);
+  }
+  const ids = hostArrayFrom(ports.keys());
+  if (!ids.every(id => typeof id === 'string')) {
+    throw new TypeError(`MIDIAccess.${propertyName} keys must be strings`);
+  }
+  return to_fasl(ids);
+}
+
+function web_midi_access_port(access, propertyName, rawId) {
+  const id = from_fasl(rawId);
+  if (typeof id !== 'string') {
+    throw new TypeError(`MIDIAccess.${propertyName}.get requires a string port ID`);
+  }
+  const ports = web_midi_property(access, 'MIDIAccess', propertyName);
+  if (ports === null ||
+      typeof ports !== 'object' ||
+      typeof ports.get !== 'function') {
+    throw new TypeError(`MIDIAccess.${propertyName} must be a map-like object`);
+  }
+  const port = ports.get(id);
+  return port === undefined ? null : port;
+}
+
+function web_midi_optional_string(value, interfaceName, propertyName) {
+  const result = web_midi_property(value, interfaceName, propertyName);
+  if (result === null || result === undefined) {
+    return to_fasl(false);
+  }
+  if (typeof result !== 'string') {
+    throw new TypeError(`${interfaceName}.${propertyName} must be a string or null`);
+  }
+  return to_fasl(result);
+}
+
+function web_midi_message(value) {
+  const data = from_fasl(value);
+  if (!(data instanceof hostUint8Array) || data.length === 0) {
+    throw new TypeError('MIDIOutput.send requires a nonempty byte string');
+  }
+  return data;
+}
+
+function web_midi_timestamp(value) {
+  const timestamp = from_fasl(value);
+  if (typeof timestamp !== 'number' ||
+      !Number.isFinite(timestamp) ||
+      timestamp < 0) {
+    throw new TypeError('MIDIOutput.send timestamp must be a finite nonnegative number');
+  }
+  return timestamp;
+}
+
+function web_midi_message_event(value) {
+  return value !== null &&
+    typeof value === 'object' &&
+    value.data instanceof hostUint8Array;
+}
+
+function web_midi_connection_event(value) {
+  return value !== null &&
+    typeof value === 'object' &&
+    web_midi_port(value.port);
+}
+
+const web_midi_impl = {
+  'supported?': (() => web_midi_request_access_method() ? 1 : 0),
+  'access?': (value => web_midi_access_like(value) ? 1 : 0),
+  'input?': (value => web_midi_input(value) ? 1 : 0),
+  'output?': (value => web_midi_output(value) ? 1 : 0),
+  'message-event?': (value => web_midi_message_event(value) ? 1 : 0),
+  'connection-event?': (value => web_midi_connection_event(value) ? 1 : 0),
+  'request-access': ((sysex, software) => {
+    const navigatorValue = globalThis.navigator;
+    const method = web_midi_request_access_method();
+    if (!method) {
+      throw new Error('Navigator.requestMIDIAccess is not available in this environment');
+    }
+    return method.call(navigatorValue,
+                       { sysex: sysex !== 0, software: software !== 0 });
+  }),
+  'access-sysex-enabled?': (access =>
+    web_midi_property(access, 'MIDIAccess', 'sysexEnabled') ? 1 : 0),
+  'access-input-port-ids': (access => web_midi_port_ids(access, 'inputs')),
+  'access-output-port-ids': (access => web_midi_port_ids(access, 'outputs')),
+  'access-input': ((access, id) => web_midi_access_port(access, 'inputs', id)),
+  'access-output': ((access, id) => web_midi_access_port(access, 'outputs', id)),
+  'port-id': (port => web_midi_property(port, 'MIDIPort', 'id')),
+  'port-name': (port => web_midi_optional_string(port, 'MIDIPort', 'name')),
+  'port-manufacturer': (port => web_midi_optional_string(port,
+                                                          'MIDIPort',
+                                                          'manufacturer')),
+  'port-version': (port => web_midi_optional_string(port, 'MIDIPort', 'version')),
+  'port-state': (port => web_midi_property(port, 'MIDIPort', 'state')),
+  'port-connection': (port => web_midi_property(port, 'MIDIPort', 'connection')),
+  'port-open': (port => call_host_function0(port, 'open', 'MIDIPort.open')),
+  'port-close': (port => call_host_function0(port, 'close', 'MIDIPort.close')),
+  'output-send!': ((output, data) =>
+    call_host_function1(output, 'send', 'MIDIOutput.send', web_midi_message(data))),
+  'output-send-at!': ((output, data, timestamp) =>
+    call_host_function2(output,
+                        'send',
+                        'MIDIOutput.send',
+                        web_midi_message(data),
+                        web_midi_timestamp(timestamp))),
+  'input-add-message-listener!': ((input, callback) =>
+    call_host_function2(input,
+                        'addEventListener',
+                        'MIDIInput.addEventListener',
+                        'midimessage',
+                        callback)),
+  'input-remove-message-listener!': ((input, callback) =>
+    call_host_function2(input,
+                        'removeEventListener',
+                        'MIDIInput.removeEventListener',
+                        'midimessage',
+                        callback)),
+  'access-add-state-change-listener!': ((access, callback) =>
+    call_host_function2(access,
+                        'addEventListener',
+                        'MIDIAccess.addEventListener',
+                        'statechange',
+                        callback)),
+  'access-remove-state-change-listener!': ((access, callback) =>
+    call_host_function2(access,
+                        'removeEventListener',
+                        'MIDIAccess.removeEventListener',
+                        'statechange',
+                        callback)),
+  'message-event-data': (event => {
+    if (!web_midi_message_event(event)) {
+      throw new TypeError('MIDIMessageEvent.data requires a MIDI message event');
+    }
+    return to_fasl(event.data);
+  }),
+  'connection-event-port': (event => {
+    if (!web_midi_connection_event(event)) {
+      throw new TypeError('MIDIConnectionEvent.port requires a MIDI connection event');
+    }
+    return event.port;
+  })
+};
+
+function device_orientation_constructor(name) {
+  const ctor = globalThis[name];
+  return typeof ctor === 'function' ? ctor : null;
+}
+
+function device_orientation_event_like(value, constructorName, fieldNames) {
+  const ctor = device_orientation_constructor(constructorName);
+  if (ctor && value instanceof ctor) {
+    return value instanceof ctor;
+  }
+  if (value === null || typeof value !== 'object') {
+    return false;
+  }
+  for (const fieldName of fieldNames) {
+    if (!(fieldName in value)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function device_orientation_event(value) {
+  return device_orientation_event_like(value,
+                                       'DeviceOrientationEvent',
+                                       ['absolute', 'alpha', 'beta', 'gamma']);
+}
+
+function device_motion_event(value) {
+  return device_orientation_event_like(value,
+                                       'DeviceMotionEvent',
+                                       ['acceleration',
+                                        'accelerationIncludingGravity',
+                                        'rotationRate',
+                                        'interval']);
+}
+
+function device_orientation_permission_method(constructorName) {
+  const ctor = device_orientation_constructor(constructorName);
+  if (!ctor || typeof ctor.requestPermission !== 'function') {
+    return null;
+  }
+  return { ctor, method: ctor.requestPermission };
+}
+
+function device_orientation_event_target() {
+  if (typeof globalThis.addEventListener !== 'function' ||
+      typeof globalThis.removeEventListener !== 'function') {
+    throw new Error('Window event listeners are not available in this environment');
+  }
+  return globalThis;
+}
+
+function device_orientation_add_listener(eventName, callback) {
+  if (typeof callback !== 'function') {
+    throw new TypeError(`${eventName} listener must be a function`);
+  }
+  device_orientation_event_target().addEventListener(eventName, callback);
+}
+
+function device_orientation_remove_listener(eventName, callback) {
+  if (typeof callback !== 'function') {
+    throw new TypeError(`${eventName} listener must be a function`);
+  }
+  device_orientation_event_target().removeEventListener(eventName, callback);
+}
+
+function device_orientation_optional_number(value, propertyName) {
+  if (value === null || value === undefined) {
+    return to_fasl(false);
+  }
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    throw new TypeError(`${propertyName} must be a finite number or null`);
+  }
+  return to_fasl(value);
+}
+
+function device_orientation_required_number(value, propertyName) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    throw new TypeError(`${propertyName} must be a finite number`);
+  }
+  return to_fasl(value);
+}
+
+function device_orientation_field(event, propertyName) {
+  if (!device_orientation_event(event)) {
+    throw new TypeError(`${propertyName} requires a DeviceOrientationEvent`);
+  }
+  return device_orientation_optional_number(event[propertyName],
+                                            `DeviceOrientationEvent.${propertyName}`);
+}
+
+function device_motion_component(event, containerName, componentName) {
+  if (!device_motion_event(event)) {
+    throw new TypeError(`${containerName}.${componentName} requires a DeviceMotionEvent`);
+  }
+  const container = event[containerName];
+  if (container === null || container === undefined) {
+    return to_fasl(false);
+  }
+  if (typeof container !== 'object') {
+    throw new TypeError(`DeviceMotionEvent.${containerName} must be an object or null`);
+  }
+  return device_orientation_optional_number(
+    container[componentName],
+    `DeviceMotionEvent.${containerName}.${componentName}`);
+}
+
+const device_orientation_impl = {
+  'orientation-supported?': (() => device_orientation_constructor('DeviceOrientationEvent') ? 1 : 0),
+  'motion-supported?': (() => device_orientation_constructor('DeviceMotionEvent') ? 1 : 0),
+  'orientation-permission-requestable?': (() =>
+    device_orientation_permission_method('DeviceOrientationEvent') ? 1 : 0),
+  'motion-permission-requestable?': (() =>
+    device_orientation_permission_method('DeviceMotionEvent') ? 1 : 0),
+  'orientation-event?': (value => device_orientation_event(value) ? 1 : 0),
+  'motion-event?': (value => device_motion_event(value) ? 1 : 0),
+  'request-orientation-permission': (absolute => {
+    const permission = device_orientation_permission_method('DeviceOrientationEvent');
+    if (!permission) {
+      throw new Error('DeviceOrientationEvent.requestPermission is not available');
+    }
+    return permission.method.call(permission.ctor, absolute !== 0);
+  }),
+  'request-motion-permission': (() => {
+    const permission = device_orientation_permission_method('DeviceMotionEvent');
+    if (!permission) {
+      throw new Error('DeviceMotionEvent.requestPermission is not available');
+    }
+    return permission.method.call(permission.ctor);
+  }),
+  'add-orientation-listener!': (callback =>
+    device_orientation_add_listener('deviceorientation', callback)),
+  'remove-orientation-listener!': (callback =>
+    device_orientation_remove_listener('deviceorientation', callback)),
+  'add-absolute-listener!': (callback =>
+    device_orientation_add_listener('deviceorientationabsolute', callback)),
+  'remove-absolute-listener!': (callback =>
+    device_orientation_remove_listener('deviceorientationabsolute', callback)),
+  'add-motion-listener!': (callback =>
+    device_orientation_add_listener('devicemotion', callback)),
+  'remove-motion-listener!': (callback =>
+    device_orientation_remove_listener('devicemotion', callback)),
+  'orientation-event-absolute?': (event => {
+    if (!device_orientation_event(event) || typeof event.absolute !== 'boolean') {
+      throw new TypeError('DeviceOrientationEvent.absolute must be a boolean');
+    }
+    return event.absolute ? 1 : 0;
+  }),
+  'orientation-event-alpha': (event => device_orientation_field(event, 'alpha')),
+  'orientation-event-beta': (event => device_orientation_field(event, 'beta')),
+  'orientation-event-gamma': (event => device_orientation_field(event, 'gamma')),
+  'orientation-event-compass-heading': (event =>
+    device_orientation_field(event, 'webkitCompassHeading')),
+  'orientation-event-compass-accuracy': (event =>
+    device_orientation_field(event, 'webkitCompassAccuracy')),
+  'motion-event-acceleration-x': (event =>
+    device_motion_component(event, 'acceleration', 'x')),
+  'motion-event-acceleration-y': (event =>
+    device_motion_component(event, 'acceleration', 'y')),
+  'motion-event-acceleration-z': (event =>
+    device_motion_component(event, 'acceleration', 'z')),
+  'motion-event-gravity-acceleration-x': (event =>
+    device_motion_component(event, 'accelerationIncludingGravity', 'x')),
+  'motion-event-gravity-acceleration-y': (event =>
+    device_motion_component(event, 'accelerationIncludingGravity', 'y')),
+  'motion-event-gravity-acceleration-z': (event =>
+    device_motion_component(event, 'accelerationIncludingGravity', 'z')),
+  'motion-event-rotation-alpha': (event =>
+    device_motion_component(event, 'rotationRate', 'alpha')),
+  'motion-event-rotation-beta': (event =>
+    device_motion_component(event, 'rotationRate', 'beta')),
+  'motion-event-rotation-gamma': (event =>
+    device_motion_component(event, 'rotationRate', 'gamma')),
+  'motion-event-interval': (event => {
+    if (!device_motion_event(event)) {
+      throw new TypeError('DeviceMotionEvent.interval requires a DeviceMotionEvent');
+    }
+    return device_orientation_required_number(event.interval,
+                                              'DeviceMotionEvent.interval');
+  })
+};
+
 const audio_impl = {
   'context-new': (() => {
     const ctor = require_host_constructor('AudioContext', 'AudioContext', 'context-new');
@@ -2233,6 +2847,10 @@ function call_jsxgraph_is_point(value) {
 }
 
 const websocket = websocket_impl;
+const file_system = file_system_impl;
+const streams = streams_impl;
+const web_midi = web_midi_impl;
+const device_orientation = device_orientation_impl;
 const audio = audio_impl;
 
 function from_fasl(index) {

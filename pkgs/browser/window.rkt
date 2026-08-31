@@ -821,7 +821,9 @@
 ;; window-set-timeout/delay : external? real? -> u32?
 ;;   Schedule a one-shot timer callback with an explicit delay.
 (define (window-set-timeout/delay callback delay)
-  (js-window-set-timeout/delay callback delay))
+  (js-window-set-timeout/delay
+   callback
+   (window-real->flonum 'window-set-timeout/delay delay)))
 
 ;; window-clear-timeout : exact-integer? -> void?
 ;;   Cancel a timeout handle.
@@ -832,7 +834,9 @@
 ;; window-set-interval : external? real? -> u32?
 ;;   Schedule a repeated timer callback.
 (define (window-set-interval callback delay)
-  (js-window-set-interval callback delay))
+  (js-window-set-interval
+   callback
+   (window-real->flonum 'window-set-interval delay)))
 
 ;; window-clear-interval : exact-integer? -> void?
 ;;   Cancel an interval handle.

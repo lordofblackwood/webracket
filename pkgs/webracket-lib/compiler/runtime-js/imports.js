@@ -2753,6 +2753,10 @@ var imports = {
         'used-js-heap-size':   (mem => get_performance_memory_info_property(mem, 'usedJSHeapSize'))
     } : new Proxy({}, { get() { throw new hostError('DOM not available in this environment'); } }),
     'websocket': websocket,
+    'file-system': file_system,
+    'streams': streams,
+    'web-midi': web_midi,
+    'device-orientation': device_orientation,
     'audio': audio,
     // Document
     'document': hasDOM ? {

@@ -6,7 +6,7 @@ set -euo pipefail
 
 if [ "$#" -lt 1 ] || [ "$#" -gt 2 ]; then
   echo "Usage: $0 <target> [compat-message]"
-  echo "Targets: smoke-all | parity-all | visual-check"
+  echo "Targets: smoke-all | parity-all | device-orientation | file-system | streams | web-midi | visual-check"
   exit 2
 fi
 
@@ -25,6 +25,26 @@ case "$TARGET" in
       "example-browser-parity-all.rkt" \
       "browser parity-all compile: ok"
     ;;
+  device-orientation)
+    "$SCRIPT_DIR/compile-browser-example.sh" \
+      "example-browser-device-orientation.rkt" \
+      "browser Device Orientation API smoke compile: ok"
+    ;;
+  file-system)
+    "$SCRIPT_DIR/compile-browser-example.sh" \
+      "example-browser-file-system.rkt" \
+      "browser File System API smoke compile: ok"
+    ;;
+  streams)
+    "$SCRIPT_DIR/compile-browser-example.sh" \
+      "example-browser-streams.rkt" \
+      "browser Streams API smoke compile: ok"
+    ;;
+  web-midi)
+    "$SCRIPT_DIR/compile-browser-example.sh" \
+      "example-browser-web-midi.rkt" \
+      "browser Web MIDI API smoke compile: ok"
+    ;;
   visual-check)
     "$SCRIPT_DIR/compile-browser-example.sh" \
       "example-browser-visual-check.rkt" \
@@ -32,7 +52,7 @@ case "$TARGET" in
     ;;
   *)
     echo "Unknown target: $TARGET"
-    echo "Targets: smoke-all | parity-all | visual-check"
+    echo "Targets: smoke-all | parity-all | device-orientation | file-system | streams | web-midi | visual-check"
     exit 2
     ;;
 esac

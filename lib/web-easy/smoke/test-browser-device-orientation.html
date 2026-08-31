@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WebRacket Device Orientation API static FFI smoke test</title>
+  <style>
+    body { font-family: monospace; margin: 16px; }
+    #status { white-space: pre-wrap; padding: 8px; border: 1px solid #999; }
+    #status.pass { color: #0a6a0a; border-color: #0a6a0a; }
+    #status.fail { color: #8a1111; border-color: #8a1111; }
+    #app-frame { width: 100%; height: 160px; border: 1px solid #999; margin-top: 12px; }
+  </style>
+</head>
+<body>
+  <div id="status">Running static Device Orientation API smoke assertions...</div>
+  <iframe id="app-frame" src="./generated/example-browser-device-orientation.html" title="Device Orientation API smoke app"></iframe>
+  <script>
+    function setStatus(text, className) {
+      const status = document.getElementById("status");
+      status.textContent = text;
+      status.className = className;
+    }
+
+    function sleep(milliseconds) {
+      return new Promise((resolve) => setTimeout(resolve, milliseconds));
+    }
+
+    async function waitForResult(frame, timeoutMilliseconds) {
+      const started = Date.now();
+      let lastText = "";
+      while (Date.now() - started < timeoutMilliseconds) {
+        const documentInFrame = frame.contentDocument || frame.contentWindow?.document;
+        const text = documentInFrame?.body?.textContent?.trim() || "";
+        lastText = text;
+        if (text.startsWith("PASS") || text.startsWith("FAIL")) {
+          return text;
+        }
+        await sleep(25);
+      }
+      throw new Error(`Timed out waiting for the Device Orientation API result; last app status: ${lastText || "(empty)"}`);
+    }
+
+    (async function run() {
+      try {
+        const frame = document.getElementById("app-frame");
+        await new Promise((resolve, reject) => {
+          const timer = setTimeout(() => reject(new Error("Timed out loading Device Orientation API app")), 20000);
+          frame.addEventListener("load", () => {
+            clearTimeout(timer);
+            resolve();
+          }, { once: true });
+        });
+        const result = await waitForResult(frame, 20000);
+        if (!result.startsWith("PASS")) {
+          throw new Error(result);
+        }
+        setStatus("PASS\n" + result, "pass");
+      } catch (error) {
+        console.error(error);
+        setStatus("FAIL\n" + (error?.message || String(error)), "fail");
+      }
+    })();
+  </script>
+</body>
+</html>

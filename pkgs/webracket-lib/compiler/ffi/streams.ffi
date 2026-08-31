@@ -1,0 +1,190 @@
+;;;
+;;; Streams API
+;;;
+
+;; Static bindings for the browser Streams API.  Each host import names one
+;; fixed browser constructor, property, or method; no property name crosses
+;; the Racket/JavaScript boundary at run time.
+
+;;; Availability and type checks
+
+(define-foreign js-readable-stream-supported?
+  #:module "streams"
+  #:name   "readable-supported?"
+  #:doc    "Reports whether the ReadableStream constructor is available."
+  #:mdn    "ReadableStream"
+  (-> () (boolean)))
+
+(define-foreign js-writable-stream-supported?
+  #:module "streams"
+  #:name   "writable-supported?"
+  #:doc    "Reports whether the WritableStream constructor is available."
+  #:mdn    "WritableStream"
+  (-> () (boolean)))
+
+(define-foreign js-transform-stream-supported?
+  #:module "streams"
+  #:name   "transform-supported?"
+  #:doc    "Reports whether the TransformStream constructor is available."
+  #:mdn    "TransformStream"
+  (-> () (boolean)))
+
+(define-foreign js-readable-stream?
+  #:module "streams"
+  #:name   "readable?"
+  #:doc    "Reports whether a host value is a ReadableStream."
+  #:mdn    "ReadableStream"
+  (-> (extern) (boolean)))
+
+(define-foreign js-writable-stream?
+  #:module "streams"
+  #:name   "writable?"
+  #:doc    "Reports whether a host value is a WritableStream."
+  #:mdn    "WritableStream"
+  (-> (extern) (boolean)))
+
+(define-foreign js-transform-stream?
+  #:module "streams"
+  #:name   "transform?"
+  #:doc    "Reports whether a host value is a TransformStream."
+  #:mdn    "TransformStream"
+  (-> (extern) (boolean)))
+
+(define-foreign js-readable-stream-default-reader?
+  #:module "streams"
+  #:name   "default-reader?"
+  #:doc    "Reports whether a host value is a ReadableStreamDefaultReader."
+  #:mdn    "ReadableStreamDefaultReader"
+  (-> (extern) (boolean)))
+
+(define-foreign js-writable-stream-default-writer?
+  #:module "streams"
+  #:name   "default-writer?"
+  #:doc    "Reports whether a host value is a WritableStreamDefaultWriter."
+  #:mdn    "WritableStreamDefaultWriter"
+  (-> (extern) (boolean)))
+
+(define-foreign js-readable-stream-read-result?
+  #:module "streams"
+  #:name   "read-result?"
+  #:doc    "Reports whether a host value has the ReadableStream read-result shape."
+  #:mdn    "ReadableStreamDefaultReader/read"
+  (-> (extern) (boolean)))
+
+;;; Transform streams
+
+(define-foreign js-transform-stream-new
+  #:module "streams"
+  #:name   "transform-new"
+  #:doc    "Creates an identity TransformStream with the browser defaults."
+  #:mdn    "TransformStream/TransformStream"
+  (-> () (extern/raw)))
+
+(define-foreign js-transform-stream-readable
+  #:module "streams"
+  #:name   "transform-readable"
+  #:doc    "Returns the readable side of a TransformStream."
+  #:mdn    "TransformStream/readable"
+  (-> (extern) (extern/raw)))
+
+(define-foreign js-transform-stream-writable
+  #:module "streams"
+  #:name   "transform-writable"
+  #:doc    "Returns the writable side of a TransformStream."
+  #:mdn    "TransformStream/writable"
+  (-> (extern) (extern/raw)))
+
+;;; Readable streams and readers
+
+(define-foreign js-readable-stream-locked?
+  #:module "streams"
+  #:name   "readable-locked?"
+  #:doc    "Reports whether a ReadableStream is locked to a reader."
+  #:mdn    "ReadableStream/locked"
+  (-> (extern) (boolean)))
+
+(define-foreign js-readable-stream-get-reader
+  #:module "streams"
+  #:name   "readable-get-reader"
+  #:doc    "Acquires the default reader for a ReadableStream."
+  #:mdn    "ReadableStream/getReader"
+  (-> (extern) (extern/raw)))
+
+(define-foreign js-readable-stream-pipe-through
+  #:module "streams"
+  #:name   "readable-pipe-through"
+  #:doc    "Pipes a ReadableStream through a TransformStream."
+  #:mdn    "ReadableStream/pipeThrough"
+  (-> (extern extern) (extern/raw)))
+
+(define-foreign js-readable-stream-pipe-to
+  #:module "streams"
+  #:name   "readable-pipe-to"
+  #:doc    "Pipes a ReadableStream to a WritableStream and returns a Promise."
+  #:mdn    "ReadableStream/pipeTo"
+  (-> (extern extern) (extern/raw)))
+
+(define-foreign js-readable-stream-default-reader-read
+  #:module "streams"
+  #:name   "default-reader-read"
+  #:doc    "Reads the next chunk and returns a Promise for a read result."
+  #:mdn    "ReadableStreamDefaultReader/read"
+  (-> (extern) (extern/raw)))
+
+(define-foreign js-readable-stream-default-reader-release-lock!
+  #:module "streams"
+  #:name   "default-reader-release-lock!"
+  #:doc    "Releases a ReadableStreamDefaultReader lock."
+  #:mdn    "ReadableStreamDefaultReader/releaseLock"
+  (-> (extern) ()))
+
+(define-foreign js-readable-stream-read-result-done?
+  #:module "streams"
+  #:name   "read-result-done?"
+  #:doc    "Reports whether a read result marks the stream as complete."
+  #:mdn    "ReadableStreamDefaultReader/read"
+  (-> (extern) (boolean)))
+
+(define-foreign js-readable-stream-read-result-value
+  #:module "streams"
+  #:name   "read-result-value"
+  #:doc    "Returns a read-result chunk as a FASL-marshalled value."
+  #:mdn    "ReadableStreamDefaultReader/read"
+  (-> (extern) (value)))
+
+;;; Writable streams and writers
+
+(define-foreign js-writable-stream-locked?
+  #:module "streams"
+  #:name   "writable-locked?"
+  #:doc    "Reports whether a WritableStream is locked to a writer."
+  #:mdn    "WritableStream/locked"
+  (-> (extern) (boolean)))
+
+(define-foreign js-writable-stream-get-writer
+  #:module "streams"
+  #:name   "writable-get-writer"
+  #:doc    "Acquires the default writer for a WritableStream."
+  #:mdn    "WritableStream/getWriter"
+  (-> (extern) (extern/raw)))
+
+(define-foreign js-writable-stream-default-writer-write
+  #:module "streams"
+  #:name   "default-writer-write"
+  #:doc    "Writes one FASL-marshalled chunk and returns a Promise."
+  #:mdn    "WritableStreamDefaultWriter/write"
+  (-> (extern value) (extern/raw)))
+
+(define-foreign js-writable-stream-default-writer-close
+  #:module "streams"
+  #:name   "default-writer-close"
+  #:doc    "Closes a WritableStreamDefaultWriter and returns a Promise."
+  #:mdn    "WritableStreamDefaultWriter/close"
+  (-> (extern) (extern/raw)))
+
+(define-foreign js-writable-stream-default-writer-release-lock!
+  #:module "streams"
+  #:name   "default-writer-release-lock!"
+  #:doc    "Releases a WritableStreamDefaultWriter lock."
+  #:mdn    "WritableStreamDefaultWriter/releaseLock"
+  (-> (extern) ()))

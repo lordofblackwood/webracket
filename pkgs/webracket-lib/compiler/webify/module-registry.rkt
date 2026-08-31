@@ -25,6 +25,7 @@
 
 (require racket/list
          racket/match
+         racket/string
          "module-composer.rkt"
          "module-instance.rkt"
          "primitive-modules.rkt")
@@ -40,6 +41,20 @@
     (regexp-replace #rx"^[0-9]+/" (symbol->string name) ""))
   (or (eq? a b)
       (string=? (base-name a) (base-name b))))
+
+;; canonical-module-registry-name : symbol? -> symbol?
+;;   Store file-backed provider names without the trailing `.rkt`.
+(define (canonical-module-registry-name name)
+  (define text (symbol->string name))
+  (if (string-suffix? text ".rkt")
+      (string->symbol (substring text 0 (- (string-length text) 4)))
+      name))
+
+;; canonical-import-source : (list/c symbol? symbol? symbol?) -> source?
+;;   Canonicalize only the dependency module name in import metadata.
+(define (canonical-import-source source)
+  (match-define (list import dependency export) source)
+  (list import (canonical-module-registry-name dependency) export))
 
 ;; make-webify-module-registry : -> webify-module-registry?
 ;;   Create an empty mutable registry of named linklet slices.
@@ -185,15 +200,19 @@
   (validate-registry! who registry)
   (validate-entry-name! who name)
   (validate-imports! who imports)
+  (define canonical-name (canonical-module-registry-name name))
+  (define canonical-imports (map canonical-import-source imports))
   (define-values (importss exports)
     (linklet-importss+exports who linklet))
-  (validate-imports-match-linklet! who importss imports)
+  (validate-imports-match-linklet! who importss canonical-imports)
   (define entries (webify-module-registry-entries registry))
-  (when (hash-has-key? entries name)
+  (when (hash-has-key? entries canonical-name)
     (raise-arguments-error who
                            "duplicate module registry entries are not supported"
-                           "name" name))
-  (hash-set! entries name (webify-module-registry-entry name linklet importss imports exports))
+                           "name" canonical-name))
+  (hash-set! entries
+             canonical-name
+             (webify-module-registry-entry canonical-name linklet importss canonical-imports exports))
   (void))
 
 ;; webify-module-registry-ref : webify-module-registry? symbol? -> webify-module-registry-entry?
@@ -202,12 +221,14 @@
   (define who 'webify-module-registry-ref)
   (validate-registry! who registry)
   (validate-entry-name! who name)
+  (define canonical-name (canonical-module-registry-name name))
   (hash-ref (webify-module-registry-entries registry)
-            name
+            canonical-name
             (lambda ()
               (raise-arguments-error who
                                      "unknown module registry entry"
                                      "name" name
+                                     "canonical name" canonical-name
                                      "available names" (webify-module-registry-names registry)))))
 
 ;; webify-module-registry-names : webify-module-registry? -> (listof symbol?)
@@ -231,15 +252,16 @@
   (unless (and (list? order)
                (andmap symbol? order))
     (raise-argument-error who "(listof symbol?)" order))
-  (define duplicate (check-duplicates order))
+  (define canonical-order (map canonical-module-registry-name order))
+  (define duplicate (check-duplicates canonical-order))
   (when duplicate
     (raise-arguments-error who
                            "duplicate module names in composition order are not supported"
                            "name" duplicate))
-  (for ([name (in-list order)])
+  (for ([name (in-list canonical-order)])
     (webify-module-registry-ref registry name))
   (for/fold ([seen (hasheq)])
-            ([name (in-list order)])
+            ([name (in-list canonical-order)])
     (define entry (webify-module-registry-ref registry name))
     (for ([source (in-list (webify-module-registry-entry-imports entry))])
       (match-define (list import dependency export) source)
@@ -347,23 +369,24 @@
   (define permanent (hasheq))
   (define temporary (hasheq))
   (define (visit name path)
-    (webify-module-registry-ref registry name)
+    (define canonical-name (canonical-module-registry-name name))
+    (webify-module-registry-ref registry canonical-name)
     (cond
-      [(hash-has-key? permanent name)
+      [(hash-has-key? permanent canonical-name)
        (void)]
-      [(hash-has-key? temporary name)
+      [(hash-has-key? temporary canonical-name)
        (raise-arguments-error who
                               "cyclic module registry dependencies are not supported"
-                              "name" name
-                              "path" (reverse (cons name path)))]
+                              "name" canonical-name
+                              "path" (reverse (cons canonical-name path)))]
       [else
-       (set! temporary (hash-set temporary name #t))
-       (define entry (webify-module-registry-ref registry name))
+       (set! temporary (hash-set temporary canonical-name #t))
+       (define entry (webify-module-registry-ref registry canonical-name))
        (for ([dependency (in-list (entry-module-dependencies entry))])
-         (visit dependency (cons name path)))
-       (set! temporary (hash-remove temporary name))
-       (set! permanent (hash-set permanent name #t))
-       (set! planned (cons name planned))]))
+         (visit dependency (cons canonical-name path)))
+       (set! temporary (hash-remove temporary canonical-name))
+       (set! permanent (hash-set permanent canonical-name #t))
+       (set! planned (cons canonical-name planned))]))
   (for ([root (in-list roots)])
     (visit root '()))
   (reverse planned))

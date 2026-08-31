@@ -1,0 +1,207 @@
+;;;
+;;; File System API
+;;;
+
+;; Static bindings for the File System Access API and the origin private file
+;; system (OPFS). Each host import performs one fixed browser operation; no
+;; browser property name or options object crosses the Racket/JavaScript
+;; boundary at run time.
+
+;;; Availability and type checks
+
+(define-foreign js-file-system-open-picker-supported?
+  #:module "file-system"
+  #:name   "open-picker-supported?"
+  #:doc    "Reports whether Window.showOpenFilePicker is available."
+  #:mdn    "Window/showOpenFilePicker"
+  (-> () (boolean)))
+
+(define-foreign js-file-system-save-picker-supported?
+  #:module "file-system"
+  #:name   "save-picker-supported?"
+  #:doc    "Reports whether Window.showSaveFilePicker is available."
+  #:mdn    "Window/showSaveFilePicker"
+  (-> () (boolean)))
+
+(define-foreign js-file-system-directory-picker-supported?
+  #:module "file-system"
+  #:name   "directory-picker-supported?"
+  #:doc    "Reports whether Window.showDirectoryPicker is available."
+  #:mdn    "Window/showDirectoryPicker"
+  (-> () (boolean)))
+
+(define-foreign js-file-system-origin-private-supported?
+  #:module "file-system"
+  #:name   "origin-private-supported?"
+  #:doc    "Reports whether StorageManager.getDirectory is available."
+  #:mdn    "StorageManager/getDirectory"
+  (-> () (boolean)))
+
+(define-foreign js-file-system-file-handle?
+  #:module "file-system"
+  #:name   "file-handle?"
+  #:doc    "Reports whether a host value is a FileSystemFileHandle."
+  #:mdn    "FileSystemFileHandle"
+  (-> (extern) (boolean)))
+
+(define-foreign js-file-system-directory-handle?
+  #:module "file-system"
+  #:name   "directory-handle?"
+  #:doc    "Reports whether a host value is a FileSystemDirectoryHandle."
+  #:mdn    "FileSystemDirectoryHandle"
+  (-> (extern) (boolean)))
+
+(define-foreign js-file-system-writable-file-stream?
+  #:module "file-system"
+  #:name   "writable-file-stream?"
+  #:doc    "Reports whether a host value is a FileSystemWritableFileStream."
+  #:mdn    "FileSystemWritableFileStream"
+  (-> (extern) (boolean)))
+
+(define-foreign js-file-system-file?
+  #:module "file-system"
+  #:name   "file?"
+  #:doc    "Reports whether a host value is a File."
+  #:mdn    "File"
+  (-> (extern) (boolean)))
+
+;;; Pickers and origin-private storage
+
+(define-foreign js-file-system-show-open-file-picker
+  #:module "file-system"
+  #:name   "show-open-file-picker"
+  #:doc    "Shows the default single-file picker and returns a Promise for its selected handle."
+  #:mdn    "Window/showOpenFilePicker"
+  (-> () (extern/raw)))
+
+(define-foreign js-file-system-show-save-file-picker
+  #:module "file-system"
+  #:name   "show-save-file-picker"
+  #:doc    "Shows the default save-file picker and returns a Promise for its handle."
+  #:mdn    "Window/showSaveFilePicker"
+  (-> () (extern/raw)))
+
+(define-foreign js-file-system-show-directory-picker
+  #:module "file-system"
+  #:name   "show-directory-picker"
+  #:doc    "Shows the default directory picker and returns a Promise for its handle."
+  #:mdn    "Window/showDirectoryPicker"
+  (-> () (extern/raw)))
+
+(define-foreign js-file-system-origin-private-directory
+  #:module "file-system"
+  #:name   "origin-private-directory"
+  #:doc    "Returns a Promise for the origin private file-system root directory."
+  #:mdn    "StorageManager/getDirectory"
+  (-> () (extern/raw)))
+
+;;; Handles and directory entries
+
+(define-foreign js-file-system-handle-name
+  #:module "file-system"
+  #:name   "handle-name"
+  #:doc    "Returns the name of a file-system file or directory handle."
+  #:mdn    "FileSystemHandle/name"
+  (-> (extern) (string)))
+
+(define-foreign js-file-system-file-handle-get-file
+  #:module "file-system"
+  #:name   "file-handle-get-file"
+  #:doc    "Returns a Promise for the File represented by a file handle."
+  #:mdn    "FileSystemFileHandle/getFile"
+  (-> (extern) (extern/raw)))
+
+(define-foreign js-file-system-file-handle-create-writable
+  #:module "file-system"
+  #:name   "file-handle-create-writable"
+  #:doc    "Returns a Promise for a writable file stream, optionally preserving existing data."
+  #:mdn    "FileSystemFileHandle/createWritable"
+  (-> (extern boolean) (extern/raw)))
+
+(define-foreign js-file-system-directory-handle-get-file-handle
+  #:module "file-system"
+  #:name   "directory-handle-get-file-handle"
+  #:doc    "Returns a Promise for a named child file handle, optionally creating it."
+  #:mdn    "FileSystemDirectoryHandle/getFileHandle"
+  (-> (extern string boolean) (extern/raw)))
+
+(define-foreign js-file-system-directory-handle-get-directory-handle
+  #:module "file-system"
+  #:name   "directory-handle-get-directory-handle"
+  #:doc    "Returns a Promise for a named child directory handle, optionally creating it."
+  #:mdn    "FileSystemDirectoryHandle/getDirectoryHandle"
+  (-> (extern string boolean) (extern/raw)))
+
+(define-foreign js-file-system-directory-handle-remove-entry!
+  #:module "file-system"
+  #:name   "directory-handle-remove-entry!"
+  #:doc    "Returns a Promise that removes a named child entry, optionally recursively."
+  #:mdn    "FileSystemDirectoryHandle/removeEntry"
+  (-> (extern string boolean) (extern/raw)))
+
+;;; Files
+
+(define-foreign js-file-system-file-name
+  #:module "file-system"
+  #:name   "file-name"
+  #:doc    "Returns the name of a File."
+  #:mdn    "File/name"
+  (-> (extern) (string)))
+
+(define-foreign js-file-system-file-size
+  #:module "file-system"
+  #:name   "file-size"
+  #:doc    "Returns the byte length of a File as a normal WebRacket value."
+  #:mdn    "File/size"
+  (-> (extern) (value)))
+
+(define-foreign js-file-system-file-type
+  #:module "file-system"
+  #:name   "file-type"
+  #:doc    "Returns the MIME type declared by a File."
+  #:mdn    "File/type"
+  (-> (extern) (string)))
+
+(define-foreign js-file-system-file-last-modified
+  #:module "file-system"
+  #:name   "file-last-modified"
+  #:doc    "Returns a File modification timestamp in milliseconds as a normal WebRacket value."
+  #:mdn    "File/lastModified"
+  (-> (extern) (value)))
+
+(define-foreign js-file-system-file-text
+  #:module "file-system"
+  #:name   "file-text"
+  #:doc    "Returns a Promise for the UTF-8 text content of a File."
+  #:mdn    "Blob/text"
+  (-> (extern) (extern/raw)))
+
+;;; Writable file streams
+
+(define-foreign js-file-system-writable-file-stream-write
+  #:module "file-system"
+  #:name   "writable-file-stream-write"
+  #:doc    "Writes one string or Uint8Array chunk and returns a Promise."
+  #:mdn    "FileSystemWritableFileStream/write"
+  (-> (extern value) (extern/raw)))
+
+(define-foreign js-file-system-writable-file-stream-seek
+  #:module "file-system"
+  #:name   "writable-file-stream-seek"
+  #:doc    "Moves the writable file stream cursor to a FASL-marshalled safe nonnegative byte offset and returns a Promise."
+  #:mdn    "FileSystemWritableFileStream/seek"
+  (-> (extern value) (extern/raw)))
+
+(define-foreign js-file-system-writable-file-stream-truncate
+  #:module "file-system"
+  #:name   "writable-file-stream-truncate"
+  #:doc    "Resizes the file to a FASL-marshalled safe nonnegative byte length and returns a Promise."
+  #:mdn    "FileSystemWritableFileStream/truncate"
+  (-> (extern value) (extern/raw)))
+
+(define-foreign js-file-system-writable-file-stream-close
+  #:module "file-system"
+  #:name   "writable-file-stream-close"
+  #:doc    "Closes a writable file stream and commits its changes."
+  #:mdn    "FileSystemWritableFileStream/close"
+  (-> (extern) (extern/raw)))

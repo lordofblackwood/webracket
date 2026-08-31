@@ -123,10 +123,12 @@ These are the MDN-style browser APIs that WebRacket wraps.
   @item{@racket[(require clipboard)]}
   @item{@racket[(require compression-streams)]}
   @item{@racket[(include-lib document)]}
+  @item{@racket[(require device-orientation)]}
   @item{@racket[(include-lib dom)]}
   @item{@racket[(include-lib domrect)]}
   @item{@racket[(include-lib element)]}
   @item{@racket[(include-lib event)]}
+  @item{@racket[(require file-system)]}
   @item{@racket[(include-lib fetch)]}
   @item{@racket[(require fullscreen)]}
   @item{@racket[(require gamepad)]}
@@ -141,6 +143,8 @@ These are the MDN-style browser APIs that WebRacket wraps.
   @item{@racket[(require resize-observer)]}
   @item{@racket[(require screen-orientation)]}
   @item{@racket[(include-lib storage)]}
+  @item{@racket[(require streams)]}
+  @item{@racket[(require web-midi)]}
   @item{@racket[(require web-speech)]}
   @item{@racket[(require web-workers)]}
   @item{@racket[(include-lib websocket)]}
@@ -173,6 +177,10 @@ See their respective documentation pages.
 
 @;-------------------------------------------------------------------
 
+@include-section["lib-device-orientation.scrbl"]
+
+@;-------------------------------------------------------------------
+
 @include-section["lib-dom.scrbl"]
 
 @;-------------------------------------------------------------------
@@ -186,6 +194,10 @@ See their respective documentation pages.
 @;-------------------------------------------------------------------
 
 @include-section["lib-event.scrbl"]
+
+@;-------------------------------------------------------------------
+
+@include-section["lib-file-system.scrbl"]
 
 @;-------------------------------------------------------------------
 
@@ -242,6 +254,14 @@ See their respective documentation pages.
 @;-------------------------------------------------------------------
 
 @include-section["lib-storage.scrbl"]
+
+@;-------------------------------------------------------------------
+
+@include-section["lib-streams.scrbl"]
+
+@;-------------------------------------------------------------------
+
+@include-section["lib-web-midi.scrbl"]
 
 @;-------------------------------------------------------------------
 

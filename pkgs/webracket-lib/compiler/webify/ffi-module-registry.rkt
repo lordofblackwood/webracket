@@ -148,7 +148,11 @@
     (filter
      values
      (append
-      (list (row 'js/iterator "array.ffi"))
+      (list (row 'js/iterator "array.ffi")
+            (row 'device-orientation "device-orientation.ffi")
+            (row 'file-system "file-system.ffi")
+            (row 'streams "streams.ffi")
+            (row 'web-midi "web-midi.ffi"))
       (for/list ([module (in-list dom-backed-public-modules)])
         (row module "dom.ffi"))
       ;; Aggregate facades used by migrated libraries such as `web-easy` and

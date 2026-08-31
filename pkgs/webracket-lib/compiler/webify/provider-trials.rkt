@@ -598,6 +598,8 @@
     audio
     clipboard
     compression-streams
+    device-orientation
+    file-system
     fetch
     fullscreen
     gamepad
@@ -609,6 +611,8 @@
     resize-observer
     screen-orientation
     storage
+    streams
+    web-midi
     web-speech
     web-workers
     websocket
@@ -803,6 +807,7 @@
     webracket/unsafe/canvas
     webracket/unsafe/console
     webracket/unsafe/document
+    webracket/unsafe/device-orientation
     webracket/unsafe/dom
     webracket/unsafe/domrect
     webracket/unsafe/element
@@ -814,6 +819,9 @@
     webracket/unsafe/media
     webracket/unsafe/performance
     webracket/unsafe/standard
+    webracket/unsafe/file-system
+    webracket/unsafe/streams
+    webracket/unsafe/web-midi
     webracket/unsafe/undefined
     webracket/unsafe/temp
     webracket/unsafe/websocket
@@ -866,6 +874,8 @@
     audio
     clipboard
     compression-streams
+    device-orientation
+    file-system
     fetch
     fullscreen
     gamepad
@@ -877,6 +887,8 @@
     resize-observer
     screen-orientation
     storage
+    streams
+    web-midi
     web-speech
     web-workers
     websocket
@@ -1010,6 +1022,7 @@
     webracket/unsafe/canvas
     webracket/unsafe/console
     webracket/unsafe/document
+    webracket/unsafe/device-orientation
     webracket/unsafe/dom
     webracket/unsafe/domrect
     webracket/unsafe/element
@@ -1021,6 +1034,9 @@
     webracket/unsafe/media
     webracket/unsafe/performance
     webracket/unsafe/standard
+    webracket/unsafe/file-system
+    webracket/unsafe/streams
+    webracket/unsafe/web-midi
     webracket/unsafe/undefined
     webracket/unsafe/temp
     webracket/unsafe/websocket

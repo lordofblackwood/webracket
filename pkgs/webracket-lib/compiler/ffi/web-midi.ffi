@@ -1,0 +1,209 @@
+;;;
+;;; Web MIDI API
+;;;
+
+;; Static bindings for the Web MIDI API. Each host import performs one fixed
+;; browser operation; port names, option keys, and event names stay on the
+;; JavaScript side of the boundary.
+
+;;; Availability and type checks
+
+(define-foreign js-web-midi-supported?
+  #:module "web-midi"
+  #:name   "supported?"
+  #:doc    "Reports whether Navigator.requestMIDIAccess is available."
+  #:mdn    "Navigator/requestMIDIAccess"
+  (-> () (boolean)))
+
+(define-foreign js-web-midi-access?
+  #:module "web-midi"
+  #:name   "access?"
+  #:doc    "Reports whether a host value has the MIDIAccess surface."
+  #:mdn    "MIDIAccess"
+  (-> (extern) (boolean)))
+
+(define-foreign js-web-midi-input?
+  #:module "web-midi"
+  #:name   "input?"
+  #:doc    "Reports whether a host value is a MIDIInput port."
+  #:mdn    "MIDIInput"
+  (-> (extern) (boolean)))
+
+(define-foreign js-web-midi-output?
+  #:module "web-midi"
+  #:name   "output?"
+  #:doc    "Reports whether a host value is a MIDIOutput port."
+  #:mdn    "MIDIOutput"
+  (-> (extern) (boolean)))
+
+(define-foreign js-web-midi-message-event?
+  #:module "web-midi"
+  #:name   "message-event?"
+  #:doc    "Reports whether a host event has MIDI message data."
+  #:mdn    "MIDIMessageEvent"
+  (-> (extern) (boolean)))
+
+(define-foreign js-web-midi-connection-event?
+  #:module "web-midi"
+  #:name   "connection-event?"
+  #:doc    "Reports whether a host event has a MIDI port."
+  #:mdn    "MIDIConnectionEvent"
+  (-> (extern) (boolean)))
+
+;;; Access and ports
+
+(define-foreign js-web-midi-request-access
+  #:module "web-midi"
+  #:name   "request-access"
+  #:doc    "Requests MIDI access with fixed sysex and software options."
+  #:mdn    "Navigator/requestMIDIAccess"
+  (-> (boolean boolean) (extern/raw)))
+
+(define-foreign js-web-midi-access-sysex-enabled?
+  #:module "web-midi"
+  #:name   "access-sysex-enabled?"
+  #:doc    "Reports whether a MIDIAccess value has system-exclusive access."
+  #:mdn    "MIDIAccess/sysexEnabled"
+  (-> (extern) (boolean)))
+
+(define-foreign js-web-midi-access-input-port-ids
+  #:module "web-midi"
+  #:name   "access-input-port-ids"
+  #:doc    "Returns the current MIDI input port IDs as a FASL-marshalled vector."
+  #:mdn    "MIDIAccess/inputs"
+  (-> (extern) (value)))
+
+(define-foreign js-web-midi-access-output-port-ids
+  #:module "web-midi"
+  #:name   "access-output-port-ids"
+  #:doc    "Returns the current MIDI output port IDs as a FASL-marshalled vector."
+  #:mdn    "MIDIAccess/outputs"
+  (-> (extern) (value)))
+
+(define-foreign js-web-midi-access-input
+  #:module "web-midi"
+  #:name   "access-input"
+  #:doc    "Looks up a MIDIInput by its browser-assigned ID."
+  #:mdn    "MIDIInputMap/get"
+  (-> (extern string) (extern)))
+
+(define-foreign js-web-midi-access-output
+  #:module "web-midi"
+  #:name   "access-output"
+  #:doc    "Looks up a MIDIOutput by its browser-assigned ID."
+  #:mdn    "MIDIOutputMap/get"
+  (-> (extern string) (extern)))
+
+(define-foreign js-web-midi-port-id
+  #:module "web-midi"
+  #:name   "port-id"
+  #:doc    "Returns a MIDI port's browser-assigned ID."
+  #:mdn    "MIDIPort/id"
+  (-> (extern) (string)))
+
+(define-foreign js-web-midi-port-name
+  #:module "web-midi"
+  #:name   "port-name"
+  #:doc    "Returns a MIDI port's optional display name as a normal value."
+  #:mdn    "MIDIPort/name"
+  (-> (extern) (value)))
+
+(define-foreign js-web-midi-port-manufacturer
+  #:module "web-midi"
+  #:name   "port-manufacturer"
+  #:doc    "Returns a MIDI port's optional manufacturer as a normal value."
+  #:mdn    "MIDIPort/manufacturer"
+  (-> (extern) (value)))
+
+(define-foreign js-web-midi-port-version
+  #:module "web-midi"
+  #:name   "port-version"
+  #:doc    "Returns a MIDI port's optional version as a normal value."
+  #:mdn    "MIDIPort/version"
+  (-> (extern) (value)))
+
+(define-foreign js-web-midi-port-state
+  #:module "web-midi"
+  #:name   "port-state"
+  #:doc    "Returns a MIDI port's connected or disconnected state."
+  #:mdn    "MIDIPort/state"
+  (-> (extern) (string)))
+
+(define-foreign js-web-midi-port-connection
+  #:module "web-midi"
+  #:name   "port-connection"
+  #:doc    "Returns a MIDI port's open, closed, or pending connection state."
+  #:mdn    "MIDIPort/connection"
+  (-> (extern) (string)))
+
+(define-foreign js-web-midi-port-open
+  #:module "web-midi"
+  #:name   "port-open"
+  #:doc    "Returns a Promise that opens a MIDI port."
+  #:mdn    "MIDIPort/open"
+  (-> (extern) (extern/raw)))
+
+(define-foreign js-web-midi-port-close
+  #:module "web-midi"
+  #:name   "port-close"
+  #:doc    "Returns a Promise that closes a MIDI port."
+  #:mdn    "MIDIPort/close"
+  (-> (extern) (extern/raw)))
+
+;;; Messages and events
+
+(define-foreign js-web-midi-output-send!
+  #:module "web-midi"
+  #:name   "output-send!"
+  #:doc    "Immediately sends a nonempty FASL-marshalled byte string to a MIDI output."
+  #:mdn    "MIDIOutput/send"
+  (-> (extern value) ()))
+
+(define-foreign js-web-midi-output-send-at!
+  #:module "web-midi"
+  #:name   "output-send-at!"
+  #:doc    "Schedules a nonempty FASL-marshalled byte string at a finite timestamp."
+  #:mdn    "MIDIOutput/send"
+  (-> (extern value value) ()))
+
+(define-foreign js-web-midi-input-add-message-listener!
+  #:module "web-midi"
+  #:name   "input-add-message-listener!"
+  #:doc    "Adds one callback for the fixed midimessage event."
+  #:mdn    "MIDIInput/midimessage_event"
+  (-> (extern extern) ()))
+
+(define-foreign js-web-midi-input-remove-message-listener!
+  #:module "web-midi"
+  #:name   "input-remove-message-listener!"
+  #:doc    "Removes one callback for the fixed midimessage event."
+  #:mdn    "MIDIInput/midimessage_event"
+  (-> (extern extern) ()))
+
+(define-foreign js-web-midi-access-add-state-change-listener!
+  #:module "web-midi"
+  #:name   "access-add-state-change-listener!"
+  #:doc    "Adds one callback for the fixed statechange event."
+  #:mdn    "MIDIAccess/statechange_event"
+  (-> (extern extern) ()))
+
+(define-foreign js-web-midi-access-remove-state-change-listener!
+  #:module "web-midi"
+  #:name   "access-remove-state-change-listener!"
+  #:doc    "Removes one callback for the fixed statechange event."
+  #:mdn    "MIDIAccess/statechange_event"
+  (-> (extern extern) ()))
+
+(define-foreign js-web-midi-message-event-data
+  #:module "web-midi"
+  #:name   "message-event-data"
+  #:doc    "Returns a MIDIMessageEvent byte string as a FASL-marshalled value."
+  #:mdn    "MIDIMessageEvent/data"
+  (-> (extern) (value)))
+
+(define-foreign js-web-midi-connection-event-port
+  #:module "web-midi"
+  #:name   "connection-event-port"
+  #:doc    "Returns the MIDI port carried by a MIDIConnectionEvent."
+  #:mdn    "MIDIConnectionEvent/port"
+  (-> (extern) (extern/raw)))

@@ -1,0 +1,227 @@
+;;;
+;;; Device Orientation and Motion API
+;;;
+
+;; Static bindings for browser device-orientation and device-motion events.
+;; Each host import uses one fixed event name or property path, so normal
+;; programs do not cross the Racket/JavaScript boundary with reflective names.
+
+;;; Availability, permission, and event checks
+
+(define-foreign js-device-orientation-supported?
+  #:module "device-orientation"
+  #:name   "orientation-supported?"
+  #:doc    "Reports whether DeviceOrientationEvent is available."
+  #:mdn    "DeviceOrientationEvent"
+  (-> () (boolean)))
+
+(define-foreign js-device-motion-supported?
+  #:module "device-orientation"
+  #:name   "motion-supported?"
+  #:doc    "Reports whether DeviceMotionEvent is available."
+  #:mdn    "DeviceMotionEvent"
+  (-> () (boolean)))
+
+(define-foreign js-device-orientation-permission-requestable?
+  #:module "device-orientation"
+  #:name   "orientation-permission-requestable?"
+  #:doc    "Reports whether DeviceOrientationEvent.requestPermission is available."
+  #:mdn    "DeviceOrientationEvent/requestPermission_static"
+  (-> () (boolean)))
+
+(define-foreign js-device-motion-permission-requestable?
+  #:module "device-orientation"
+  #:name   "motion-permission-requestable?"
+  #:doc    "Reports whether DeviceMotionEvent.requestPermission is available."
+  #:mdn    "DeviceMotionEvent/requestPermission_static"
+  (-> () (boolean)))
+
+(define-foreign js-device-orientation-event?
+  #:module "device-orientation"
+  #:name   "orientation-event?"
+  #:doc    "Reports whether a host value is a DeviceOrientationEvent."
+  #:mdn    "DeviceOrientationEvent"
+  (-> (extern) (boolean)))
+
+(define-foreign js-device-motion-event?
+  #:module "device-orientation"
+  #:name   "motion-event?"
+  #:doc    "Reports whether a host value is a DeviceMotionEvent."
+  #:mdn    "DeviceMotionEvent"
+  (-> (extern) (boolean)))
+
+;;; Permission requests
+
+(define-foreign js-device-orientation-request-permission
+  #:module "device-orientation"
+  #:name   "request-orientation-permission"
+  #:doc    "Requests orientation permission, optionally including absolute-orientation data."
+  #:mdn    "DeviceOrientationEvent/requestPermission_static"
+  (-> (boolean) (extern/raw)))
+
+(define-foreign js-device-motion-request-permission
+  #:module "device-orientation"
+  #:name   "request-motion-permission"
+  #:doc    "Requests motion permission."
+  #:mdn    "DeviceMotionEvent/requestPermission_static"
+  (-> () (extern/raw)))
+
+;;; Fixed window event listeners
+
+(define-foreign js-device-orientation-add-listener!
+  #:module "device-orientation"
+  #:name   "add-orientation-listener!"
+  #:doc    "Adds a callback for the fixed deviceorientation event."
+  #:mdn    "Window/deviceorientation_event"
+  (-> (extern) ()))
+
+(define-foreign js-device-orientation-remove-listener!
+  #:module "device-orientation"
+  #:name   "remove-orientation-listener!"
+  #:doc    "Removes a callback for the fixed deviceorientation event."
+  #:mdn    "Window/deviceorientation_event"
+  (-> (extern) ()))
+
+(define-foreign js-device-orientation-add-absolute-listener!
+  #:module "device-orientation"
+  #:name   "add-absolute-listener!"
+  #:doc    "Adds a callback for the fixed deviceorientationabsolute event."
+  #:mdn    "Window/deviceorientationabsolute_event"
+  (-> (extern) ()))
+
+(define-foreign js-device-orientation-remove-absolute-listener!
+  #:module "device-orientation"
+  #:name   "remove-absolute-listener!"
+  #:doc    "Removes a callback for the fixed deviceorientationabsolute event."
+  #:mdn    "Window/deviceorientationabsolute_event"
+  (-> (extern) ()))
+
+(define-foreign js-device-motion-add-listener!
+  #:module "device-orientation"
+  #:name   "add-motion-listener!"
+  #:doc    "Adds a callback for the fixed devicemotion event."
+  #:mdn    "Window/devicemotion_event"
+  (-> (extern) ()))
+
+(define-foreign js-device-motion-remove-listener!
+  #:module "device-orientation"
+  #:name   "remove-motion-listener!"
+  #:doc    "Removes a callback for the fixed devicemotion event."
+  #:mdn    "Window/devicemotion_event"
+  (-> (extern) ()))
+
+;;; Orientation event fields
+
+(define-foreign js-device-orientation-event-absolute?
+  #:module "device-orientation"
+  #:name   "orientation-event-absolute?"
+  #:doc    "Reports whether an orientation event uses the Earth coordinate frame."
+  #:mdn    "DeviceOrientationEvent/absolute"
+  (-> (extern) (boolean)))
+
+(define-foreign js-device-orientation-event-alpha
+  #:module "device-orientation"
+  #:name   "orientation-event-alpha"
+  #:doc    "Returns an optional orientation angle around the z axis as a FASL value."
+  #:mdn    "DeviceOrientationEvent/alpha"
+  (-> (extern) (value)))
+
+(define-foreign js-device-orientation-event-beta
+  #:module "device-orientation"
+  #:name   "orientation-event-beta"
+  #:doc    "Returns an optional orientation angle around the x axis as a FASL value."
+  #:mdn    "DeviceOrientationEvent/beta"
+  (-> (extern) (value)))
+
+(define-foreign js-device-orientation-event-gamma
+  #:module "device-orientation"
+  #:name   "orientation-event-gamma"
+  #:doc    "Returns an optional orientation angle around the y axis as a FASL value."
+  #:mdn    "DeviceOrientationEvent/gamma"
+  (-> (extern) (value)))
+
+(define-foreign js-device-orientation-event-compass-heading
+  #:module "device-orientation"
+  #:name   "orientation-event-compass-heading"
+  #:doc    "Returns an optional WebKit compass heading as a FASL value."
+  #:mdn    "DeviceOrientationEvent/webkitCompassHeading"
+  (-> (extern) (value)))
+
+(define-foreign js-device-orientation-event-compass-accuracy
+  #:module "device-orientation"
+  #:name   "orientation-event-compass-accuracy"
+  #:doc    "Returns an optional WebKit compass accuracy as a FASL value."
+  #:mdn    "DeviceOrientationEvent/webkitCompassAccuracy"
+  (-> (extern) (value)))
+
+;;; Motion event fields
+
+(define-foreign js-device-motion-event-acceleration-x
+  #:module "device-orientation"
+  #:name   "motion-event-acceleration-x"
+  #:doc    "Returns optional acceleration along the x axis as a FASL value."
+  #:mdn    "DeviceMotionEvent/acceleration"
+  (-> (extern) (value)))
+
+(define-foreign js-device-motion-event-acceleration-y
+  #:module "device-orientation"
+  #:name   "motion-event-acceleration-y"
+  #:doc    "Returns optional acceleration along the y axis as a FASL value."
+  #:mdn    "DeviceMotionEvent/acceleration"
+  (-> (extern) (value)))
+
+(define-foreign js-device-motion-event-acceleration-z
+  #:module "device-orientation"
+  #:name   "motion-event-acceleration-z"
+  #:doc    "Returns optional acceleration along the z axis as a FASL value."
+  #:mdn    "DeviceMotionEvent/acceleration"
+  (-> (extern) (value)))
+
+(define-foreign js-device-motion-event-gravity-acceleration-x
+  #:module "device-orientation"
+  #:name   "motion-event-gravity-acceleration-x"
+  #:doc    "Returns optional gravity-inclusive acceleration along the x axis as a FASL value."
+  #:mdn    "DeviceMotionEvent/accelerationIncludingGravity"
+  (-> (extern) (value)))
+
+(define-foreign js-device-motion-event-gravity-acceleration-y
+  #:module "device-orientation"
+  #:name   "motion-event-gravity-acceleration-y"
+  #:doc    "Returns optional gravity-inclusive acceleration along the y axis as a FASL value."
+  #:mdn    "DeviceMotionEvent/accelerationIncludingGravity"
+  (-> (extern) (value)))
+
+(define-foreign js-device-motion-event-gravity-acceleration-z
+  #:module "device-orientation"
+  #:name   "motion-event-gravity-acceleration-z"
+  #:doc    "Returns optional gravity-inclusive acceleration along the z axis as a FASL value."
+  #:mdn    "DeviceMotionEvent/accelerationIncludingGravity"
+  (-> (extern) (value)))
+
+(define-foreign js-device-motion-event-rotation-alpha
+  #:module "device-orientation"
+  #:name   "motion-event-rotation-alpha"
+  #:doc    "Returns optional rotation rate around the z axis as a FASL value."
+  #:mdn    "DeviceMotionEvent/rotationRate"
+  (-> (extern) (value)))
+
+(define-foreign js-device-motion-event-rotation-beta
+  #:module "device-orientation"
+  #:name   "motion-event-rotation-beta"
+  #:doc    "Returns optional rotation rate around the x axis as a FASL value."
+  #:mdn    "DeviceMotionEvent/rotationRate"
+  (-> (extern) (value)))
+
+(define-foreign js-device-motion-event-rotation-gamma
+  #:module "device-orientation"
+  #:name   "motion-event-rotation-gamma"
+  #:doc    "Returns optional rotation rate around the y axis as a FASL value."
+  #:mdn    "DeviceMotionEvent/rotationRate"
+  (-> (extern) (value)))
+
+(define-foreign js-device-motion-event-interval
+  #:module "device-orientation"
+  #:name   "motion-event-interval"
+  #:doc    "Returns the motion sampling interval in milliseconds as a FASL value."
+  #:mdn    "DeviceMotionEvent/interval"
+  (-> (extern) (value)))

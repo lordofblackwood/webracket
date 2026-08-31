@@ -125,7 +125,7 @@
          (check-equal (js-ref (vector-ref scroll-record 0) "left") 11 "window scroll left")
          (check-equal (js-ref (vector-ref scroll-record 0) "behavior") "smooth" "window scroll behavior")
          (check-equal (window-set-timeout/delay (procedure->external (lambda () (set! timeout-fired (add1 timeout-fired))))
-                                                10.0)
+                                                10)
                       17
                       "window timeout handle")
          (check-equal timeout-fired 1 "window timeout callback")
