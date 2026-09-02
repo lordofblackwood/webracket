@@ -21,6 +21,7 @@
          webify-module-resolution-outcome-dependency
          webify-module-resolution-outcome-provider-export
          webify-module-resolution-outcome-status
+         module-phase0-exported?
          compiled-primitive-alias-hint
          webify-resolve-module-linklet-imports/outcomes
          webify-module-linklet-input/resolve-imports
@@ -457,6 +458,29 @@
       (string=? (generated-base-name a) (generated-base-name b))
       (string=? (generated-base-name a) (symbol->string b))
       (string=? (symbol->string a) (generated-base-name b))))
+
+;; module-phase0-exported? : symbol? symbol? -> boolean?
+;;   Check the host module's current phase-0 export table without loading it.
+(define module-phase0-exports-cache (make-hasheq))
+
+(define (module-phase0-exported? module-name external)
+  (define exports
+    (hash-ref!
+     module-phase0-exports-cache
+     module-name
+     (lambda ()
+       (with-handlers ([exn:fail? (lambda (_exn) '())])
+         (define-values (value-exports syntax-exports)
+           (module->exports module-name))
+         (remove-duplicates
+          (for*/list ([phase-exports (in-list (append value-exports syntax-exports))]
+                      #:when (and (pair? phase-exports)
+                                  (zero? (car phase-exports)))
+                      [export (in-list (cdr phase-exports))]
+                      #:when (and (pair? export) (symbol? (car export))))
+            (car export))
+          eq?)))))
+  (and (memq external exports) #t))
 
 ;; webify-primitive-name? : symbol? -> boolean?
 ;;   Check whether a kernel-origin binding is already a known Webify primitive.
@@ -1129,27 +1153,7 @@
           (symbolic-name=? external 'contract-continuation-mark-key))
      '(racket/contract/private/guts contract-continuation-mark-key)]
     [(and (eq? module-name 'racket/private/class-internal)
-          (for/or ([name (in-list '(wrapped-class-info-blame
-                                    wrapped-class-info-neg-extra-arg-vec
-                                    wrapped-class-info-neg-acceptors-ht
-                                    wrapped-class-info-pos-field-projs
-                                    wrapped-class-info-neg-field-projs
-                                    wrapped-class-info-init-proj-pairs
-                                    wrapped-object
-                                    wrapped-object?
-                                    wrapped-object-object
-                                    wrapped-object-neg-extra-arg-vec
-                                    wrapped-object-pos-field-projs
-                                    wrapped-object-neg-field-projs
-                                    wrapped-object-neg-party
-                                    unwrap-object
-                                    impersonator-prop:wrapped-class-info
-                                    impersonator-prop:has-wrapped-class-info?
-                                    impersonator-prop:get-wrapped-class-info
-                                    impersonator-prop:wrapped-class-neg-party
-                                    impersonator-prop:has-wrapped-class-neg-party?
-                                    impersonator-prop:get-wrapped-class-neg-party))])
-            (symbolic-name=? external name)))
+          (module-phase0-exported? 'racket/private/class-wrapped external))
      (list 'racket/private/class-wrapped external)]
     [(and (memq module-name '(contract racket/private/unit/contract))
           (symbolic-name=? external 'contract-continuation-mark-key))

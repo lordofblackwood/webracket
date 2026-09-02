@@ -9,6 +9,7 @@
          "../pkgs/webracket-lib/compiler/webify/known.rkt"
          "../pkgs/webracket-lib/compiler/webify/lower.rkt"
          (only-in "../pkgs/webracket-lib/compiler/webify/module-input.rkt"
+                  module-phase0-exported?
                   compiled-primitive-alias-hint)
          "../pkgs/webracket-lib/compiler/webify/module-adapter.rkt"
          "../pkgs/webracket-lib/compiler/webify/module-composer.rkt"
@@ -197,6 +198,21 @@
                                   '1/new-apply-proc
                                   'new-apply-proc)
    '(#%kernel apply)))
+
+(test-case "Racket class wrapper provider follows its host export table"
+  (define class-struct-available?
+    (with-handlers ([exn:fail? (lambda (_exn) #f)])
+      (dynamic-require 'racket/private/class-struct #f)
+      #t))
+  (if class-struct-available?
+      (check-true
+       (module-phase0-exported?
+        'racket/private/class-struct
+        'object/c-wrapper-info-blame+neg-party))
+      (check-false
+       (module-phase0-exported?
+        'racket/private/class-struct
+        'object/c-wrapper-info-blame+neg-party))))
 
 (test-case "late-materialization locals avoid lowered helper name collisions"
   (define datum

@@ -7584,6 +7584,11 @@
           'module-graph-class-struct-support-probe
           (lambda ()
             (module-path-available? 'racket/private/class-struct))))
+       (define have-racket/private/class-wrapped?
+         (with-module-bridge-timing
+          'module-graph-class-wrapped-support-probe
+          (lambda ()
+            (module-path-available? 'racket/private/class-wrapped))))
        (define needs-unit-support?
          (with-module-bridge-timing
           'module-graph-unit-support-demand
@@ -7634,10 +7639,12 @@
             racket/private/kernstruct
             racket/private/serialize-structs
             racket/private/class-internal
-            racket/private/class-wrapped
             racket/private/list)
           (if have-racket/private/class-struct?
               '(racket/private/class-struct)
+              '())
+          (if have-racket/private/class-wrapped?
+              '(racket/private/class-wrapped)
               '())
           (if have-racket/private/pico?
               '(racket/private/pico)
@@ -7830,12 +7837,14 @@
                             (webify-module-provider-cache-ref provider-cache
                                                               'racket/private/serialize-structs)
                             (webify-module-provider-cache-ref provider-cache
-                                                              'racket/private/class-internal)
-                            (webify-module-provider-cache-ref provider-cache
-                                                              'racket/private/class-wrapped))
+                                                              'racket/private/class-internal))
                       (if have-racket/private/class-struct?
                           (list (webify-module-provider-cache-ref provider-cache
                                                                   'racket/private/class-struct))
+                          '())
+                      (if have-racket/private/class-wrapped?
+                          (list (webify-module-provider-cache-ref provider-cache
+                                                                  'racket/private/class-wrapped))
                           '()))
                      '())
                  (if needs-unit-support?

@@ -3146,6 +3146,25 @@
           dependency-cache
           dependency
           external))
+       ;; unique-declared-provider-hint : symbol? symbol? -> (or/c list? #f)
+       ;;   Resolve a binding when one declared phase-0 provider exports it exactly.
+       (define (unique-declared-provider-hint local external)
+         (define providers
+           (remove-duplicates
+            (filter
+             values
+             (for/list ([candidate (in-list required-module-candidates)]
+                        #:when (= 0 (car candidate)))
+               (define provider (cadr candidate))
+               (and (dependency-export-cache-exports
+                     preferred-dependency-cache
+                     provider)
+                    (module-phase0-exported? provider external)
+                    provider)))
+            eq?))
+         (match providers
+           [(list provider) (list local provider)]
+           [_ #f]))
        (define (symbolic-member? external names)
          (for/or ([name (in-list names)])
            (symbolic-name=? external name)))
@@ -3173,27 +3192,7 @@
                  (symbolic-name=? external 'contract-continuation-mark-key))
             (list local 'racket/contract/private/guts)]
            [(and (eq? module-name 'racket/private/class-internal)
-                 (symbolic-member? external
-                                   '(wrapped-class-info-blame
-                                     wrapped-class-info-neg-extra-arg-vec
-                                     wrapped-class-info-neg-acceptors-ht
-                                     wrapped-class-info-pos-field-projs
-                                     wrapped-class-info-neg-field-projs
-                                     wrapped-class-info-init-proj-pairs
-                                     wrapped-object
-                                     wrapped-object?
-                                     wrapped-object-object
-                                     wrapped-object-neg-extra-arg-vec
-                                     wrapped-object-pos-field-projs
-                                     wrapped-object-neg-field-projs
-                                     wrapped-object-neg-party
-                                     unwrap-object
-                                     impersonator-prop:wrapped-class-info
-                                     impersonator-prop:has-wrapped-class-info?
-                                     impersonator-prop:get-wrapped-class-info
-                                     impersonator-prop:wrapped-class-neg-party
-                                     impersonator-prop:has-wrapped-class-neg-party?
-                                     impersonator-prop:get-wrapped-class-neg-party)))
+                 (module-phase0-exported? 'racket/private/class-wrapped external))
             (list local 'racket/private/class-wrapped)]
            [(and (memq module-name '(contract racket/private/unit/contract))
                  (symbolic-name=? external 'contract-continuation-mark-key))
@@ -3570,7 +3569,7 @@
                      (symbolic-name=? external 'prop:chaperone-unsafe-undefined)
                      (symbolic-name=? external 'chaperone-struct-unsafe-undefined)))
             (list local 'racket/unsafe/undefined)]
-           [else #f]))
+           [else (unique-declared-provider-hint local external)]))
        (define (candidate->inferred-dependency binding)
          (match-define (list local external) binding)
          (define hinted-dependency (compiled-provider-hint local external))
