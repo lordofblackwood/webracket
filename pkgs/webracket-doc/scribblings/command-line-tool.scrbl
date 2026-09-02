@@ -270,11 +270,11 @@ performance investigation, and staged-provider experiments. They are useful
 when reducing WebRacket bugs, but ordinary programs usually should not need
 them.
 
-Assembler environment options:
+Compiler tool environment options:
 
 @itemlist[
-  @item{@(flag "--exec-path-from-shell"): Import @tt{PATH} and @tt{MANPATH} from the login shell before finding @tt{wasm-tools} (default).}
-  @item{@(flag "--no-exec-path-from-shell"): Use the current process environment when finding @tt{wasm-tools}. This is useful for tests and CI environments that already provide the desired @tt{PATH}.}
+  @item{@(flag "--exec-path-from-shell"): First look for required compiler executables in the inherited process environment; if one is absent, import @tt{PATH} and @tt{MANPATH} from the login shell and try again (default). Inherited path entries retain precedence over login-shell entries.}
+  @item{@(flag "--no-exec-path-from-shell"): Look for required compiler executables only in the current process environment. This is useful for tests, CI, and environment managers that already provide the desired @tt{PATH}.}
 ]
 
 Module and provider options:

@@ -64,7 +64,8 @@
          (only-in "assembler.rkt"
                   run
                   wat->wasm
-                  initialize-assembler-environment!
+                  wasm-tools-executable
+                  node-executable
                   runtime)
          (only-in "runtime-wasm.rkt"
                   split-core-runtime-module
@@ -5400,9 +5401,13 @@
   (when (and split-runtime-ffi-module/effective? split-runtime-core-only?)
     (error 'drive-compilation
            "`--split-runtime-ffi-module` cannot be combined with `--split-runtime-core-only`"))
-  ; Preflight: `-r` in Node mode requires a Node.js executable.
-  (when (and node? run-after?)
-    (check-node! 'drive-compilation))
+  ; Preflight: `-r` in Node mode requires a Node.js executable. Keep the
+  ; resolved path for execution so a later shell fallback cannot displace it.
+  (define node-path
+    (and node?
+         run-after?
+         (check-node! 'drive-compilation
+                      #:exec-path-from-shell? exec-path-from-shell?)))
 
   ; Precompute output paths for preflight checks.
   (define output-paths
@@ -5431,10 +5436,11 @@
   (ensure-output-path-writable! 'drive-compilation out-map  "label-map output file")
   (ensure-output-path-writable! 'drive-compilation out-host "host output file")
   
-  ; Preflight: ensure wasm-tools exists and can run.
-  (initialize-assembler-environment!
-   #:exec-path-from-shell? exec-path-from-shell?)
-  (check-wasm-tools! 'drive-compilation)
+  ; Preflight: ensure wasm-tools exists and can run. The shared locator
+  ; preserves the inherited environment and imports the login shell only if
+  ; wasm-tools is not already available.
+  (check-wasm-tools! 'drive-compilation
+                     #:exec-path-from-shell? exec-path-from-shell?)
   (define t-preflight-end (now-ms))
 
   ; 5. Compile the syntax object.
@@ -5846,13 +5852,19 @@
     (error 'drive-compilation
            (~a "wat->wasm failed to produce bytecode for " filename)))
   (when strip-wasm-names?
-    (strip-wasm-name-section! 'drive-compilation out-wasm)
+    (strip-wasm-name-section! 'drive-compilation
+                              out-wasm
+                              #:exec-path-from-shell? exec-path-from-shell?)
     (when (and split-runtime?
                (not split-runtime-cache-reference?)
                (not split-runtime-core-url))
-      (strip-wasm-name-section! 'drive-compilation runtime-wasm))
+      (strip-wasm-name-section! 'drive-compilation
+                                runtime-wasm
+                                #:exec-path-from-shell? exec-path-from-shell?))
     (when split-ffi-module
-      (strip-wasm-name-section! 'drive-compilation ffi-wasm)))
+      (strip-wasm-name-section! 'drive-compilation
+                                ffi-wasm
+                                #:exec-path-from-shell? exec-path-from-shell?)))
   (ensure-generated-file-exists! 'drive-compilation out-wasm "Wasm bytecode file")
   (when (and split-runtime?
              (not split-runtime-cache-reference?)
@@ -5923,7 +5935,9 @@
                #:wat out-wat
                #:wasm out-wasm
                #:runtime.js runtime-js
-               #:write-runtime? #f))
+               #:write-runtime? #f
+               #:node-path node-path
+               #:exec-path-from-shell? exec-path-from-shell?))
     (set! t-run-ms (- (now-ms) t-run-start)))
 
   ; 10. Output timings
@@ -8329,13 +8343,12 @@
     (set! probe (make-temporary-file "webracket-write-check~a.tmp" #f dir))
     (delete-file probe)))
 
-(define (check-node! who)
-  (define node-path (find-executable-path "node"))
-  (unless node-path
-    (error who
-           (string-append
-            "required executable `node` was not found in PATH.\n"
-            "Install Node.js or run without `-r`.")))
+;; check-node! : symbol? [#:exec-path-from-shell? boolean?] -> path?
+;;   Find a compatible Node.js executable using the shared lookup policy.
+(define (check-node! who #:exec-path-from-shell? [exec-path-from-shell? #t])
+  (define node-path
+    (node-executable #:who who
+                     #:exec-path-from-shell? exec-path-from-shell?))
   (define node-ok?
     (parameterize ([current-output-port (open-output-nowhere)]
                    [current-error-port (open-output-nowhere)])
@@ -8353,7 +8366,8 @@
     (error who
            (string-append
             "found `node`, but it does not accept `--experimental-wasm-exnref`.\n"
-            "Install a compatible Node.js version or run without `-r`."))))
+            "Install a compatible Node.js version or run without `-r`.")))
+  node-path)
 
 (define (ensure-distinct-output-files! who entries)
   (define seen (make-hash))
@@ -8368,13 +8382,12 @@
                  kind " resolve to the same path: " path)))
     (hash-set! seen normalized kind)))
 
-(define (check-wasm-tools! who)
-  (define wasm-tools-path (find-executable-path "wasm-tools"))
-  (unless wasm-tools-path
-    (error who
-           (string-append
-            "required executable `wasm-tools` was not found in PATH.\n"
-            "Install `wasm-tools` to compile `.wat` files to `.wasm`.")))
+;; check-wasm-tools! : symbol? [#:exec-path-from-shell? boolean?] -> void?
+;;   Find wasm-tools using the shared lookup policy and verify that it runs.
+(define (check-wasm-tools! who #:exec-path-from-shell? [exec-path-from-shell? #t])
+  (define wasm-tools-path
+    (wasm-tools-executable #:who who
+                           #:exec-path-from-shell? exec-path-from-shell?))
   (define parse-help-ok?
     (parameterize ([current-output-port (open-output-nowhere)]
                    [current-error-port (open-output-nowhere)])
@@ -8385,17 +8398,17 @@
             "found `wasm-tools` in PATH but could not run `wasm-tools parse --help`.\n"
             "Check the installation and executable permissions."))))
 
-;; strip-wasm-name-section! : symbol? path-string? -> void?
+;; strip-wasm-name-section! : symbol? path-string? [#:exec-path-from-shell? boolean?] -> void?
 ;;   Remove the custom `name` section from a generated Wasm file.
-(define (strip-wasm-name-section! who wasm-path)
+(define (strip-wasm-name-section! who
+                                  wasm-path
+                                  #:exec-path-from-shell? [exec-path-from-shell? #t])
   (define (path-arg path)
     (path->string (path->complete-path path (current-directory))))
-  (define wasm-tools-path (find-executable-path "wasm-tools"))
-  (unless wasm-tools-path
-    (error who
-           (string-append
-            "required executable `wasm-tools` was not found in PATH.\n"
-            "Install `wasm-tools` to strip Wasm custom name sections.")))
+  (define wasm-tools-path
+    (wasm-tools-executable #:who who
+                           #:missing-purpose "strip Wasm custom name sections"
+                           #:exec-path-from-shell? exec-path-from-shell?))
   (define tmp-path
     (make-temporary-file
      "webracket-strip-wasm-names-~a.wasm"

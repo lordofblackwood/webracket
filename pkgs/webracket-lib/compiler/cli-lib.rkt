@@ -46,7 +46,7 @@
    simplify-profile?                      ; print simplify-LFE diagnostics
    pretty-wat?                            ; pretty-print emitted WAT
    strip-wasm-names?                      ; strip Wasm custom name sections after assembly
-   exec-path-from-shell?                   ; import PATH/MANPATH from login shell before assembler preflight
+   exec-path-from-shell?                   ; fall back to login-shell PATH/MANPATH when a compiler tool is absent
    enable-cc-analysis?                    ; enable the new closure-conversion analysis
    enable-simplify?                       ; enable the early simplify pass
    frontend-cache?                        ; cache post-unexpand frontend syntax
@@ -611,10 +611,10 @@
      " Host integration options"
      #:once-each
      [("--exec-path-from-shell")
-      "Import PATH/MANPATH from the login shell before finding wasm-tools (default)"
+      "Fall back to PATH/MANPATH from the login shell if a compiler tool is not inherited (default)"
       (set! exec-path-from-shell? #t)]
      [("--no-exec-path-from-shell")
-      "Use the current process environment when finding wasm-tools"
+      "Find compiler tools only in the current process environment"
       (set! exec-path-from-shell? #f)]
      #:help-labels
      ""
@@ -1114,6 +1114,23 @@
 
     (define round-tripped (datum->compile-config (compile-config->datum cfg)))
     (check-true (webracket-compile-config-strip-wasm-names? round-tripped)))
+
+  (test-case "exec-path-from-shell flags preserve their lookup policy"
+    (check-true
+     (webracket-compile-config-exec-path-from-shell?
+      (parse-compile-config '("source.rkt"))))
+    (define without-shell-fallback
+      (parse-compile-config
+       '("--no-exec-path-from-shell" "source.rkt")))
+    (check-false
+     (webracket-compile-config-exec-path-from-shell? without-shell-fallback))
+    (check-false
+     (webracket-compile-config-exec-path-from-shell?
+      (datum->compile-config (compile-config->datum without-shell-fallback))))
+    (check-true
+     (webracket-compile-config-exec-path-from-shell?
+      (parse-compile-config
+       '("--exec-path-from-shell" "source.rkt")))))
 
   (test-case "short help examples use selected command form"
     (define output (short-help-output "raco webracket"))

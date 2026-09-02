@@ -1,5 +1,10 @@
 #lang at-exp racket
-(provide run wat->wasm runtime initialize-assembler-environment!)
+(provide run
+         wat->wasm
+         runtime
+         initialize-assembler-environment!
+         wasm-tools-executable
+         node-executable)
 
 (module+ test
   (require rackunit))
@@ -81,14 +86,40 @@
 ; and some of the other tools support the GC proposal.
 
 
+;; search-path-separator : -> string?
+;;   Return the platform-specific separator for PATH-like variables.
+(define (search-path-separator)
+  (if (eq? (system-path-convention-type) 'windows) ";" ":"))
+
+;; append-inherited-search-path : (or/c string? #f) (or/c string? #f) -> (or/c string? #f)
+;;   Append a login-shell search path without displacing inherited entries.
+(define (append-inherited-search-path inherited shell)
+  (cond
+    [(not inherited) shell]
+    [(not shell) inherited]
+    [(string=? inherited shell) inherited]
+    [else (string-append inherited (search-path-separator) shell)]))
+
+;; merge-inherited-search-path! : string? (or/c string? #f) -> void?
+;;   Keep inherited PATH-like entries ahead of a newly imported shell value.
+(define (merge-inherited-search-path! name inherited)
+  (define shell (getenv name))
+  (define merged (append-inherited-search-path inherited shell))
+  (when (and merged (not (equal? merged shell)))
+    (putenv name merged)))
+
 ;; initialize-assembler-environment! : [#:exec-path-from-shell? boolean?] -> void?
-;;   Optionally import the normal shell search path before locating wasm-tools.
+;;   Import login-shell search paths once, preserving inherited PATH precedence.
 (define assembler-environment-initialized? #f)
 
 (define (initialize-assembler-environment! #:exec-path-from-shell? [exec-path-from-shell? #t])
   (when (and exec-path-from-shell?
              (not assembler-environment-initialized?))
+    (define inherited-path    (getenv "PATH"))
+    (define inherited-manpath (getenv "MANPATH"))
     (exec-path-from-shell-initialize)
+    (merge-inherited-search-path! "PATH" inherited-path)
+    (merge-inherited-search-path! "MANPATH" inherited-manpath)
     (set! assembler-environment-initialized? #t)))
 
 ;; path-string->system-argument : path-string? -> string?
@@ -100,14 +131,178 @@
                                            "path-string?"
                                            p)]))
 
-;; wasm-tools-executable : [#:exec-path-from-shell? boolean?] -> path?
-;;   Locate wasm-tools after optionally importing the shell environment.
-(define (wasm-tools-executable #:exec-path-from-shell? [exec-path-from-shell? #t])
-  (initialize-assembler-environment!
-   #:exec-path-from-shell? exec-path-from-shell?)
-  (or (find-executable-path "wasm-tools")
-      (error 'wat->wasm
-             "required executable `wasm-tools` was not found in PATH")))
+;; find-executable-with-shell-fallback : string? boolean? (string? -> (or/c path? #f)) (-> void?) -> (or/c path? #f)
+;;   Prefer an inherited executable, using the login shell only as a fallback.
+(define (find-executable-with-shell-fallback executable-name
+                                             exec-path-from-shell?
+                                             find-executable
+                                             initialize-environment!)
+  (or (find-executable executable-name)
+      (and exec-path-from-shell?
+           (begin
+             (initialize-environment!)
+             (find-executable executable-name)))))
+
+;; raise-missing-executable : symbol? string? string? -> none/c
+;;   Report that neither the inherited nor fallback search found an executable.
+(define (raise-missing-executable who executable-name instruction)
+  (error who
+         (string-append
+          "required executable `" executable-name "` was not found in PATH.\n"
+          instruction)))
+
+;; wasm-tools-executable : [#:who symbol?] [#:missing-purpose string?] [#:exec-path-from-shell? boolean?] -> path?
+;;   Locate wasm-tools with the inherited PATH first and report a useful error.
+(define (wasm-tools-executable #:who [who 'wat->wasm]
+                               #:missing-purpose [missing-purpose
+                                                  "compile `.wat` files to `.wasm`"]
+                               #:exec-path-from-shell? [exec-path-from-shell? #t])
+  (or (find-executable-with-shell-fallback
+       "wasm-tools"
+       exec-path-from-shell?
+       find-executable-path
+       (lambda ()
+         (initialize-assembler-environment! #:exec-path-from-shell? #t)))
+      (raise-missing-executable
+       who
+       "wasm-tools"
+       (string-append "Install `wasm-tools` to " missing-purpose "."))))
+
+;; node-executable : [#:who symbol?] [#:exec-path-from-shell? boolean?] -> path?
+;;   Locate Node.js with the inherited PATH first and report a useful error.
+(define (node-executable #:who [who 'run]
+                         #:exec-path-from-shell? [exec-path-from-shell? #t])
+  (or (find-executable-with-shell-fallback
+       "node"
+       exec-path-from-shell?
+       find-executable-path
+       (lambda ()
+         (initialize-assembler-environment! #:exec-path-from-shell? #t)))
+      (raise-missing-executable
+       who
+       "node"
+       "Install Node.js or run without `-r`.")))
+
+(module+ test
+  (test-case "login-shell paths preserve inherited precedence"
+    (define inherited-path "inherited PATH")
+    (define shell-path "login shell PATH")
+    (check-equal?
+     (append-inherited-search-path inherited-path shell-path)
+     (string-append inherited-path (search-path-separator) shell-path))
+    (check-equal? (append-inherited-search-path inherited-path #f)
+                  inherited-path)
+    (check-equal? (append-inherited-search-path #f shell-path)
+                  shell-path)
+    (check-equal? (append-inherited-search-path inherited-path inherited-path)
+                  inherited-path))
+
+  (test-case "wasm-tools discovery preserves an inherited PATH"
+    (define inherited-path "inherited PATH")
+    (define current-path inherited-path)
+    (define initialized? #f)
+    (define inherited-wasm-tools
+      (build-path (current-directory) "inherited-wasm-tools"))
+    (define found
+      (find-executable-with-shell-fallback
+       "wasm-tools"
+       #t
+       (lambda (name)
+         (and (string=? name "wasm-tools")
+              (equal? current-path inherited-path)
+              inherited-wasm-tools))
+       (lambda ()
+         (set! initialized? #t)
+         (set! current-path "login shell PATH"))))
+    (check-equal? found inherited-wasm-tools)
+    (check-equal? current-path inherited-path)
+    (check-false initialized?))
+
+  (test-case "node discovery falls back to the login shell"
+    (define current-path "inherited PATH without node")
+    (define initialization-count 0)
+    (define shell-node
+      (build-path (current-directory) "shell-node"))
+    (define found
+      (find-executable-with-shell-fallback
+       "node"
+       #t
+       (lambda (name)
+         (and (string=? name "node")
+              (equal? current-path "login shell PATH")
+              shell-node))
+       (lambda ()
+         (set! initialization-count (add1 initialization-count))
+         (set! current-path "login shell PATH"))))
+    (check-equal? found shell-node)
+    (check-equal? initialization-count 1))
+
+  (test-case "wasm fallback does not hide an inherited Node executable"
+    (define inherited-path "inherited PATH")
+    (define shell-path "login shell PATH")
+    (define current-path inherited-path)
+    (define inherited-node
+      (build-path (current-directory) "inherited-node"))
+    (define shell-wasm-tools
+      (build-path (current-directory) "shell-wasm-tools"))
+    (define (find-executable name)
+      (cond
+        [(and (string=? name "node")
+              (string-prefix? current-path inherited-path))
+         inherited-node]
+        [(and (string=? name "wasm-tools")
+              (string=? current-path
+                        (append-inherited-search-path inherited-path shell-path)))
+         shell-wasm-tools]
+        [else #f]))
+    (define (initialize!)
+      (set! current-path
+            (append-inherited-search-path inherited-path shell-path)))
+    (check-equal?
+     (find-executable-with-shell-fallback
+      "wasm-tools" #t find-executable initialize!)
+     shell-wasm-tools)
+    (check-equal?
+     (find-executable-with-shell-fallback
+      "node" #t find-executable initialize!)
+     inherited-node))
+
+  (test-case "disabled login-shell lookup leaves the inherited environment alone"
+    (define current-path "inherited PATH without wasm-tools")
+    (define initialized? #f)
+    (check-false
+     (find-executable-with-shell-fallback
+      "wasm-tools"
+      #f
+      (lambda (_) #f)
+      (lambda ()
+        (set! initialized? #t)
+        (set! current-path "login shell PATH"))))
+    (check-equal? current-path "inherited PATH without wasm-tools")
+    (check-false initialized?))
+
+  (test-case "missing wasm-tools reports a clear error after fallback"
+    (define initialization-count 0)
+    (check-false
+     (find-executable-with-shell-fallback
+      "wasm-tools"
+      #t
+      (lambda (_) #f)
+      (lambda ()
+        (set! initialization-count (add1 initialization-count)))))
+    (check-equal? initialization-count 1)
+    (check-exn
+     (lambda (e)
+       (and (exn:fail? e)
+            (string-contains?
+             (exn-message e)
+             "required executable `wasm-tools` was not found in PATH.")
+            (string-contains? (exn-message e) "Install `wasm-tools`")))
+     (lambda ()
+       (raise-missing-executable
+        'wasm-tools-test
+        "wasm-tools"
+        "Install `wasm-tools` to compile `.wat` files to `.wasm`.")))))
 
 
 ;;;
@@ -3813,6 +4008,7 @@ const wasmModule
              #:wasm       [out.wasm   "out.wasm"]
              #:runtime.js [runtime.js "runtime.js"]
              #:write-runtime? [write-runtime? #t]
+             #:node-path [node-path #f]
              #:exec-path-from-shell? [exec-path-from-shell? #t])
   ; (print-wat x)
   ; 1. If needed compile textual format to wasm file.  
@@ -3832,11 +4028,12 @@ const wasmModule
             (λ () (displayln (runtime #:out out.wasm)))
             #:exists 'replace))
         ; 3. Invoke runtime.js using Node and propagate exact child exit code.
-        (let ([node-path (find-executable-path "node")])
-          (if node-path
-              (system*/exit-code
-               node-path
-               "--experimental-wasm-exnref"
-               "--expose-gc"
-               runtime.js)
-              1)))))
+        (let ([runtime-node-path
+               (or node-path
+                   (node-executable
+                    #:exec-path-from-shell? exec-path-from-shell?))])
+          (system*/exit-code
+           runtime-node-path
+           "--experimental-wasm-exnref"
+           "--expose-gc"
+           runtime.js)))))

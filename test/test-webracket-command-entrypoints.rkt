@@ -172,7 +172,7 @@
    "Emit the normal monolithic Wasm module"
    "--split-runtime-cache-reference")
   (check-blank-after-help-line
-   "Use the current process environment when finding wasm-tools"
+   "Find compiler tools only in the current process environment"
    "--console-bridge")
   (check-blank-after-help-line
    "Disable post-unexpand frontend syntax caching (default)"
