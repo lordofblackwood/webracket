@@ -198,6 +198,24 @@
                                   'new-apply-proc)
    '(#%kernel apply)))
 
+(test-case "Racket 9.3 class wrapper metadata imports come from class-struct"
+  (define class-struct-available?
+    (with-handlers ([exn:fail? (lambda (_exn) #f)])
+      (dynamic-require 'racket/private/class-struct #f)
+      #t))
+  (if class-struct-available?
+      (check-equal?
+       (compiled-primitive-alias-hint
+        'racket/private/class-internal
+        'object/c-wrapper-info-blame+neg-party
+        'object/c-wrapper-info-blame+neg-party)
+       '(racket/private/class-struct object/c-wrapper-info-blame+neg-party))
+      (check-false
+       (compiled-primitive-alias-hint
+        'racket/private/class-internal
+        'object/c-wrapper-info-blame+neg-party
+        'object/c-wrapper-info-blame+neg-party))))
+
 (test-case "late-materialization locals avoid lowered helper name collisions"
   (define datum
     (first-slice->top-level-datum

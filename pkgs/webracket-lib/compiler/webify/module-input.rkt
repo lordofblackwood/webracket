@@ -21,6 +21,7 @@
          webify-module-resolution-outcome-dependency
          webify-module-resolution-outcome-provider-export
          webify-module-resolution-outcome-status
+         class-internal-class-struct-import?
          compiled-primitive-alias-hint
          webify-resolve-module-linklet-imports/outcomes
          webify-module-linklet-input/resolve-imports
@@ -457,6 +458,88 @@
       (string=? (generated-base-name a) (generated-base-name b))
       (string=? (generated-base-name a) (symbol->string b))
       (string=? (symbol->string a) (generated-base-name b))))
+
+;; class-internal-class-struct-import? : symbol? -> boolean?
+;;   Recognize class-struct bindings imported directly by class-internal.
+(define (class-internal-class-struct-import? external)
+  (and (module-path-available? 'racket/private/class-struct)
+       (for/or ([name (in-list '(_object?
+                                 allowed-opaque-pred
+                                 allowed-opaque?
+                                 class-abstract-ids
+                                 class-all-field-ids
+                                 class-beta-methods
+                                 class-check-undef?
+                                 class-dynamic-idxs
+                                 class-dynamic-projs
+                                 class-field-ht
+                                 class-field-ids
+                                 class-field-pub-width
+                                 class-field-ref
+                                 class-field-set!
+                                 class-field-width
+                                 class-fixup
+                                 class-ictc-classes
+                                 class-init
+                                 class-init-args
+                                 class-init-mode
+                                 class-inner-projs
+                                 class-insp-mk
+                                 class-int-methods
+                                 class-make-object
+                                 class-meth-flags
+                                 class-method-ht
+                                 class-method-ictcs
+                                 class-method-ids
+                                 class-method-width
+                                 class-methods
+                                 class-name
+                                 class-no-super-init?
+                                 class-obj-inspector
+                                 class-object?
+                                 class-orig-cls
+                                 class-pos
+                                 class-self-interface
+                                 class-serializer
+                                 class-struct:object
+                                 class-super-methods
+                                 class-supers
+                                 class?
+                                 exn:fail:object?
+                                 find-method/who
+                                 just-check-existence
+                                 just-check-existence?
+                                 make-class
+                                 make-exn:fail:object
+                                 object-ref
+                                 object/c-wrapper-info
+                                 object/c-wrapper-info-blame+neg-party
+                                 object/c-wrapper-info-ctc
+                                 object/c-wrapper-info-do-not-check-class-field-accessor-or-mutator-access?
+                                 object/c-wrapper-info-methods-proc
+                                 object/c-wrapper-info-neg-fields
+                                 object/c-wrapper-info-opaque-fields
+                                 object/c-wrapper-info-opaque-methods
+                                 object/c-wrapper-info-pos-fields
+                                 object/c-wrapper-info-val
+                                 object/c-wrapper-info?
+                                 prop:object
+                                 set-class-field-ref!
+                                 set-class-field-set!!
+                                 set-class-fixup!
+                                 set-class-ictc-classes!
+                                 set-class-init!
+                                 set-class-make-object!
+                                 set-class-method-ht!
+                                 set-class-object?!
+                                 set-class-orig-cls!
+                                 set-class-serializer!
+                                 set-class-struct:object!
+                                 struct:allowed-opaque
+                                 struct:class
+                                 struct:exn:fail:object
+                                 struct:object/c-wrapper-info))])
+         (symbolic-name=? external name))))
 
 ;; webify-primitive-name? : symbol? -> boolean?
 ;;   Check whether a kernel-origin binding is already a known Webify primitive.
@@ -1128,6 +1211,11 @@
     [(and (eq? module-name 'racket/private/class-internal)
           (symbolic-name=? external 'contract-continuation-mark-key))
      '(racket/contract/private/guts contract-continuation-mark-key)]
+    [(and (eq? module-name 'racket/private/class-internal)
+          (class-internal-class-struct-import? external))
+     ;; Racket 9.3 moved these bindings from the removed
+     ;; `racket/private/class-wrapped` module into `class-struct`.
+     (list 'racket/private/class-struct external)]
     [(and (eq? module-name 'racket/private/class-internal)
           (for/or ([name (in-list '(wrapped-class-info-blame
                                     wrapped-class-info-neg-extra-arg-vec

@@ -3173,6 +3173,11 @@
                  (symbolic-name=? external 'contract-continuation-mark-key))
             (list local 'racket/contract/private/guts)]
            [(and (eq? module-name 'racket/private/class-internal)
+                 (class-internal-class-struct-import? external))
+            ;; Racket 9.3 moved these bindings from the removed
+            ;; `racket/private/class-wrapped` module into `class-struct`.
+            (list local 'racket/private/class-struct)]
+           [(and (eq? module-name 'racket/private/class-internal)
                  (symbolic-member? external
                                    '(wrapped-class-info-blame
                                      wrapped-class-info-neg-extra-arg-vec
