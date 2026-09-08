@@ -7136,6 +7136,11 @@
           racket/private/base
           racket/private/misc
           racket/private/pre-base
+          ;; Keyword-lambda expansion names this host implementation directly,
+          ;; but runtime calls are supplied by `webracket/private/kw`. Keeping
+          ;; the host module out of provider discovery prevents the shim from
+          ;; being substituted back into itself.
+          racket/private/kw
           ;; Require/provide transformer helpers run in the host expander while
           ;; extracting module metadata; they are not runtime provider demands.
           racket/private/modbeg

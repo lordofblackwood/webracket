@@ -1283,7 +1283,22 @@
      '(webracket/private/kw struct:keyword-method/arity-error)]
     [(symbolic-name=? external 'subsets?)
      '(webracket/private/kw subsets?)]
-    [(and (eq? module-name 'racket/private/kw)
+    [(and (memq module-name '(racket/private/kw webracket/private/kw))
+          (symbolic-name=? external 'new:procedure-reduce-arity))
+     '(#%kernel procedure-reduce-arity)]
+    [(and (memq module-name '(racket/private/kw webracket/private/kw))
+          (symbolic-name=? external 'new:procedure-reduce-arity-mask))
+     '(#%kernel procedure-reduce-arity-mask)]
+    [(and (memq module-name '(racket/private/kw webracket/private/kw))
+          (symbolic-name=? external 'new:procedure->method))
+     '(#%kernel procedure->method)]
+    [(and (memq module-name '(racket/private/kw webracket/private/kw))
+          (symbolic-name=? external 'new:procedure-rename))
+     '(#%kernel procedure-rename)]
+    [(and (memq module-name '(racket/private/kw webracket/private/kw))
+          (symbolic-name=? external 'new:procedure-realm))
+     '(#%kernel procedure-realm)]
+    [(and (memq module-name '(racket/private/kw webracket/private/kw))
           (symbolic-name=? external 'new-prop:procedure))
      '(#%kernel prop:procedure)]
     [(and (eq? module-name 'racket-src/expander/read-provider-root.rkt)

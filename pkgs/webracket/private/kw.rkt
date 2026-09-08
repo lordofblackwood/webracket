@@ -1,11 +1,25 @@
 #lang racket/base
 
 (require (only-in '#%kernel
-                  checked-procedure-check-and-extract))
+                  checked-procedure-check-and-extract
+                  [make-struct-field-accessor kernel:make-struct-field-accessor]
+                  [make-struct-type-property kernel:make-struct-type-property]
+                  [procedure->method kernel:procedure->method]
+                  [procedure-rename kernel:procedure-rename]
+                  [procedure-realm kernel:procedure-realm]
+                  [procedure-reduce-arity kernel:procedure-reduce-arity]
+                  [procedure-reduce-arity-mask kernel:procedure-reduce-arity-mask]
+                  [prop:procedure kernel:prop:procedure]))
 
 (provide make-keyword-procedure
          keyword-apply
          new-keyword-apply
+         new:procedure-reduce-arity
+         new:procedure-reduce-arity-mask
+         new-prop:procedure
+         new:procedure->method
+         new:procedure-rename
+         new:procedure-realm
          subsets?
          make-optional-keyword-procedure
          make-optional-keyword-method
@@ -27,6 +41,57 @@
 ;; protocol. This module intentionally supports the non-impersonator path first:
 ;; enough for module-based programs that define and call ordinary keyword
 ;; procedures.
+
+;; Racket 9.3 imports these names directly from `racket/private/kw`. The
+;; source names below are aliases for the underlying WebRacket primitives; the
+;; module bridge recognizes the compiler's renamed `new:*` imports and routes
+;; them to those primitives instead of back to this shim.
+(define-values (keyword-procedure-accessor-property
+                keyword-procedure-accessor?
+                keyword-procedure-accessor-ref)
+  (kernel:make-struct-type-property
+   'procedure
+   (lambda (value info)
+     (if (exact-integer? value)
+         (kernel:make-struct-field-accessor (list-ref info 3) value)
+         #f))))
+
+(define-values (new-prop:procedure
+                new-procedure?
+                new-procedure-ref)
+  (kernel:make-struct-type-property
+   'procedure
+   #f
+   (list (cons kernel:prop:procedure values)
+         (cons keyword-procedure-accessor-property values))
+   #t))
+
+;; new:procedure-reduce-arity : procedure? procedure-arity? [symbol?] [symbol?] -> procedure?
+;;   Reduce a procedure's arity with Racket's default `racket` realm.
+(define new:procedure-reduce-arity
+  (case-lambda
+    [(proc arity) (kernel:procedure-reduce-arity proc arity #f 'racket)]
+    [(proc arity name) (kernel:procedure-reduce-arity proc arity name 'racket)]
+    [(proc arity name realm) (kernel:procedure-reduce-arity proc arity name realm)]))
+
+;; new:procedure-reduce-arity-mask : procedure? exact-nonnegative-integer? [symbol?] [symbol?] -> procedure?
+;;   Reduce a procedure's arity mask with Racket's default `racket` realm.
+(define new:procedure-reduce-arity-mask
+  (case-lambda
+    [(proc mask) (kernel:procedure-reduce-arity-mask proc mask #f 'racket)]
+    [(proc mask name) (kernel:procedure-reduce-arity-mask proc mask name 'racket)]
+    [(proc mask name realm) (kernel:procedure-reduce-arity-mask proc mask name realm)]))
+
+(define new:procedure->method kernel:procedure->method)
+
+;; new:procedure-rename : procedure? symbol? [symbol?] -> procedure?
+;;   Rename a procedure with Racket's default `racket` realm.
+(define new:procedure-rename
+  (case-lambda
+    [(proc name) (kernel:procedure-rename proc name 'racket)]
+    [(proc name realm) (kernel:procedure-rename proc name realm)]))
+
+(define new:procedure-realm kernel:procedure-realm)
 
 (define-values (struct:keyword-procedure
                 make-raw-keyword-procedure

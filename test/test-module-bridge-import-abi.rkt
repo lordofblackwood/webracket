@@ -199,6 +199,20 @@
                                   'new-apply-proc)
    '(#%kernel apply)))
 
+(test-case "Racket 9.3 keyword shim avoids a self-provider import"
+  (for* ([module-name (in-list '(racket/private/kw webracket/private/kw))]
+         [binding (in-list '((new:procedure-reduce-arity . procedure-reduce-arity)
+                             (new:procedure-reduce-arity-mask . procedure-reduce-arity-mask)
+                             (new:procedure->method . procedure->method)
+                             (new:procedure-rename . procedure-rename)
+                             (new:procedure-realm . procedure-realm)
+                             (new-prop:procedure . prop:procedure)))])
+    (check-equal?
+     (compiled-primitive-alias-hint module-name
+                                    (car binding)
+                                    (car binding))
+     (list '#%kernel (cdr binding)))))
+
 (test-case "Racket class wrapper provider follows its host export table"
   (define class-struct-available?
     (with-handlers ([exn:fail? (lambda (_exn) #f)])
