@@ -3192,7 +3192,35 @@
                  (symbolic-name=? external 'contract-continuation-mark-key))
             (list local 'racket/contract/private/guts)]
            [(and (eq? module-name 'racket/private/class-internal)
+                 (class-internal-class-struct-import? external))
+            ;; Racket 9.3 moved these bindings from the removed
+            ;; `racket/private/class-wrapped` module into `class-struct`.
+            (list local 'racket/private/class-struct)]
+           [(and (eq? module-name 'racket/private/class-internal)
                  (module-phase0-exported? 'racket/private/class-wrapped external))
+            (list local 'racket/private/class-wrapped)]
+           [(and (eq? module-name 'racket/private/class-internal)
+                 (symbolic-member? external
+                                   '(wrapped-class-info-blame
+                                     wrapped-class-info-neg-extra-arg-vec
+                                     wrapped-class-info-neg-acceptors-ht
+                                     wrapped-class-info-pos-field-projs
+                                     wrapped-class-info-neg-field-projs
+                                     wrapped-class-info-init-proj-pairs
+                                     wrapped-object
+                                     wrapped-object?
+                                     wrapped-object-object
+                                     wrapped-object-neg-extra-arg-vec
+                                     wrapped-object-pos-field-projs
+                                     wrapped-object-neg-field-projs
+                                     wrapped-object-neg-party
+                                     unwrap-object
+                                     impersonator-prop:wrapped-class-info
+                                     impersonator-prop:has-wrapped-class-info?
+                                     impersonator-prop:get-wrapped-class-info
+                                     impersonator-prop:wrapped-class-neg-party
+                                     impersonator-prop:has-wrapped-class-neg-party?
+                                     impersonator-prop:get-wrapped-class-neg-party)))
             (list local 'racket/private/class-wrapped)]
            [(and (memq module-name '(contract racket/private/unit/contract))
                  (symbolic-name=? external 'contract-continuation-mark-key))
