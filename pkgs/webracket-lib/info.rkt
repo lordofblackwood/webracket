@@ -1,6 +1,7 @@
 #lang info
 
 (define collection "webracket-lib")
+(define compile-omit-paths '("compiler/legacy-stdlib"))
 (define deps '("base"
                "math-lib"
                "nanopass"))
