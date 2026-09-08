@@ -2,8 +2,10 @@
 
 (require (only-in '#%kernel
                   checked-procedure-check-and-extract
+                  [chaperone-procedure kernel:chaperone-procedure]
                   [make-struct-field-accessor kernel:make-struct-field-accessor]
                   [make-struct-type-property kernel:make-struct-type-property]
+                  [procedure-arity-mask kernel:procedure-arity-mask]
                   [procedure->method kernel:procedure->method]
                   [procedure-rename kernel:procedure-rename]
                   [procedure-realm kernel:procedure-realm]
@@ -20,6 +22,12 @@
          new:procedure->method
          new:procedure-rename
          new:procedure-realm
+         new:chaperone-procedure
+         new:unsafe-chaperone-procedure
+         new:impersonate-procedure
+         new:unsafe-impersonate-procedure
+         new:chaperone-procedure*
+         new:impersonate-procedure*
          subsets?
          make-optional-keyword-procedure
          make-optional-keyword-method
@@ -43,9 +51,9 @@
 ;; procedures.
 
 ;; Racket 9.3 imports these names directly from `racket/private/kw`. The
-;; source names below are aliases for the underlying WebRacket primitives; the
-;; module bridge recognizes the compiler's renamed `new:*` imports and routes
-;; them to those primitives instead of back to this shim.
+;; module bridge recognizes its internalized `new:*` imports and routes them
+;; to initialized kernel primitives instead of back to this shim. The public
+;; wrappers below still have to preserve keyword-procedure metadata.
 (define-values (keyword-procedure-accessor-property
                 keyword-procedure-accessor?
                 keyword-procedure-accessor-ref)
@@ -67,31 +75,148 @@
    #t))
 
 ;; new:procedure-reduce-arity : procedure? procedure-arity? [symbol?] [symbol?] -> procedure?
-;;   Reduce a procedure's arity with Racket's default `racket` realm.
+;;   Reduce positional arity while preserving keyword-procedure metadata.
 (define new:procedure-reduce-arity
   (case-lambda
-    [(proc arity) (kernel:procedure-reduce-arity proc arity #f 'racket)]
-    [(proc arity name) (kernel:procedure-reduce-arity proc arity name 'racket)]
-    [(proc arity name realm) (kernel:procedure-reduce-arity proc arity name realm)]))
+    [(proc arity) (new:procedure-reduce-arity proc arity #f 'racket)]
+    [(proc arity name) (new:procedure-reduce-arity proc arity name 'racket)]
+    [(proc arity name realm)
+     (cond
+       [(keyword-procedure? proc)
+        (define-values (required allowed) (procedure-keywords proc))
+        (when (and (pair? required) (not (null? arity)))
+          (raise-arguments-error 'procedure-reduce-arity
+                                 "procedure has required keyword arguments"
+                                 "procedure" proc))
+        (procedure-reduce-keyword-arity proc arity required allowed name realm)]
+       [else
+        (kernel:procedure-reduce-arity proc arity name realm)])]))
 
 ;; new:procedure-reduce-arity-mask : procedure? exact-nonnegative-integer? [symbol?] [symbol?] -> procedure?
-;;   Reduce a procedure's arity mask with Racket's default `racket` realm.
+;;   Reduce an arity mask while preserving keyword-procedure metadata.
 (define new:procedure-reduce-arity-mask
   (case-lambda
-    [(proc mask) (kernel:procedure-reduce-arity-mask proc mask #f 'racket)]
-    [(proc mask name) (kernel:procedure-reduce-arity-mask proc mask name 'racket)]
-    [(proc mask name realm) (kernel:procedure-reduce-arity-mask proc mask name realm)]))
+    [(proc mask) (new:procedure-reduce-arity-mask proc mask #f 'racket)]
+    [(proc mask name) (new:procedure-reduce-arity-mask proc mask name 'racket)]
+    [(proc mask name realm)
+     (cond
+       [(keyword-procedure? proc)
+        (define-values (required allowed) (procedure-keywords proc))
+        (when (and (pair? required) (not (zero? mask)))
+          (raise-arguments-error 'procedure-reduce-arity-mask
+                                 "procedure has required keyword arguments"
+                                 "procedure" proc))
+        (procedure-reduce-keyword-arity-mask proc mask required allowed name realm)]
+       [else
+        (kernel:procedure-reduce-arity-mask proc mask name realm)])]))
 
-(define new:procedure->method kernel:procedure->method)
+;; new:procedure->method : procedure? -> procedure?
+;;   Convert optional keyword procedures to their method representation.
+(define (new:procedure->method proc)
+  (cond
+    [(or (keyword-method? proc)
+         (optional-keyword-method? proc))
+     proc]
+    [(optional-keyword-procedure? proc)
+     (make-optional-keyword-method
+      (keyword-procedure-checker proc)
+      (keyword-procedure-proc proc)
+      (keyword-procedure-required proc)
+      (keyword-procedure-allowed proc)
+      (optional-keyword-procedure-plain proc))]
+    [else
+     (kernel:procedure->method proc)]))
 
 ;; new:procedure-rename : procedure? symbol? [symbol?] -> procedure?
-;;   Rename a procedure with Racket's default `racket` realm.
+;;   Rename a procedure while preserving keyword dispatch.
 (define new:procedure-rename
   (case-lambda
-    [(proc name) (kernel:procedure-rename proc name 'racket)]
-    [(proc name realm) (kernel:procedure-rename proc name realm)]))
+    [(proc name) (new:procedure-rename proc name 'racket)]
+    [(proc name realm)
+     (cond
+       [(and (symbol? name) (symbol? realm) (keyword-procedure? proc))
+        (define-values (required allowed) (procedure-keywords proc))
+        (define keyword-mask
+          (kernel:procedure-arity-mask (keyword-procedure-proc proc)))
+        (procedure-reduce-keyword-arity-mask
+         proc
+         (arithmetic-shift keyword-mask -2)
+         required
+         allowed
+         name
+         realm)]
+       [else
+        (kernel:procedure-rename proc name realm)])]))
 
-(define new:procedure-realm kernel:procedure-realm)
+;; new:procedure-realm : procedure? -> symbol?
+;;   Report the realm of a keyword procedure's callable dispatcher.
+(define (new:procedure-realm proc)
+  (if (keyword-procedure? proc)
+      (kernel:procedure-realm (keyword-procedure-proc proc))
+      (kernel:procedure-realm proc)))
+
+;; keyword-procedure-wrapper : symbol? procedure? procedure? any/c list? -> procedure?
+;;   Apply the runtime's current chaperone representation to keyword procedures.
+(define (keyword-procedure-wrapper who primitive proc wrapper props)
+  (cond
+    [(not (keyword-procedure? proc))
+     (apply primitive proc wrapper props)]
+    [(not (procedure? wrapper))
+     (raise-argument-error who "procedure?" wrapper)]
+    [else
+     ;; The current WebRacket chaperone runtime represents a procedure wrapper
+     ;; directly. Do the same for keyword procedures instead of sending their
+     ;; struct representation to a primitive that accepts only raw procedures.
+     wrapper]))
+
+;; new:chaperone-procedure : procedure? (or/c procedure? #f) any/c ... -> procedure?
+;;   Chaperone a procedure using WebRacket's current wrapper representation.
+(define (new:chaperone-procedure proc wrapper . props)
+  (cond
+    [(and (keyword-procedure? proc) (not wrapper)) proc]
+    [else
+     (keyword-procedure-wrapper 'chaperone-procedure
+                                kernel:chaperone-procedure
+                                proc
+                                wrapper
+                                props)]))
+
+;; new:unsafe-chaperone-procedure : procedure? procedure? any/c ... -> procedure?
+;;   Use the runtime's unsafe chaperone wrapper representation.
+(define (new:unsafe-chaperone-procedure proc wrapper . props)
+  (keyword-procedure-wrapper 'unsafe-chaperone-procedure
+                             kernel:chaperone-procedure
+                             proc
+                             wrapper
+                             props))
+
+;; new:impersonate-procedure : procedure? procedure? any/c ... -> procedure?
+;;   Use WebRacket's current impersonator-compatible wrapper representation.
+(define (new:impersonate-procedure proc wrapper . props)
+  (keyword-procedure-wrapper 'impersonate-procedure
+                             kernel:chaperone-procedure
+                             proc
+                             wrapper
+                             props))
+
+;; new:unsafe-impersonate-procedure : procedure? procedure? any/c ... -> procedure?
+;;   Use the runtime's unsafe impersonator wrapper representation.
+(define (new:unsafe-impersonate-procedure proc wrapper . props)
+  (keyword-procedure-wrapper 'unsafe-impersonate-procedure
+                             kernel:chaperone-procedure
+                             proc
+                             wrapper
+                             props))
+
+;; new:chaperone-procedure* : procedure? procedure? any/c ... -> procedure?
+;;   Chaperone a method-style procedure with the current wrapper representation.
+(define (new:chaperone-procedure* proc wrapper . props)
+  (apply new:chaperone-procedure proc wrapper props))
+
+;; new:impersonate-procedure* : procedure? procedure? any/c ... -> procedure?
+;;   Impersonate a method-style procedure with the current wrapper representation.
+(define (new:impersonate-procedure* proc wrapper . props)
+  (apply new:impersonate-procedure proc wrapper props))
 
 (define-values (struct:keyword-procedure
                 make-raw-keyword-procedure

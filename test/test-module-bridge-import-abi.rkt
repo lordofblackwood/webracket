@@ -1,6 +1,7 @@
 #lang racket/base
 
 (require racket/list
+         racket/match
          rackunit
          "../pkgs/webracket-lib/compiler/driver.rkt"
          "../pkgs/webracket-lib/compiler/private/parameters.rkt"
@@ -62,15 +63,21 @@
                     '(define imported (module-variable-ref import-arg)))))
 
 (test-case "value-backed constant checks guard plain imports"
-  (check-equal?
-   (lower-module-variable-ops
-    '(variable-reference-constant?
-      (module-variable-reference instance imported)))
-   '(if (if (module-variable? imported)
-          (module-variable-constance imported)
-          #f)
-      #t
-      #f)))
+  (match (lower-module-variable-ops
+          '(variable-reference-constant?
+            (module-variable-reference instance imported)))
+    [`(let ([,cell imported])
+        (if (if (module-variable? ,constance-cell)
+                (module-variable-constance ,constance-cell*)
+                (if (eq? ,mutable-cell 'mutable) #f #t))
+            #t
+            #f))
+     (check-true (symbol? cell))
+     (check-eq? constance-cell cell)
+     (check-eq? constance-cell* cell)
+     (check-eq? mutable-cell cell)]
+    [_
+     (fail-check "unexpected value-backed constant-check lowering")]))
 
 (test-case "top-level export aliases reuse internal cached values"
   (define exports '(out))
@@ -212,6 +219,15 @@
                                     (car binding)
                                     (car binding))
      (list '#%kernel (cdr binding)))))
+
+(test-case "Racket 9.3 keyword shim exports every procedure compatibility binding"
+  (for ([name (in-list '(new:chaperone-procedure
+                         new:chaperone-procedure*
+                         new:impersonate-procedure
+                         new:impersonate-procedure*
+                         new:unsafe-chaperone-procedure
+                         new:unsafe-impersonate-procedure))])
+    (check-true (procedure? (dynamic-require 'webracket/private/kw name)))))
 
 (test-case "Racket class wrapper provider follows its host export table"
   (define class-struct-available?
