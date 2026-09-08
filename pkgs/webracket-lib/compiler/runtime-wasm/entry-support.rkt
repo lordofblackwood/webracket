@@ -108,11 +108,15 @@
           (unreachable)))
 
 ;; entry-result-copy-forms : symbol? -> (listof datum?)
-;;   Format the result value as bytes and copy it to linear memory.
+;;   Copy current standard output followed by the final result to linear memory.
 (define (entry-result-copy-forms result)
   `((global.set $result-bytes
                 (call $string->bytes/utf-8
-                      (call $format/display (global.get ,result))
+                      (call $string-append/2
+                            (call $get-output-string
+                                  (call $current-output-port
+                                        (global.get $missing)))
+                            (call $format/display (global.get ,result)))
                       (global.get $false)   ; ignored
                       (global.get $zero)    ; start = 0
                       (global.get $false))) ; end
@@ -286,7 +290,11 @@
   (check-equal? (entry-result-copy-forms '$result)
                 '((global.set $result-bytes
                               (call $string->bytes/utf-8
-                                    (call $format/display (global.get $result))
+                                    (call $string-append/2
+                                          (call $get-output-string
+                                                (call $current-output-port
+                                                      (global.get $missing)))
+                                          (call $format/display (global.get $result)))
                                     (global.get $false)
                                     (global.get $zero)
                                     (global.get $false)))

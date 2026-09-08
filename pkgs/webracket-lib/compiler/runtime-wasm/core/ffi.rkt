@@ -413,7 +413,18 @@
                (local $len i32)
 
                (global.set $result-bytes
-                           (call $s-exp->fasl (local.get $v) (global.get $false)))
+                           (call $s-exp->fasl
+                                 ;; Preserve native JavaScript logging for
+                                 ;; atomic values, but turn pairs into Racket
+                                 ;; write notation. FASL otherwise reconstructs
+                                 ;; pairs as host implementation objects.
+                                 (if (result (ref eq))
+                                     (i32.or
+                                      (ref.test (ref $Pair) (local.get $v))
+                                      (ref.test (ref $MPair) (local.get $v)))
+                                     (then (call $format/write (local.get $v)))
+                                     (else (local.get $v)))
+                                 (global.get $false)))
                #;(local.set $len (call $copy_bytes_to_memory (global.get $memory-map:callback-buffer-base)))
                (local.set $len
                           (call $copy-bytes-to-callback-buffer

@@ -545,17 +545,27 @@
           [(primitive-module-name? instance-name)
            (define cell-export-name
              (compiled-primitive-import-cell-export import-name export-name))
-           (if import-abi
-               (begin
-                 (webify-bridge-stats-inc! 'bridge-direct-primitive-import-count)
-                 cell-export-name)
-               (hash-ref
-                (current-composer-primitive-import-cell-overrides)
-                cell-export-name
-                (lambda ()
-                  `(let ([cell (module-variable-make ',cell-export-name)])
-                     (module-variable-define! cell ,cell-export-name 'constant)
-                     cell))))]
+           ;; An explicit override changes the primitive's module-level role,
+           ;; so it takes precedence over the direct-value ABI fast path.
+           ;; In particular, `print-values` must discard module body results.
+           (cond
+             [(hash-has-key? (current-composer-primitive-import-cell-overrides)
+                             cell-export-name)
+              (define override
+                (hash-ref (current-composer-primitive-import-cell-overrides)
+                          cell-export-name))
+              ;; Import-ABI slices receive direct values, whereas the override
+              ;; protocol supplies a module-variable cell.
+              (if import-abi
+                  `(module-variable-ref ,override)
+                  override)]
+             [import-abi
+              (webify-bridge-stats-inc! 'bridge-direct-primitive-import-count)
+              cell-export-name]
+             [else
+              `(let ([cell (module-variable-make ',cell-export-name)])
+                 (module-variable-define! cell ,cell-export-name 'constant)
+                 cell)])]
           [else
            (define instance
              (hash-ref instances

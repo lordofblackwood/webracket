@@ -2828,7 +2828,7 @@
 ;;   Fingerprint a composed bridge result using source, provider, and policy state.
 (define (module-bridge-result-fingerprint local-source-paths module-kinds)
   `(module-bridge-result-cache
-    4
+    6
     ,(version)
     ,(current-webracket/base-provider-substitutions?)
     ,(current-module-bridge-elide-public-cells?)

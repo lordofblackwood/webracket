@@ -113,7 +113,7 @@
     "   (lambda args (apply + args))))\n"
     "(js-log (show 10 20 12))\n"
     "(js-log (keyword-apply show '(#:y) '(20) '(21)))\n")
-   #rx"(?m:^42\nundefined\n42\nundefined\n#<void>$)"))
+   #rx"(?m:^42\n42\n#<void>$)"))
 
 (test-case "webracket/private/kw reports and reduces keyword arity"
   (check-webracket-output
@@ -131,7 +131,7 @@
     "(define-values (required allowed) (procedure-keywords reduced))\n"
     "(js-log (and (equal? required '(#:y)) (equal? allowed '(#:y))))\n"
     "(js-log (keyword-apply reduced '(#:y) '(20) '(21)))\n")
-   #rx"(?m:^43\nundefined\ntrue\nundefined\n42\nundefined\n#<void>$)"))
+   #rx"(?m:^43\ntrue\n42\n#<void>$)"))
 
 (test-case "webracket/private/kw direct keyword calls reach reduced procedures"
   (check-webracket-output
