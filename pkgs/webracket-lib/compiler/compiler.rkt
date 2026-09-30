@@ -1596,6 +1596,7 @@
        string-copy!
        bytes-copy!
        substring
+       string-grapheme-span
        subbytes
        string-utf-8-length
        bytes->string/utf-8
@@ -1682,7 +1683,7 @@
      (λ (name)
        (case name
          [(vector-copy! string-copy! bytes-copy!) 3]
-         [(substring subbytes vector-extend procedure-rename datum->syntax) 2]
+         [(substring string-grapheme-span subbytes vector-extend procedure-rename datum->syntax) 2]
          [(module-path-index-join) 2]
          [(syntax-property) 2]
          [(peek-bytes! peek-string!) 2]
@@ -1712,7 +1713,7 @@
      (λ (name)
        (case name
          [(vector-copy! string-copy! bytes-copy!) 5]
-         [(substring subbytes vector-copy vector->values vector-extend
+         [(substring string-grapheme-span subbytes vector-copy vector->values vector-extend
                        procedure-rename hash-ref hash-ref-key) 3]
          [(string-utf-8-length) 3]
          [(bytes->string/utf-8 bytes->string/latin-1 bytes-utf-8-length) 4]
@@ -2722,7 +2723,7 @@
   string?
   string=?    string<?    string<=?    string>?    string>=?
   string-ci=? string-ci<? string-ci<=? string-ci>? string-ci>=?
-  make-string build-string string-ref string-set! string-length substring
+  make-string build-string string-ref string-set! string-length string-grapheme-span substring
   string-copy!
   string-copy string-fill!
   string-upcase string-downcase string-titlecase string-foldcase

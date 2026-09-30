@@ -667,6 +667,7 @@
     string-fill!
     string-find
     string-foldcase
+    string-grapheme-span
     string-join
     string-length
     string-port?
@@ -1517,6 +1518,7 @@
   string-fill!
   string-find
   string-foldcase
+  string-grapheme-span
   string-join
   string-length
   string-port?
@@ -2365,6 +2367,7 @@
 (define string-fill! any/c)
 (define string-find any/c)
 (define string-foldcase any/c)
+(define string-grapheme-span any/c)
 (define string-join any/c)
 (define string-length any/c)
 (define string-port? any/c)

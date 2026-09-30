@@ -1802,6 +1802,40 @@
                            (string-contains? message "string-length")
                            (string-contains? message "string?"))))
 
+              (list "string-grapheme-span"
+                    (and (equal? (string-grapheme-span "" 0) 0)
+                         (equal? (string-grapheme-span "a" 0) 1)
+                         (equal? (string-grapheme-span "ab" 0) 1)
+                         (equal? (string-grapheme-span "\r\n" 0) 2)
+                         (equal? (string-grapheme-span "\r\nx" 0) 2)
+                         (equal? (string-grapheme-span "\r\nx" 2) 1)
+                         (equal? (string-grapheme-span "\r\nx" 0 1) 1)
+                         (equal? (string-grapheme-span "e\u0301x" 0) 2)
+                         (equal? (string-grapheme-span "🇩🇰x" 0) 2)
+                         (equal? (procedure-arity string-grapheme-span) '(2 3))))
+
+              (list "string-grapheme-span argument errors are catchable with who"
+                    (let ([catch-contract/who+expected?
+                           (lambda (expected thunk)
+                             (let ([message
+                                    (with-handlers ([exn:fail:contract?
+                                                     (lambda (exn)
+                                                       (exn-message exn))])
+                                      (thunk)
+                                      #f)])
+                               (and (string? message)
+                                    (string-contains? message "string-grapheme-span")
+                                    (string-contains? message expected))))])
+                      (and (catch-contract/who+expected? "string?"
+                                                         (lambda ()
+                                                           (string-grapheme-span 42 0)))
+                           (catch-contract/who+expected? "exact-nonnegative-integer?"
+                                                         (lambda ()
+                                                           (string-grapheme-span "a" #f)))
+                           (catch-contract/who+expected? "out of range"
+                                                         (lambda ()
+                                                           (string-grapheme-span "a" 2))))))
+
               (list "string-ref"
                     (and (equal? (string-ref "abc" 0) #\a)
                          (equal? (string-ref "abc" 2) #\c)

@@ -281,6 +281,7 @@
     $raise-substring-index-out-of-range
     $raise-substring-end-before-start
     $substring
+    $string-grapheme-span
     $raise-string-copy:string-expected
     $string-copy
     $raise-immutable-string
@@ -1413,6 +1414,105 @@
                           (i32.const 0) ; hash
                           (i32.const 0) ; mutable (also for immutable input)
                           (call $i32array-copy (local.get $arr) (local.get $i32start) (local.get $i32end))))
+
+         ;; string-grapheme-span : string? exact-nonnegative-integer? [exact-nonnegative-integer?] -> exact-nonnegative-integer?
+         ;;   Return the number of codepoints in the grapheme cluster at start.
+         (func $string-grapheme-span (type $Prim23)
+               (param $s     (ref eq))
+               (param $start (ref eq))
+               (param $end   (ref eq)) ; optional, default to (string-length s)
+               (result       (ref eq))
+
+               (local $str      (ref $String))
+               (local $i32start i32)
+               (local $i32end   i32)
+               (local $len      i32)
+               (local $i        i32)
+               (local $state    (ref eq))
+               (local $steps    (ref $Values))
+               (local $consumed (ref eq))
+               (local $span     i32)
+
+               ;; Validate string and indices first.
+               (if (i32.eqz (ref.test (ref $String) (local.get $s)))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:string-grapheme-span)
+                               (global.get $string:string?)
+                               (local.get $s))
+                         (unreachable)))
+               (local.set $str (ref.cast (ref $String) (local.get $s)))
+               (local.set $i32start
+                          (call $string-index/i32/who
+                                (global.get $symbol:string-grapheme-span)
+                                (local.get $start)))
+               (local.set $len (call $string-length/checked/i32 (local.get $str)))
+               (if (ref.eq (local.get $end) (global.get $missing))
+                   (then (local.set $i32end (local.get $len)))
+                   (else
+                    (local.set $i32end
+                               (call $string-index/i32/who
+                                     (global.get $symbol:string-grapheme-span)
+                                     (local.get $end)))))
+               (if (i32.gt_u (local.get $i32start) (local.get $len))
+                   (then (call $raise-arguments-error
+                               (global.get $symbol:string-grapheme-span)
+                               (global.get $string:substring:starting-index-out-of-range)
+                               (array.new_fixed $Args 0))
+                         (unreachable)))
+               (if (i32.gt_u (local.get $i32end) (local.get $len))
+                   (then (call $raise-arguments-error
+                               (global.get $symbol:string-grapheme-span)
+                               (global.get $string:substring:ending-index-out-of-range)
+                               (array.new_fixed $Args 0))
+                         (unreachable)))
+               (if (i32.gt_u (local.get $i32start) (local.get $i32end))
+                   (then (call $raise-arguments-error
+                               (global.get $symbol:string-grapheme-span)
+                               (global.get $string:substring:ending-index-before-start)
+                               (array.new_fixed $Args 0))
+                         (unreachable)))
+
+               ;; A completed cluster with a nonzero state has already read
+               ;; the first codepoint of the following cluster. A completed
+               ;; CRLF cluster has state zero, so its final LF is included.
+               (local.set $i (local.get $i32start))
+               (local.set $state (ref.i31 (i32.const 0)))
+               (local.set $span (i32.const 0))
+               (block $done
+                      (loop $scan
+                            (br_if $done (i32.ge_u (local.get $i) (local.get $i32end)))
+                            (local.set $steps
+                                       (ref.cast
+                                        (ref $Values)
+                                        (call $char-grapheme-step
+                                              (call $string-ref/checked
+                                                    (local.get $str)
+                                                    (local.get $i))
+                                              (local.get $state))))
+                            (local.set $consumed
+                                       (array.get $Values (local.get $steps) (i32.const 0)))
+                            (local.set $state
+                                       (array.get $Values (local.get $steps) (i32.const 1)))
+                            (if (ref.eq (local.get $consumed) (global.get $true))
+                                (then
+                                 (if (i32.eqz
+                                      (i31.get_u
+                                       (ref.cast (ref i31) (local.get $state))))
+                                     (then
+                                      (local.set $span
+                                                 (i32.add
+                                                  (i32.sub (local.get $i) (local.get $i32start))
+                                                  (i32.const 1))))
+                                     (else
+                                      (local.set $span
+                                                 (i32.sub (local.get $i) (local.get $i32start)))))
+                                 (br $done)))
+                            (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                            (br $scan)))
+               (if (i32.eqz (local.get $span))
+                   (then (local.set $span
+                                    (i32.sub (local.get $i32end) (local.get $i32start)))))
+               (ref.i31 (i32.shl (local.get $span) (i32.const 1))))
 
          (func $raise-string-copy:string-expected
                (param $x (ref eq))

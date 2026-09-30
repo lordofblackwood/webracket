@@ -716,6 +716,7 @@
  string-ref
  string-set!
  string-length
+ string-grapheme-span
  string-append
  string-append-immutable
  string-append*

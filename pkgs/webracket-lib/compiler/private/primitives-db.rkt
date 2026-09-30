@@ -1202,6 +1202,7 @@
 (define-primitive string-fill!                              2                   (ordered))
 (define-primitive string-find                               2                   (ordered))
 (define-primitive string-foldcase                           1                   (ordered))
+(define-primitive string-grapheme-span                      [2 3]               (ordered))
 (define-primitive string-join                               [1 2]               (ordered))
 (define-primitive string-length                             1                   (pure partial-foldable))
 (define-primitive string-port?                              1                   (pure))

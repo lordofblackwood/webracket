@@ -963,7 +963,8 @@
 ;; character-core-runtime-helper-names : (listof symbol?)
 ;;   Name character helpers available in the standalone core runtime.
 (define character-core-runtime-helper-names
-  '($char?
+  '($raise-char-expected/who
+    $char?
     $char-lower-case?
     $char-upper-case?
     $char-title-case?
@@ -973,7 +974,8 @@
     $char-upcase
     $char-downcase
     $char-titlecase
-    $char-foldcase))
+    $char-foldcase
+    $char-grapheme-step))
 
 ;; character-all-runtime-helpers : (listof core-runtime-helper?)
 ;;   Register character helpers used by the monolithic runtime.
