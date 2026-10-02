@@ -284,6 +284,8 @@ Module and provider options:
   @item{@(flag "--provider-substitutions"): Enable Goal 1 provider substitutions (default).}
   @item{@(flag "--no-provider-substitutions"): Disable Goal 1 provider substitutions for diagnostics.}
   @item{@(flag "--provider-cache-dir <dir>"): Use @tt{<dir>} for provider-slice caches.}
+  @item{@(flag "--compiled-output-cache-max-bytes <bytes>"): Retain at most @tt{<bytes>} of complete compilation-output bundles (default: 1073741824).}
+  @item{@(flag "--compiled-output-cache-max-entries <count>"): Retain at most @tt{<count>} complete compilation-output bundles (default: 12). The cache prunes after a successful write, evicting least-recently-used safe entries. A bundle currently being written, locked by another compiler, incomplete, malformed, or containing unexpected files is retained; consequently these limits are best-effort rather than a hard disk quota. A limit of 0 retains the just-written bundle but evicts other eligible bundles.}
   @item{@(flag "--provider-cache-report"): Print provider-cache entries and exit.}
   @item{@(flag "--clear-provider-cache"): Delete the provider cache directory before compiling.}
   @item{@(flag "--force-provider-cache-refresh"): Regenerate provider cache artifacts even when fingerprints match.}

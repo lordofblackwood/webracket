@@ -15,6 +15,7 @@
          read-provider-cache
          write-provider-cache!
          call-with-provider-cache-lock
+         call-with-provider-cache-lock/try
          provider-cache-log
          provider-cache-symbol-segment
          provider-cache-string-segment
@@ -78,14 +79,14 @@
       (newline out))
     #:exists 'truncate/replace))
 
-;; call-with-provider-cache-lock : path? (-> any/c) -> any/c
+;; call-with-provider-cache-lock : path? (-> any/c) [#:mode symbol?] -> any/c
 ;;   Serialize expensive provider cache materialization across worker processes.
-(define (call-with-provider-cache-lock cache-path thunk)
+(define (call-with-provider-cache-lock cache-path thunk #:mode [mode 'exclusive])
   (make-directory* (path-only cache-path))
   (define lock-path (make-lock-file-name cache-path))
   (call-with-file-lock/timeout
    cache-path
-   'exclusive
+   mode
    thunk
    (lambda ()
      (error 'provider-cache
@@ -93,6 +94,23 @@
             lock-path))
    #:lock-file lock-path
    #:max-delay 300))
+
+;; call-with-provider-cache-lock/try : path? (-> any/c) [#:mode symbol?] -> (or/c any/c #f)
+;;   Run thunk only when the cache lock is immediately available.
+;;
+;; This is deliberately non-blocking: cache maintenance must never wait behind
+;; a compiler process, and a #f result means that the entry was left alone.
+(define (call-with-provider-cache-lock/try cache-path thunk #:mode [mode 'exclusive])
+  (make-directory* (path-only cache-path))
+  (define lock-path (make-lock-file-name cache-path))
+  (call-with-file-lock/timeout
+   cache-path
+   mode
+   thunk
+   (lambda () #f)
+   #:lock-file lock-path
+   #:delay 0
+   #:max-delay 0))
 
 ;; provider-cache-log : string? any/c ... -> void?
 ;;   Print provider cache diagnostics in verbose mode.

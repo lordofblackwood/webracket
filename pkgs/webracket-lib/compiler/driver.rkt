@@ -4399,6 +4399,14 @@
 ;;   Bump when the cached compiler-output manifest format changes.
 (define compilation-output-cache-version 1)
 
+;; default-compilation-output-cache-max-bytes : exact-positive-integer?
+;;   Keep at most this many bytes of complete compiler-output bundles by default.
+(define default-compilation-output-cache-max-bytes (* 1024 1024 1024))
+
+;; default-compilation-output-cache-max-entries : exact-positive-integer?
+;;   Keep at most this many complete compiler-output bundles by default.
+(define default-compilation-output-cache-max-entries 12)
+
 ;; compilation-output-cache-compiler-fingerprint : -> any/c
 ;;   Fingerprint compiler sources so development edits invalidate output bundles.
 (define (compilation-output-cache-compiler-fingerprint)
@@ -4432,6 +4440,11 @@
   (provider-cache-path
    "compiled-outputs"
    (compilation-output-cache-key-fingerprint key)))
+
+;; compilation-output-cache-root : -> path?
+;;   Return the dedicated directory containing compiler-output cache entries.
+(define (compilation-output-cache-root)
+  (provider-cache-path "compiled-outputs"))
 
 ;; cache-output-file-name : path-string? -> string?
 ;;   Return a single filename suitable for a compiler-output cache entry.
@@ -4494,17 +4507,148 @@
 (define (cache-output-entry-path cache-dir entry)
   (build-path cache-dir (cadr entry)))
 
+;; compilation-output-cache-entry-name? : any/c -> boolean?
+;;   Recognize content-addressed compiler-output bundle directory names.
+(define (compilation-output-cache-entry-name? name)
+  (and (string? name)
+       (regexp-match? #px"^[0-9a-f]{40}$" name)))
+
+;; read-compilation-output-cache-manifest : path? string? -> (or/c (listof list?) #f)
+;;   Read a manifest only when its fingerprint names the expected cache entry.
+(define (read-compilation-output-cache-manifest manifest-path entry-name)
+  (and (file-exists? manifest-path)
+       (not (link-exists? manifest-path))
+       (with-handlers ([exn:fail? (lambda (_exn) #f)])
+         (match (call-with-input-file manifest-path read)
+           [`(,fingerprint ,payload)
+            (and (equal? entry-name
+                         (compilation-output-cache-key-fingerprint fingerprint))
+                 (decode-compilation-output-cache-manifest payload))]
+           [_ #f]))))
+
+;; compilation-output-cache-directory-complete? : path? (listof list?) -> boolean?
+;;   Recognize only complete cache directories created by this cache writer.
+;;
+;; Requiring an exact filename set means pruning never recursively removes an
+;; unfamiliar directory, even when it happens to be below `compiled-outputs`.
+(define (compilation-output-cache-directory-complete? cache-dir entries)
+  (and (directory-exists? cache-dir)
+       (not (link-exists? cache-dir))
+       (with-handlers ([exn:fail? (lambda (_exn) #f)])
+         (define expected-names (sort (map cadr entries) string<?))
+         (define actual-names
+           (sort (map path->string (directory-list cache-dir)) string<?))
+         (and (equal? actual-names expected-names)
+              (for/and ([entry (in-list entries)])
+                (define entry-path (cache-output-entry-path cache-dir entry))
+                (and (file-exists? entry-path)
+                     (not (link-exists? entry-path))
+                     (eq? (file-or-directory-type entry-path) 'file)))))))
+
+;; compilation-output-cache-entry-info : path? string? -> (or/c list? #f)
+;;   Return (list mtime bytes manifest-path cache-dir) for one safe-to-prune entry.
+(define (compilation-output-cache-entry-info cache-root entry-name)
+  (and (compilation-output-cache-entry-name? entry-name)
+       (let* ([cache-dir (build-path cache-root entry-name)]
+              [manifest-path (build-path cache-root (string-append entry-name ".rktd"))]
+              [entries (read-compilation-output-cache-manifest manifest-path entry-name)])
+         (and entries
+              (compilation-output-cache-directory-complete? cache-dir entries)
+              (with-handlers ([exn:fail? (lambda (_exn) #f)])
+                (list (file-or-directory-modify-seconds manifest-path)
+                      (for/sum ([entry (in-list entries)])
+                        (file-size (cache-output-entry-path cache-dir entry)))
+                      manifest-path
+                      cache-dir))))))
+
+;; prune-compilation-output-cache! : [#:max-bytes exact-nonnegative-integer?]
+;;                                    [#:max-entries exact-nonnegative-integer?]
+;;                                    [#:protect-key any/c] -> void?
+;;   Evict oldest complete, unlocked compiler-output entries after a cache write.
+;;
+;; Manifest mtimes approximate LRU: successful cache hits refresh the mtime,
+;; and ties are broken by the content-addressed entry name. Entries whose lock
+;; cannot be acquired immediately, malformed entries, and unfamiliar files are
+;; retained. Consequently this is a conservative best-effort budget, not a
+;; hard filesystem quota.
+(define (prune-compilation-output-cache!
+         #:max-bytes [max-bytes default-compilation-output-cache-max-bytes]
+         #:max-entries [max-entries default-compilation-output-cache-max-entries]
+         #:protect-key [protect-key #f])
+  (unless (exact-nonnegative-integer? max-bytes)
+    (raise-argument-error 'prune-compilation-output-cache!
+                          "exact-nonnegative-integer?"
+                          max-bytes))
+  (unless (exact-nonnegative-integer? max-entries)
+    (raise-argument-error 'prune-compilation-output-cache!
+                          "exact-nonnegative-integer?"
+                          max-entries))
+  (define cache-root (compilation-output-cache-root))
+  (define protected-name
+    (and protect-key (compilation-output-cache-key-fingerprint protect-key)))
+  (when (directory-exists? cache-root)
+    (with-handlers ([exn:fail? (lambda (_exn) (void))])
+      (define entries
+        (for/list ([path (in-list (directory-list cache-root))]
+                   #:do [(define name (file-name-from-path path))]
+                   #:do [(define entry-name (and name (path->string name)))]
+                   #:when entry-name
+                   #:do [(define info
+                           (compilation-output-cache-entry-info cache-root entry-name))]
+                   #:when info)
+          (cons entry-name info)))
+      (define (entry-bytes entry) (cadr (cdr entry)))
+      (define (over-budget? entries*)
+        (or (> (length entries*) max-entries)
+            (> (for/sum ([entry (in-list entries*)]) (entry-bytes entry)) max-bytes)))
+      (let loop ([remaining entries])
+        (when (over-budget? remaining)
+          (define candidates
+            (filter (lambda (entry)
+                      (not (equal? (car entry) protected-name)))
+                    remaining))
+          (when (pair? candidates)
+            (define oldest
+              (car
+               (sort candidates
+                     (lambda (left right)
+                       (define left-mtime (car (cdr left)))
+                       (define right-mtime (car (cdr right)))
+                       (or (< left-mtime right-mtime)
+                           (and (= left-mtime right-mtime)
+                                (string<? (car left) (car right))))))))
+            (define entry-name (car oldest))
+            (define expected-mtime (car (cdr oldest)))
+            (define manifest-path (caddr (cdr oldest)))
+            (define cache-dir (cadddr (cdr oldest)))
+            (call-with-provider-cache-lock/try
+             manifest-path
+             (lambda ()
+               ;; Revalidate while holding the writer lock. A concurrent build
+               ;; can only turn this candidate into a newer complete entry.
+               (define current
+                 (compilation-output-cache-entry-info cache-root entry-name))
+               (and current
+                    (= expected-mtime (car current))
+                    (begin
+                      (delete-directory/files cache-dir)
+                      (delete-file manifest-path)
+                      #t))))
+            ;; Whether this entry was deleted, locked, or changed, do not retry
+            ;; it in this sweep; try the next oldest safe entry instead.
+            (loop (remove oldest remaining))))))))
+
 ;; copy-cache-output-file! : path-string? path-string? -> void?
 ;;   Materialize one cached artifact, creating its destination directory.
 (define (copy-cache-output-file! source destination)
   (make-directory* (or (path-only destination) (current-directory)))
   (copy-file/replace! source destination))
 
-;; materialize-compilation-output-cache! : any/c (listof pair?) [#:sidecar-count exact-nonnegative-integer?] -> (or/c 'hit 'miss)
+;; materialize-compilation-output-cache!/locked! : any/c (listof pair?) [#:sidecar-count exact-nonnegative-integer?] -> (or/c 'hit 'miss)
 ;;   Restore a complete compiler-output bundle when its manifest is valid.
-(define (materialize-compilation-output-cache! key
-                                                direct-output-files
-                                                #:sidecar-count [expected-sidecar-count #f])
+(define (materialize-compilation-output-cache!/locked! key
+                                                        direct-output-files
+                                                        #:sidecar-count [expected-sidecar-count #f])
   (define manifest-path (compilation-output-cache-manifest-path key))
   (define cache-dir (compilation-output-cache-directory key))
   (define payload (read-provider-cache manifest-path key))
@@ -4531,12 +4675,35 @@
        (copy-cache-output-file!
         (cache-output-entry-path cache-dir entry)
         (build-path wasm-output-dir (cadr entry))))
+     (with-handlers ([exn:fail? void])
+       ;; The manifest mtime is the cheap LRU signal used by post-write pruning.
+       (file-or-directory-modify-seconds manifest-path (current-seconds)))
      'hit]
     [else 'miss]))
 
-;; cache-compilation-output! : any/c (listof pair?) (listof path-string?) -> (or/c 'write 'hit)
+;; materialize-compilation-output-cache! : any/c (listof pair?) [#:sidecar-count exact-nonnegative-integer?] -> (or/c 'hit 'miss)
+;;   Restore a complete compiler-output bundle while preventing concurrent pruning.
+(define (materialize-compilation-output-cache! key
+                                                direct-output-files
+                                                #:sidecar-count [expected-sidecar-count #f])
+  (call-with-provider-cache-lock
+   (compilation-output-cache-manifest-path key)
+   (lambda ()
+     (materialize-compilation-output-cache!/locked!
+      key
+      direct-output-files
+      #:sidecar-count expected-sidecar-count))
+   #:mode 'shared))
+
+;; cache-compilation-output! : any/c (listof pair?) (listof path-string?)
+;;                              [#:max-bytes exact-nonnegative-integer?]
+;;                              [#:max-entries exact-nonnegative-integer?] -> (or/c 'write 'hit)
 ;;   Save one complete compiler-output bundle after a successful compilation.
-(define (cache-compilation-output! key direct-output-files sidecar-output-paths)
+(define (cache-compilation-output! key
+                                   direct-output-files
+                                   sidecar-output-paths
+                                   #:max-bytes [max-bytes default-compilation-output-cache-max-bytes]
+                                   #:max-entries [max-entries default-compilation-output-cache-max-entries])
   (define manifest-path (compilation-output-cache-manifest-path key))
   (define cache-dir (compilation-output-cache-directory key))
   (define manifest
@@ -4544,29 +4711,36 @@
   (define entries (decode-compilation-output-cache-manifest manifest))
   (unless entries
     (error 'cache-compilation-output! "invalid compiler-output cache manifest"))
-  (call-with-provider-cache-lock
-   manifest-path
-   (lambda ()
-     (cond
-       [(eq? (materialize-compilation-output-cache!
-              key
-              direct-output-files
-              #:sidecar-count (length sidecar-output-paths))
-             'hit)
-        'hit]
-       [else
-        (when (directory-exists? cache-dir)
-          (delete-directory/files cache-dir))
-        (make-directory* cache-dir)
-        (for ([entry (in-list direct-output-files)])
-          (copy-file/replace! (cdr entry)
-                              (build-path cache-dir
-                                          (cache-output-file-name (cdr entry)))))
-        (for ([path (in-list sidecar-output-paths)])
-          (copy-file/replace! path
-                              (build-path cache-dir (cache-output-file-name path))))
-        (write-provider-cache! manifest-path key manifest)
-        'write]))))
+  (define status
+    (call-with-provider-cache-lock
+     manifest-path
+     (lambda ()
+       (cond
+         [(eq? (materialize-compilation-output-cache!/locked!
+                key
+                direct-output-files
+                #:sidecar-count (length sidecar-output-paths))
+               'hit)
+          'hit]
+         [else
+          (when (directory-exists? cache-dir)
+            (delete-directory/files cache-dir))
+          (make-directory* cache-dir)
+          (for ([entry (in-list direct-output-files)])
+            (copy-file/replace! (cdr entry)
+                                (build-path cache-dir
+                                            (cache-output-file-name (cdr entry)))))
+          (for ([path (in-list sidecar-output-paths)])
+            (copy-file/replace! path
+                                (build-path cache-dir (cache-output-file-name path))))
+          (write-provider-cache! manifest-path key manifest)
+          'write]))))
+  (when (eq? status 'write)
+    (prune-compilation-output-cache!
+     #:max-bytes max-bytes
+     #:max-entries max-entries
+     #:protect-key key))
+  status)
 
 (module+ test
   (require rackunit)
@@ -4617,6 +4791,85 @@
     (check-equal? (file->bytes compilation-output-cache-test-sidecar)
                   #"sidecar"))
   (delete-directory/files compilation-output-cache-test-root))
+
+(module+ test
+  (define retention-test-root
+    (make-temporary-file "webracket-output-cache-retention-test~a" 'directory))
+  (define retention-test-output-dir (build-path retention-test-root "output"))
+  (define retention-test-provider-dir (build-path retention-test-root "provider-cache"))
+  (define retention-test-direct-files
+    (list (cons 'program-wat (build-path retention-test-output-dir "program.wat"))
+          (cons 'program-wasm (build-path retention-test-output-dir "program.wasm"))
+          (cons 'program-map (build-path retention-test-output-dir "program.wasm.map.sexp"))
+          (cons 'host (build-path retention-test-output-dir "program.html"))))
+  (define (write-retention-test-output! text)
+    (for ([entry (in-list retention-test-direct-files)])
+      (write-output-cache-test-file (cdr entry) text)))
+  (define (cache-retention-test-output! key text)
+    (write-retention-test-output! text)
+    (cache-compilation-output!
+     key
+     retention-test-direct-files
+     '()
+     #:max-bytes 1000000
+     #:max-entries 2))
+  (parameterize ([current-provider-cache-dir retention-test-provider-dir]
+                 [current-provider-cache-force? #f])
+    (define oldest-key '(compilation-output-cache-retention oldest))
+    (define middle-key '(compilation-output-cache-retention middle))
+    (define newest-key '(compilation-output-cache-retention newest))
+    (define incomplete-key '(compilation-output-cache-retention incomplete))
+    (define oldest-manifest (compilation-output-cache-manifest-path oldest-key))
+    (define middle-manifest (compilation-output-cache-manifest-path middle-key))
+    (define newest-manifest (compilation-output-cache-manifest-path newest-key))
+    (check-eq? (cache-retention-test-output! oldest-key "oldest") 'write)
+    (check-eq? (cache-retention-test-output! middle-key "middle") 'write)
+    ;; Entries below the retention limit remain available.
+    (check-true (file-exists? oldest-manifest))
+    (check-true (file-exists? middle-manifest))
+    (check-eq? (cache-retention-test-output! newest-key "newest") 'write)
+    ;; The oldest complete entry is evicted, while the current write survives.
+    (check-false (file-exists? oldest-manifest))
+    (check-true (file-exists? middle-manifest))
+    (check-true (file-exists? newest-manifest))
+    (define incomplete-manifest (compilation-output-cache-manifest-path incomplete-key))
+    (make-directory* (compilation-output-cache-directory incomplete-key))
+    (write-provider-cache!
+     incomplete-manifest
+     incomplete-key
+     (compilation-output-cache-manifest retention-test-direct-files '()))
+    (define unrelated-path (provider-cache-path "unrelated-provider-data"))
+    (write-output-cache-test-file unrelated-path "leave me alone")
+    ;; Incomplete and unrelated data are ignored, not repaired or deleted.
+    (prune-compilation-output-cache! #:max-bytes 1000000 #:max-entries 1
+                                     #:protect-key newest-key)
+    (check-true (directory-exists? (compilation-output-cache-directory incomplete-key)))
+    (check-true (file-exists? incomplete-manifest))
+    (check-true (file-exists? unrelated-path))
+    ;; An evicted entry is a normal cache miss and can be rebuilt correctly.
+    (check-eq? (cache-retention-test-output! oldest-key "rebuilt") 'write)
+    (delete-directory/files retention-test-output-dir)
+    (check-eq? (materialize-compilation-output-cache! oldest-key retention-test-direct-files)
+               'hit)
+    (for ([entry (in-list retention-test-direct-files)])
+      (check-equal? (file->bytes (cdr entry)) #"rebuilt"))
+    ;; The byte budget is independent of the entry-count limit.
+    (define byte-old-key '(compilation-output-cache-retention byte-old))
+    (define byte-new-key '(compilation-output-cache-retention byte-new))
+    (define byte-old-manifest (compilation-output-cache-manifest-path byte-old-key))
+    (define byte-new-manifest (compilation-output-cache-manifest-path byte-new-key))
+    (write-retention-test-output! "12345678")
+    (check-eq? (cache-compilation-output! byte-old-key retention-test-direct-files '()
+                                          #:max-bytes 1000000 #:max-entries 100)
+               'write)
+    (file-or-directory-modify-seconds byte-old-manifest 1)
+    (write-retention-test-output! "abcdefgh")
+    (check-eq? (cache-compilation-output! byte-new-key retention-test-direct-files '()
+                                          #:max-bytes 32 #:max-entries 100)
+               'write)
+    (check-false (file-exists? byte-old-manifest))
+    (check-true (file-exists? byte-new-manifest)))
+  (delete-directory/files retention-test-root))
 
 ;; assemble-split-runtime-core/cached! :
 ;;   (-> list?) path-string? path-string? boolean?
@@ -4923,6 +5176,10 @@
          ;; Provider Cache
          #:provider-cache-dir [provider-cache-dir default-provider-cache-project-root]
          #:runtime-provider-cache-dir [runtime-provider-cache-dir default-runtime-provider-cache-root]
+         #:compiled-output-cache-max-bytes
+         [compiled-output-cache-max-bytes default-compilation-output-cache-max-bytes]
+         #:compiled-output-cache-max-entries
+         [compiled-output-cache-max-entries default-compilation-output-cache-max-entries]
          #:clear-provider-cache? [clear-provider-cache? #f]
          #:clear-runtime-provider-cache? [clear-runtime-provider-cache? #f]
          #:force-provider-cache-refresh? [force-provider-cache-refresh? #f])
@@ -4968,6 +5225,14 @@
   (current-provider-cache-force? force-provider-cache-refresh?)
   (current-provider-cache-verbose? verbose?)
   (current-webracket/base-provider-substitutions? provider-substitutions?)
+  (unless (exact-nonnegative-integer? compiled-output-cache-max-bytes)
+    (raise-argument-error 'drive-compilation
+                          "exact-nonnegative-integer?"
+                          compiled-output-cache-max-bytes))
+  (unless (exact-nonnegative-integer? compiled-output-cache-max-entries)
+    (raise-argument-error 'drive-compilation
+                          "exact-nonnegative-integer?"
+                          compiled-output-cache-max-entries))
   (when clear-provider-cache?
     (provider-cache-log "clearing provider cache directory: ~a" provider-cache-root-path)
     (with-handlers ([exn:fail:filesystem? void])
@@ -5918,7 +6183,9 @@
       (cache-compilation-output!
        output-cache-key
        output-cache-direct-output-files
-       (map cdr sidecar-output-files)))
+       (map cdr sidecar-output-files)
+       #:max-bytes compiled-output-cache-max-bytes
+       #:max-entries compiled-output-cache-max-entries))
     (provider-cache-log "compiled output cache ~a: ~a"
                         cache-status
                         (compilation-output-cache-manifest-path output-cache-key)))

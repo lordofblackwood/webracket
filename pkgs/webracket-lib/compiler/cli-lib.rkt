@@ -79,6 +79,8 @@
    provider-substitutions?                ; route selected racket/* imports to WebRacket shims
    provider-cache-dir                     ; provider-cache root override, or #f for default
    runtime-provider-cache-dir             ; stable runtime-provider cache root override, or #f
+   compiled-output-cache-max-bytes        ; total retained compiled-output bytes
+   compiled-output-cache-max-entries      ; retained compiled-output bundle count
    clear-provider-cache?                  ; clear the provider cache before compiling
    clear-runtime-provider-cache?          ; clear the runtime provider cache before compiling
    force-provider-cache-refresh?          ; rebuild provider-cache entries even on fingerprint hits
@@ -135,6 +137,8 @@
     (provider-substitutions? . ,(webracket-compile-config-provider-substitutions? cfg))
     (provider-cache-dir . ,(webracket-compile-config-provider-cache-dir cfg))
     (runtime-provider-cache-dir . ,(webracket-compile-config-runtime-provider-cache-dir cfg))
+    (compiled-output-cache-max-bytes . ,(webracket-compile-config-compiled-output-cache-max-bytes cfg))
+    (compiled-output-cache-max-entries . ,(webracket-compile-config-compiled-output-cache-max-entries cfg))
     (clear-provider-cache? . ,(webracket-compile-config-clear-provider-cache? cfg))
     (clear-runtime-provider-cache? . ,(webracket-compile-config-clear-runtime-provider-cache? cfg))
     (force-provider-cache-refresh? . ,(webracket-compile-config-force-provider-cache-refresh? cfg))))
@@ -198,6 +202,10 @@
    (ref 'provider-substitutions?)
    (ref 'provider-cache-dir)
    (ref/default 'runtime-provider-cache-dir #f)
+   (ref/default 'compiled-output-cache-max-bytes
+                default-compilation-output-cache-max-bytes)
+   (ref/default 'compiled-output-cache-max-entries
+                default-compilation-output-cache-max-entries)
    (ref 'clear-provider-cache?)
    (ref/default 'clear-runtime-provider-cache? #f)
    (ref 'force-provider-cache-refresh?)))
@@ -223,6 +231,8 @@
     "--split-runtime-core-url"
     "--provider-cache-dir"
     "--runtime-provider-cache-dir"
+    "--compiled-output-cache-max-bytes"
+    "--compiled-output-cache-max-entries"
     "--ffi"
     "--vfs-file"
     "--vfs-url"
@@ -396,6 +406,10 @@
   (define provider-substitutions? #t)
   (define provider-cache-dir #f)
   (define runtime-provider-cache-dir #f)
+  (define compiled-output-cache-max-bytes
+    default-compilation-output-cache-max-bytes)
+  (define compiled-output-cache-max-entries
+    default-compilation-output-cache-max-entries)
   (define clear-provider-cache? #f)
   (define clear-runtime-provider-cache? #f)
   (define force-provider-cache-refresh? #f)
@@ -404,6 +418,13 @@
 
   (define (normalize-vfs-preload-path-for-duplicates path)
     (regexp-replace #px"/+$" path ""))
+
+  (define (parse-cache-limit option value)
+    (define number (string->number value))
+    (unless (exact-nonnegative-integer? number)
+      (raise-user-error 'webracket "~a expects a nonnegative integer, got: ~a"
+                        option value))
+    number)
 
   (define (duplicate-vfs-target? entries path)
     (define norm-path (normalize-vfs-preload-path-for-duplicates path))
@@ -738,6 +759,14 @@
      [("--runtime-provider-cache-dir") dirname
                                        "Use <dirname> for stable runtime provider caches"
                                        (set! runtime-provider-cache-dir dirname)]
+     [("--compiled-output-cache-max-bytes") bytes
+      "Retain at most <bytes> of complete compilation-output cache bundles"
+      (set! compiled-output-cache-max-bytes
+            (parse-cache-limit "--compiled-output-cache-max-bytes" bytes))]
+     [("--compiled-output-cache-max-entries") count
+      "Retain at most <count> complete compilation-output cache bundles"
+      (set! compiled-output-cache-max-entries
+            (parse-cache-limit "--compiled-output-cache-max-entries" count))]
      [("--clear-provider-cache") "Delete the project provider cache directory before compiling"
                                  (set! clear-provider-cache? #t)]
      [("--clear-runtime-provider-cache")
@@ -872,6 +901,8 @@
        provider-substitutions?
        provider-cache-dir
        runtime-provider-cache-dir
+       compiled-output-cache-max-bytes
+       compiled-output-cache-max-entries
        clear-provider-cache?
        clear-runtime-provider-cache?
        force-provider-cache-refresh?))]))
@@ -953,6 +984,10 @@
                        #:runtime-provider-cache-dir
                        (or (webracket-compile-config-runtime-provider-cache-dir cfg)
                            default-runtime-provider-cache-root)
+                       #:compiled-output-cache-max-bytes
+                       (webracket-compile-config-compiled-output-cache-max-bytes cfg)
+                       #:compiled-output-cache-max-entries
+                       (webracket-compile-config-compiled-output-cache-max-entries cfg)
                        #:clear-provider-cache?
                        (webracket-compile-config-clear-provider-cache? cfg)
                        #:clear-runtime-provider-cache?
