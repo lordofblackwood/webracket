@@ -19,6 +19,12 @@
   (set! x n)
   x)
 
+;; Returns a callback value larger than the historical 64 KiB bridge buffer.
+;; The browser smoke assertion verifies the complete value survives FASL
+;; transport from Wasm to JavaScript.
+(define (large-result)
+  (make-string 70000 #\x))
+
 (define (explode! _)
   (car 0))
 

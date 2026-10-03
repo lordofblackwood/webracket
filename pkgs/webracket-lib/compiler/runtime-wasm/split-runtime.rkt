@@ -3149,7 +3149,7 @@
                 (i32.const 1052672))
         (global $memory-map:callback-buffer-length
                 (mut i32)
-                (i32.const 65536))
+                (i32.const 1048576))
         (func $entry
               (export "entry")
               (result i32)

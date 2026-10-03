@@ -306,6 +306,7 @@ async function runPageProbe(page, testPage, consoleMessages) {
     const initial = globalThis.WR.raw("x");
     const add1Result = globalThis.WR.raw("add1*", 41);
     const zeroArgCall = globalThis.WR.call("current-x");
+    const largeResult = globalThis.WR.call("large-result");
     const mutationResult = globalThis.WR.raw("set-x!", 99);
     const mutated = globalThis.WR.raw("x");
     const missing = globalThis.WR.raw("definitely-missing");
@@ -339,6 +340,7 @@ async function runPageProbe(page, testPage, consoleMessages) {
       initial,
       add1Result,
       zeroArgCall,
+      largeResult,
       mutationResult,
       mutated,
       missing,
@@ -379,6 +381,10 @@ async function runPageProbe(page, testPage, consoleMessages) {
   }
   if (probe.zeroArgCall !== 41) {
     throw new Error(`WR.call("current-x") returned ${JSON.stringify(probe.zeroArgCall)}`);
+  }
+  if (typeof probe.largeResult !== "string" || probe.largeResult.length !== 70000 ||
+      probe.largeResult[0] !== "x" || probe.largeResult.at(-1) !== "x") {
+    throw new Error(`WR.call("large-result") returned an invalid ${typeof probe.largeResult} result`);
   }
   if (!probe.mutationResult?.ok || probe.mutationResult.value !== 99) {
     throw new Error(`WR.raw("set-x!", 99) returned ${JSON.stringify(probe.mutationResult)}`);

@@ -471,13 +471,13 @@ function utf8_decode_bytes(bytes) {
 	// Static host bridge scratch map. Keep this in sync with runtime-wasm.rkt.
 //   0..1MiB        VFS file transfer buffer
 //   +4KiB          VFS path buffer
-//   +64KiB         callback/FASL/string scratch buffer
+//   +1MiB          callback/FASL/string scratch buffer
 const VFS_FILE_BUFFER_BASE = 0;
 const VFS_FILE_BUFFER_LENGTH = 1048576;
 const VFS_PATH_BUFFER_BASE = 1048576;
 const VFS_PATH_BUFFER_LENGTH = 4096;
 const CALLBACK_BUFFER_BASE = 1052672;
-const CALLBACK_BUFFER_LENGTH = 65536;
+const CALLBACK_BUFFER_LENGTH = 1048576;
 
 var output_string = [];
 var externals = [];
