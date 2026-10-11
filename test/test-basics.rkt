@@ -1812,6 +1812,10 @@
                          (equal? (string-grapheme-span "\r\nx" 0 1) 1)
                          (equal? (string-grapheme-span "e\u0301x" 0) 2)
                          (equal? (string-grapheme-span "🇩🇰x" 0) 2)
+                         (equal? (vector (string-grapheme-span "a\tb" 0)
+                                         (string-grapheme-span "a\tb" 1)
+                                         (string-grapheme-span "a\tb" 2))
+                                 #(1 1 1))
                          (equal? (procedure-arity string-grapheme-span) '(2 3))))
 
               (list "string-grapheme-span argument errors are catchable with who"
@@ -2956,6 +2960,11 @@
                            (and (eq? consumed  #f)
                                 (eq? consumed2 #f)
                                 (= state2 5)))
+                         (let*-values ([(consumed  state)  (char-grapheme-step #\a 0)]
+                                       [(consumed2 state2) (char-grapheme-step #\tab state)])
+                           (and (eq? consumed  #f)
+                                (eq? consumed2 #t)
+                                (= state2 4)))
                          (let*-values ([(c1 s1) (char-grapheme-step #\U1F1E6 0)]
                                        [(c2 s2) (char-grapheme-step #\U1F1E7 s1)]
                                        [(c3 s3) (char-grapheme-step #\U1F1E8 s2)])

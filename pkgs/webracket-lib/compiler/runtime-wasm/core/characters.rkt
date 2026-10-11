@@ -896,14 +896,22 @@
                         (local.set $prev-ext/eff  (i32.const 0))
                         (local.set $prev-zwj/eff  (i32.const 0))))
 
-              ;; Update contextual fields with the current character
-              (if (i32.or (i32.eq (local.get $curr-prop) (i32.const 4))
-                          (i32.or (i32.eq (local.get $curr-prop) (i32.const 5))
-                                  (i32.eq (local.get $curr-prop) (i32.const 8))))
-                  (then (local.set $new-base (local.get $prev-base/eff))
-                        (local.set $new-ext  (local.get $prev-ext/eff)))
-                  (else (local.set $new-base (local.get $curr-prop))
-                        (local.set $new-ext  (local.get $curr-ext))))
+              ;; Update contextual fields with the current character.
+              ;; Controls retain their last-property field but never become
+              ;; the base of the next cluster.
+              (if (i32.or (i32.eq (local.get $curr-prop) (i32.const 1))
+                          (i32.or (i32.eq (local.get $curr-prop) (i32.const 2))
+                                  (i32.eq (local.get $curr-prop) (i32.const 3))))
+                  (then (local.set $new-base (i32.const -1))
+                        (local.set $new-ext  (i32.const 0)))
+                  (else
+                   (if (i32.or (i32.eq (local.get $curr-prop) (i32.const 4))
+                               (i32.or (i32.eq (local.get $curr-prop) (i32.const 5))
+                                       (i32.eq (local.get $curr-prop) (i32.const 8))))
+                       (then (local.set $new-base (local.get $prev-base/eff))
+                             (local.set $new-ext  (local.get $prev-ext/eff)))
+                       (else (local.set $new-base (local.get $curr-prop))
+                             (local.set $new-ext  (local.get $curr-ext))))))
 
               (if (i32.eq (local.get $curr-prop) (i32.const 6))
                   (then (if (i32.eq (local.get $prev-base/eff) (i32.const 6))
@@ -925,9 +933,13 @@
                             (then (local.set $new-zwj (local.get $prev-zwj/eff)))
                             (else (local.set $new-zwj (i32.const 0))))))
 
-              ;; Assemble new state (0 for LF or Control)
-              (if (i32.or (i32.eq (local.get $curr-prop) (i32.const 2))
-                          (i32.eq (local.get $curr-prop) (i32.const 3)))
+              ;; Assemble new state. A standalone LF/Control and a completed
+              ;; CRLF cluster reset to zero. Otherwise preserve the current
+              ;; control's last-property field so the next step observes its
+              ;; required boundary.
+              (if (i32.and (i32.or (i32.eq (local.get $curr-prop) (i32.const 2))
+                                   (i32.eq (local.get $curr-prop) (i32.const 3)))
+                           (i32.eqz (local.get $boundary)))
                   (then (local.set $new-state (i32.const 0)))
                   (else
                    (local.set $base-field (i32.const 0))
