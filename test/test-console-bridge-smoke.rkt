@@ -25,6 +25,15 @@
 (define (large-result)
   (make-string 70000 #\x))
 
+;; These two bindings exercise the non-printing value bridge for both lookup
+;; and invocation. The bridge must transport the value without also producing
+;; a discarded display string.
+(define large-value
+  (make-string 70000 #\v))
+
+(define (large-value-result _ignored)
+  (make-string 70000 #\w))
+
 (define (explode! _)
   (car 0))
 

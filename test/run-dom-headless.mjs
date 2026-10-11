@@ -307,6 +307,9 @@ async function runPageProbe(page, testPage, consoleMessages) {
     const add1Result = globalThis.WR.raw("add1*", 41);
     const zeroArgCall = globalThis.WR.call("current-x");
     const largeResult = globalThis.WR.call("large-result");
+    const largeValue = globalThis.WR.value("large-value");
+    const largeValueResult = globalThis.WR.value("large-value-result", 0);
+    const rawLargeValue = globalThis.WR.raw("large-value");
     const mutationResult = globalThis.WR.raw("set-x!", 99);
     const mutated = globalThis.WR.raw("x");
     const missing = globalThis.WR.raw("definitely-missing");
@@ -341,6 +344,9 @@ async function runPageProbe(page, testPage, consoleMessages) {
       add1Result,
       zeroArgCall,
       largeResult,
+      largeValue,
+      largeValueResult,
+      rawLargeValue,
       mutationResult,
       mutated,
       missing,
@@ -385,6 +391,19 @@ async function runPageProbe(page, testPage, consoleMessages) {
   if (typeof probe.largeResult !== "string" || probe.largeResult.length !== 70000 ||
       probe.largeResult[0] !== "x" || probe.largeResult.at(-1) !== "x") {
     throw new Error(`WR.call("large-result") returned an invalid ${typeof probe.largeResult} result`);
+  }
+  if (typeof probe.largeValue !== "string" || probe.largeValue.length !== 70000 ||
+      probe.largeValue[0] !== "v" || probe.largeValue.at(-1) !== "v") {
+    throw new Error(`WR.value("large-value") returned an invalid ${typeof probe.largeValue} result`);
+  }
+  if (typeof probe.largeValueResult !== "string" || probe.largeValueResult.length !== 70000 ||
+      probe.largeValueResult[0] !== "w" || probe.largeValueResult.at(-1) !== "w") {
+    throw new Error(`WR.value("large-value-result", 0) returned an invalid ${typeof probe.largeValueResult} result`);
+  }
+  if (typeof probe.rawLargeValue?.printed !== "string" ||
+      probe.rawLargeValue.printed.length !== 70000 ||
+      probe.rawLargeValue.printed[0] !== "v" || probe.rawLargeValue.printed.at(-1) !== "v") {
+    throw new Error(`WR.raw("large-value") did not retain its formatted result`);
   }
   if (!probe.mutationResult?.ok || probe.mutationResult.value !== 99) {
     throw new Error(`WR.raw("set-x!", 99) returned ${JSON.stringify(probe.mutationResult)}`);

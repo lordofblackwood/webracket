@@ -3325,7 +3325,15 @@ function install_console_bridge(exports) {
     return;
   }
 
-  const { wr_ref, wr_call, wr_names, wr_names_detailed, wr_format } = exports;
+  const {
+    wr_ref,
+    wr_call,
+    wr_value_ref = wr_ref,
+    wr_value_call = wr_call,
+    wr_names,
+    wr_names_detailed,
+    wr_format,
+  } = exports;
   if (!(wr_ref && wr_call && wr_names)) {
     return;
   }
@@ -3343,6 +3351,16 @@ function install_console_bridge(exports) {
   function raw_call(name, args = []) {
     const raw = wr_invoke_fasl(wr_call, [name, args]);
     return wr_decode_result(raw, 'call', name, args);
+  }
+
+  // Look up or call a binding through the bridge endpoint that omits an
+  // unobserved WebRacket display representation from successful results.
+  function value_lookup(name, args = []) {
+    const operation = (args.length === 0) ? 'ref' : 'call';
+    const raw = (args.length === 0)
+      ? wr_invoke_fasl(wr_value_ref, name)
+      : wr_invoke_fasl(wr_value_call, [name, args]);
+    return wr_decode_result(raw, operation, name, args);
   }
 
   // Throw a JavaScript Error for bridge failures and return successful results unchanged.
@@ -3365,7 +3383,7 @@ function install_console_bridge(exports) {
   }
 
   WR.call = (name, ...args) => write_result(ensure_ok(raw_call(name, args)));
-  WR.value = (name, ...args) => ensure_ok(raw_lookup(name, args)).value;
+  WR.value = (name, ...args) => ensure_ok(value_lookup(name, args)).value;
   WR.raw = (name, ...args) => raw_lookup(name, args);
   WR.write = (name, ...args) => write_result(ensure_ok(raw_lookup(name, args)));
   WR.print = (name, ...args) => {

@@ -193,16 +193,22 @@
     $wr-copy-result
     $wr-bridge-error-message
     $wr-success
+    $wr-success/no-display
     $wr-procedure-info
     $wr-procedure-success
+    $wr-procedure-success/no-display
     $wr-failure
     $wr-binding-value
     $wr-top-level-names
     $wr-top-level-names-detailed
     $wr-name->symbol
     $wr-vector->args
+    $wr-ref/internal
     $wr-ref
+    $wr-value-ref
+    $wr-call/internal
     $wr-call
+    $wr-value-call
     $wr-names
     $wr-names-detailed
     $wr-format
@@ -249,15 +255,21 @@
 (define ffi-console-bridge-helper-names
   '($wr-bridge-error-message
     $wr-success
+    $wr-success/no-display
     $wr-procedure-info
     $wr-procedure-success
+    $wr-procedure-success/no-display
     $wr-binding-value
     $wr-top-level-names
     $wr-top-level-names-detailed
     $wr-name->symbol
     $wr-vector->args
+    $wr-ref/internal
     $wr-ref
+    $wr-value-ref
+    $wr-call/internal
     $wr-call
+    $wr-value-call
     $wr-names
     $wr-names-detailed
     $wr-format))
@@ -956,6 +968,21 @@
                      (call $format/display (local.get $v))
                      (global.get $false)))
 
+         ;; $wr-success/no-display : (ref eq) -> (ref $Vector)
+         ;;   Build a successful bridge result without a display representation.
+         (func $wr-success/no-display
+               (param $v (ref eq))
+               (result (ref $Vector))
+
+               ;; `WR.value` does not observe the bridge's `printed` field.
+               ;; Avoid allocating and serializing a display representation.
+               (call $wr-result->bridge-vector
+                     (global.get $true)
+                     (global.get $string:wr-kind:value)
+                     (local.get $v)
+                     (global.get $false)
+                     (global.get $false)))
+
          (func $wr-procedure-info
                (param $proc (ref $Procedure))
                (result (ref $Vector))
@@ -983,6 +1010,20 @@
                                (call $wr-procedure-info (local.get $proc)))
                      (call $format/display:procedure
                            (ref.cast (ref eq) (local.get $proc)))
+                     (global.get $false)))
+
+         ;; $wr-procedure-success/no-display : (ref $Procedure) -> (ref $Vector)
+         ;;   Build procedure metadata without a duplicate printed representation.
+         (func $wr-procedure-success/no-display
+               (param $proc (ref $Procedure))
+               (result (ref $Vector))
+
+               (call $wr-result->bridge-vector
+                     (global.get $true)
+                     (global.get $string:wr-kind:procedure)
+                     (ref.cast (ref eq)
+                               (call $wr-procedure-info (local.get $proc)))
+                     (global.get $false)
                      (global.get $false)))
 
          (func $wr-failure
@@ -1150,8 +1191,11 @@
                             (br $loop)))
                (local.get $dst))
 
-         (func $wr-ref (export "wr-ref")
+         ;; $wr-ref/internal : i32 i32 -> i32
+         ;;   Look up a bridge binding, optionally retaining its printed form.
+         (func $wr-ref/internal
                (param $fasl i32)
+               (param $include-printed? i32)
                (result i32)
 
                (local $name            (ref eq))
@@ -1184,11 +1228,21 @@
                                    (ref.eq (call $procedure? (local.get $val))
                                            (global.get $true))
                                    (then
-                                    (call $wr-procedure-success
-                                          (ref.cast (ref $Procedure)
-                                                    (local.get $val))))
+                                    (if (result (ref $Vector))
+                                        (i32.eqz (local.get $include-printed?))
+                                        (then (call $wr-procedure-success/no-display
+                                                    (ref.cast (ref $Procedure)
+                                                              (local.get $val))))
+                                        (else (call $wr-procedure-success
+                                                   (ref.cast (ref $Procedure)
+                                                             (local.get $val))))))
                                    (else
-                                    (call $wr-success (local.get $val)))))))
+                                    (if (result (ref $Vector))
+                                        (i32.eqz (local.get $include-printed?))
+                                        (then (call $wr-success/no-display
+                                                    (local.get $val)))
+                                        (else (call $wr-success
+                                                    (local.get $val)))))))))
 
                (local.set $bridge-sentinel
                           (call $cons (global.get $false) (global.get $false)))
@@ -1219,8 +1273,31 @@
                                 (ref.cast (ref $Bytes) (global.get $result-bytes))))
                (local.get $len))
 
-         (func $wr-call (export "wr-call")
+         ;; $wr-ref : i32 -> i32
+         ;;   Look up a bridge binding with its formatted console representation.
+         (func $wr-ref (export "wr-ref")
                (param $fasl i32)
+               (result i32)
+
+               (call $wr-ref/internal
+                     (local.get $fasl)
+                     (i32.const 1)))
+
+         ;; $wr-value-ref : i32 -> i32
+         ;;   Look up a bridge binding without producing a discarded display form.
+         (func $wr-value-ref (export "wr-value-ref")
+               (param $fasl i32)
+               (result i32)
+
+               (call $wr-ref/internal
+                     (local.get $fasl)
+                     (i32.const 0)))
+
+         ;; $wr-call/internal : i32 i32 -> i32
+         ;;   Call a bridge binding, optionally retaining its printed form.
+         (func $wr-call/internal
+               (param $fasl i32)
+               (param $include-printed? i32)
                (result i32)
 
                (local $req             (ref $Vector))
@@ -1289,7 +1366,12 @@
                                     (if (result (ref $Vector))
                                         (ref.eq (call $exn? (local.get $res)) (global.get $false))
                                         (then
-                                         (call $wr-success (local.get $res)))
+                                         (if (result (ref $Vector))
+                                             (i32.eqz (local.get $include-printed?))
+                                             (then (call $wr-success/no-display
+                                                         (local.get $res)))
+                                             (else (call $wr-success
+                                                         (local.get $res)))))
                                         (else
                                          (call $wr-failure
                                                (global.get $string:wr-kind:exception)
@@ -1321,6 +1403,26 @@
                           (call $copy-bytes-to-callback-buffer
                                 (ref.cast (ref $Bytes) (global.get $result-bytes))))
                (local.get $len))
+
+         ;; $wr-call : i32 -> i32
+         ;;   Call a bridge binding with its formatted console representation.
+         (func $wr-call (export "wr-call")
+               (param $fasl i32)
+               (result i32)
+
+               (call $wr-call/internal
+                     (local.get $fasl)
+                     (i32.const 1)))
+
+         ;; $wr-value-call : i32 -> i32
+         ;;   Call a bridge binding without producing a discarded display form.
+         (func $wr-value-call (export "wr-value-call")
+               (param $fasl i32)
+               (result i32)
+
+               (call $wr-call/internal
+                     (local.get $fasl)
+                     (i32.const 0)))
 
          (func $wr-names (export "wr-names")
                (param $ignored i32)
