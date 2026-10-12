@@ -6654,6 +6654,10 @@
                  "generators depend on continuation prompts, which are outside Goal 1")
    (substitution 'racket/hash 'webracket/hash 'temporary-shim 'medium 'keep-webracket-owned
                  "hash helpers should track WebRacket HAMT/runtime hash behavior")
+   (substitution 'racket/list 'webracket/list 'runtime-owned 'low 'keep-webracket-owned
+                 "list traversal helpers must resolve to WebRacket's iterative runtime primitives")
+   (substitution 'racket/private/map 'webracket/private/map 'runtime-owned 'low 'keep-webracket-owned
+                 "the base expander names its recursive map provider directly")
    (substitution 'racket/mpair 'webracket/mpair 'runtime-owned 'low 'keep-webracket-owned
                  "mutable-pair representation is WebRacket runtime work")
    (substitution 'racket/port 'webracket/port 'runtime-owned 'low 'keep-webracket-owned

@@ -16,6 +16,8 @@
                     procedure-reduce-keyword-arity-mask
                     print-as-expression
                     read-bytes-line
+                    map
+                    filter
                     sort)
          (only-in racket/base
                   [write racket-write]
@@ -60,6 +62,58 @@
 (define (println v [o (current-output-port)] [quote-depth 0])
   (racket-println v o quote-depth))
 
+;; map : procedure? list? ... -> list?
+;;   Transform equally sized lists without growing the Wasm stack.
+(define (map proc first . rest)
+  (define inputs (cons first rest))
+  (unless (procedure? proc)
+    (raise-argument-error 'map "procedure?" proc))
+  (let validate ([remaining inputs])
+    (cond
+      [(null? remaining) (void)]
+      [(list? (car remaining)) (validate (cdr remaining))]
+      [else (raise-argument-error 'map "list?" (car remaining))]))
+  (define (state lists)
+    (let loop ([remaining lists] [saw-empty? #f] [saw-pair? #f])
+      (cond
+        [(null? remaining)
+         (cond
+           [(and saw-empty? saw-pair?) 'mismatched]
+           [saw-empty? 'finished]
+           [else 'continue])]
+        [(null? (car remaining))
+         (loop (cdr remaining) #t saw-pair?)]
+        [else (loop (cdr remaining) saw-empty? #t)])))
+  (define (cars lists)
+    (let loop ([remaining lists] [reversed null])
+      (if (null? remaining)
+          (reverse reversed)
+          (loop (cdr remaining) (cons (caar remaining) reversed)))))
+  (define (cdrs lists)
+    (let loop ([remaining lists] [reversed null])
+      (if (null? remaining)
+          (reverse reversed)
+          (loop (cdr remaining) (cons (cdar remaining) reversed)))))
+  (let loop ([lists inputs] [reversed null])
+    (cond
+      [(eq? (state lists) 'finished) (reverse reversed)]
+      [(eq? (state lists) 'mismatched)
+       (raise-arguments-error 'map "all lists must have the same size"
+                              "lists" inputs)]
+      [else
+       (loop (cdrs lists)
+             (cons (apply proc (cars lists)) reversed))])))
+
+;; filter : procedure? list? -> list?
+;;   Preserve Racket's left-to-right results without growing the Wasm stack.
+(define (filter pred xs)
+  (let loop ([remaining xs] [reversed null])
+    (cond
+      [(null? remaining) (reverse reversed)]
+      [(pred (car remaining))
+       (loop (cdr remaining) (cons (car remaining) reversed))]
+      [else (loop (cdr remaining) reversed)])))
+
 (provide (except-out (all-from-out racket/base)
                      format
                      fprintf
@@ -74,6 +128,8 @@
          print
          println
          read-bytes-line
+         map
+         filter
          sort
          prop:gen-sequence
          (all-from-out "../js/main.rkt")

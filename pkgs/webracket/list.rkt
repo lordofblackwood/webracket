@@ -168,14 +168,122 @@
 (define (last xs)
   (car (last-pair xs)))
 
-;; filter : (any/c -> any/c) list? -> list?
-;;   Keep elements for which pred returns a true value.
-(define (filter pred xs)
-  (let loop ([xs xs])
+;; check-traversal-inputs : symbol? any/c list? -> void?
+;;   Check a traversal procedure and each of its proper-list inputs.
+(define (check-traversal-inputs who proc inputs)
+  (check-procedure who proc)
+  (let loop ([remaining inputs])
     (cond
-      [(null? xs) null]
-      [(pred (car xs)) (cons (car xs) (loop (cdr xs)))]
-      [else (loop (cdr xs))])))
+      [(null? remaining) (void)]
+      [else
+       (check-list who (car remaining))
+       (loop (cdr remaining))])))
+
+;; traversal-input-state : list? -> symbol?
+;;   Classify equal-length traversal inputs without recursing through an input.
+(define (traversal-input-state inputs)
+  (let loop ([remaining inputs] [saw-empty? #f] [saw-pair? #f])
+    (cond
+      [(null? remaining)
+       (cond
+         [(and saw-empty? saw-pair?) 'mismatched]
+         [saw-empty? 'finished]
+         [else 'continue])]
+      [(null? (car remaining))
+       (loop (cdr remaining) #t saw-pair?)]
+      [else (loop (cdr remaining) saw-empty? #t)])))
+
+;; traversal-input-cars : list? -> list?
+;;   Collect the current element from each non-empty input list.
+(define (traversal-input-cars inputs)
+  (let loop ([remaining inputs] [reversed null])
+    (if (null? remaining)
+        (reverse reversed)
+        (loop (cdr remaining) (cons (caar remaining) reversed)))))
+
+;; traversal-input-cdrs : list? -> list?
+;;   Collect the remaining tail from each non-empty input list.
+(define (traversal-input-cdrs inputs)
+  (let loop ([remaining inputs] [reversed null])
+    (if (null? remaining)
+        (reverse reversed)
+        (loop (cdr remaining) (cons (cdar remaining) reversed)))))
+
+;; raise-traversal-length-error : symbol? list? -> none/c
+;;   Report Racket's equal-length requirement for parallel list traversals.
+(define (raise-traversal-length-error who inputs)
+  (raise-arguments-error who "all lists must have the same size"
+                         "lists" inputs))
+
+;; map : procedure? list? ... -> list?
+;;   Transform equally sized lists without growing the Wasm stack.
+(define (map proc first . rest)
+  (define inputs (cons first rest))
+  (check-traversal-inputs 'map proc inputs)
+  (let loop ([lists inputs] [reversed null])
+    (cond
+      [(eq? (traversal-input-state lists) 'finished) (reverse reversed)]
+      [(eq? (traversal-input-state lists) 'mismatched)
+       (raise-traversal-length-error 'map inputs)]
+      [else
+       (loop (traversal-input-cdrs lists)
+             (cons (apply proc (traversal-input-cars lists)) reversed))])))
+
+;; andmap : procedure? list? ... -> any/c
+;;   Return the first false result or the last true result without growing the Wasm stack.
+(define (andmap proc first . rest)
+  (define inputs (cons first rest))
+  (check-traversal-inputs 'andmap proc inputs)
+  (let loop ([lists inputs] [last-value #t])
+    (cond
+      [(eq? (traversal-input-state lists) 'finished) last-value]
+      [(eq? (traversal-input-state lists) 'mismatched)
+       (raise-traversal-length-error 'andmap inputs)]
+      [else
+       (define value (apply proc (traversal-input-cars lists)))
+       (if value
+           (loop (traversal-input-cdrs lists) value)
+           #f)])))
+
+;; ormap : procedure? list? ... -> any/c
+;;   Return the first true result or #f without growing the Wasm stack.
+(define (ormap proc first . rest)
+  (define inputs (cons first rest))
+  (check-traversal-inputs 'ormap proc inputs)
+  (let loop ([lists inputs])
+    (cond
+      [(eq? (traversal-input-state lists) 'finished) #f]
+      [(eq? (traversal-input-state lists) 'mismatched)
+       (raise-traversal-length-error 'ormap inputs)]
+      [else
+       (define value (apply proc (traversal-input-cars lists)))
+       (if value
+           value
+           (loop (traversal-input-cdrs lists)))])))
+
+;; for-each : procedure? list? ... -> void?
+;;   Apply proc left-to-right without growing the Wasm stack.
+(define (for-each proc first . rest)
+  (define inputs (cons first rest))
+  (check-traversal-inputs 'for-each proc inputs)
+  (let loop ([lists inputs])
+    (cond
+      [(eq? (traversal-input-state lists) 'finished) (void)]
+      [(eq? (traversal-input-state lists) 'mismatched)
+       (raise-traversal-length-error 'for-each inputs)]
+      [else
+       (apply proc (traversal-input-cars lists))
+       (loop (traversal-input-cdrs lists))])))
+
+;; filter : (any/c -> any/c) list? -> list?
+;;   Keep elements for which pred returns a true value without growing the Wasm stack.
+(define (filter pred xs)
+  (let loop ([remaining xs] [reversed null])
+    (cond
+      [(null? remaining) (reverse reversed)]
+      [(pred (car remaining))
+       (loop (cdr remaining) (cons (car remaining) reversed))]
+      [else (loop (cdr remaining) reversed)])))
 
 ;; filter-map : procedure? list? ... -> list?
 ;;   Map and keep true results.

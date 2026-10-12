@@ -1439,6 +1439,18 @@
      '(racket/private/serialize-structs make-deserialize-info)]
     [(symbolic-name=? external 'remove-duplicates)
      '(webracket/list remove-duplicates)]
+    ;; `racket/private/map` uses its private linklet names as actual exports
+    ;; (`map2`, etc.) and provides the public bindings through renames. The
+    ;; module bridge sees an explicit dependency on that provider but only the
+    ;; public external name, so preserve the compiled provider's rename here.
+    [(symbolic-name=? external 'map)
+     '(racket/private/map map2)]
+    [(symbolic-name=? external 'for-each)
+     '(racket/private/map for-each2)]
+    [(symbolic-name=? external 'andmap)
+     '(racket/private/map andmap2)]
+    [(symbolic-name=? external 'ormap)
+     '(racket/private/map ormap2)]
     [(symbolic-name=? external 'andmap2)
      '(racket/private/map andmap2)]
     [(symbolic-name=? external 'ormap2)
