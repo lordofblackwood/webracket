@@ -1838,19 +1838,18 @@ function js_value_to_fasl(v) {
   function writeEof() {
     writeByte(@|fasl-eof|);
   }
-  function writePair(car, cdr) {
+  function writePair(car, cdr, work) {
     writeByte(@|fasl-pair|);
-    writeAny(car);
-    writeAny(cdr);
+    work.push(cdr, car);
   }
-  function writeVector(arr) {
+  function writeVector(arr, work) {
     writeByte(@|fasl-vector|);
     writeU32(arr.length >>> 0);
-    for (let i = 0; i < arr.length; i++) writeAny(arr[i]);
+    for (let i = arr.length - 1; i >= 0; i--) work.push(arr[i]);
   }
 
   // --- main dispatcher (mirrors fasl_to_js_value mapping) ---
-  function writeAny(x) {
+  function writeAny(x, work) {
     // Fast paths by JS type
     if (typeof x === "number") {
       if (Number.isInteger(x) && x >= faslFixnumMin && x <= faslFixnumMax) {
@@ -1883,14 +1882,12 @@ function js_value_to_fasl(v) {
     }
     if (x && x.tag === "rational") {
       writeByte(@|fasl-rational|);
-      writeAny(x.numerator);
-      writeAny(x.denominator);
+      work.push(x.denominator, x.numerator);
       return;
     }
     if (x && x.tag === "complex") {
       writeByte(@|fasl-complex|);
-      writeAny(x.real);
-      writeAny(x.imag);
+      work.push(x.imag, x.real);
       return;
     }
     if (x === null) {
@@ -1917,7 +1914,7 @@ function js_value_to_fasl(v) {
     }
     // Pair (your decoder uses {tag:'pair', car, cdr})
     if (x && x.tag === "pair") {
-      writePair(x.car, x.cdr);
+      writePair(x.car, x.cdr, work);
       return;
     }
     // Bytes: prefer Uint8Array
@@ -1938,7 +1935,7 @@ function js_value_to_fasl(v) {
     // }
     // Vector: plain JS Array (distinct from bytes above)
     if (hostArrayIsArrayForFasl(x)) {
-      writeVector(x);
+      writeVector(x, work);
       return;
     }
     // Symbol
@@ -1958,7 +1955,12 @@ function js_value_to_fasl(v) {
     writeU32(idx >>> 0);
     return;
   }
-  writeAny(v);
+  // Console and callback payloads may contain ordinary documents with
+  // thousands of nested pairs or vectors. Keep pending children in an
+  // explicit LIFO work list instead of consuming one JavaScript frame per
+  // FASL composite value.
+  const work = [v];
+  while (work.length !== 0) writeAny(work.pop(), work);
   return hostUint8ArrayFrom(out);
 }
 
@@ -3533,6 +3535,10 @@ const wasmModule
                             splitRuntimeCoreExports['callback-debug-id'];
                           const wr_ref = programExports['wr-ref'] ?? splitRuntimeCoreExports['wr-ref'];
                           const wr_call = programExports['wr-call'] ?? splitRuntimeCoreExports['wr-call'];
+                          const wr_value_ref =
+                            programExports['wr-value-ref'] ?? splitRuntimeCoreExports['wr-value-ref'];
+                          const wr_value_call =
+                            programExports['wr-value-call'] ?? splitRuntimeCoreExports['wr-value-call'];
                           const wr_names = programExports['wr-names'] ?? splitRuntimeCoreExports['wr-names'];
                           const wr_names_detailed =
                             programExports['wr-names-detailed'] ??
@@ -3543,7 +3549,15 @@ const wasmModule
                           callback_expected_arity_export = callback_expected_arity;
                           callback_name_export = callback_name;
                           callback_debug_id_export = callback_debug_id;
-                          install_console_bridge({ wr_ref, wr_call, wr_names, wr_names_detailed, wr_format });
+                          install_console_bridge({
+                            wr_ref,
+                            wr_call,
+                            wr_value_ref,
+                            wr_value_call,
+                            wr_names,
+                            wr_names_detailed,
+                            wr_format,
+                          });
                           var result;
                           try {
                             result = entry();
@@ -3858,6 +3872,10 @@ const wasmModule
   (check-true  (regexp-match? #rx"globalThis\\.WR" browser-runtime/bridge))
   (check-true  (regexp-match? #rx"console_bridge_enabled = true" browser-runtime/bridge))
   (check-true  (regexp-match? #rx"wr_ref" browser-runtime/bridge))
+  (check-true  (regexp-match? #rx"wr_value_ref" browser-runtime/bridge))
+  (check-true  (regexp-match? #rx"wr_value_call" browser-runtime/bridge))
+  (check-true  (regexp-match? #rx"wr-value-ref" browser-runtime/bridge))
+  (check-true  (regexp-match? #rx"wr-value-call" browser-runtime/bridge))
   (check-true  (regexp-match? #rx"WR\\.help" browser-runtime/bridge))
   (check-true  (regexp-match? #rx"WR\\.call" browser-runtime/bridge))
   (check-true  (regexp-match? #rx"WR\\.search" browser-runtime/bridge))

@@ -6656,6 +6656,8 @@
                  "hash helpers should track WebRacket HAMT/runtime hash behavior")
    (substitution 'racket/list 'webracket/list 'runtime-owned 'low 'keep-webracket-owned
                  "list traversal helpers must resolve to WebRacket's iterative runtime primitives")
+   (substitution 'racket/string 'webracket/string 'runtime-owned 'low 'keep-webracket-owned
+                 "string assembly must resolve to WebRacket's iterative browser runtime helpers")
    (substitution 'racket/private/map 'webracket/private/map 'runtime-owned 'low 'keep-webracket-owned
                  "the base expander names its recursive map provider directly")
    (substitution 'racket/mpair 'webracket/mpair 'runtime-owned 'low 'keep-webracket-owned

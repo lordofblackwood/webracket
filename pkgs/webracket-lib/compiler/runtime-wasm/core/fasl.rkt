@@ -501,6 +501,7 @@
     $fasl-memory:read-rational
     $fasl-memory:read-complex
     $fasl-memory:read-s-exp
+    $fasl-memory:scan-end
     $fasl-memory->s-exp
     $copy-memory-to-i8array
     $linear-memory->value
@@ -743,7 +744,7 @@
                         (local.get $imag))
                   (local.get $i)))
 
-    (func $fasl:read-s-exp
+    (func $fasl:read-s-exp/recursive
           ;; decode one FASL value by tag
           (param $arr (ref $I8Array))
           (param $len i32)
@@ -948,6 +949,346 @@
                                                                                (else
                                                                                 (unreachable))))))))))))))))))))))))))))))
 
+    ;; fasl:read-s-exp : i8-array? i32 i32 -> any/c i32
+    ;;   Decode one FASL value without growing the Wasm call stack.
+    (func $fasl:read-s-exp
+          (param $arr (ref $I8Array))
+          (param $len i32)
+          (param $i   i32)
+          (result (ref eq) i32)
+
+          (local $stack  (ref $GrowableArray))
+          (local $frame  (ref $Array))
+          (local $kind   i32)
+          (local $slot   (ref eq))
+          (local $value  (ref eq))
+          (local $ready  i32)
+          (local $tag    i32)
+          (local $parsed i32)
+          (local $val    i32)
+          (local $cp     i32)
+          (local $sym    (ref $Symbol))
+          (local $kw     (ref $Keyword))
+          (local $str    (ref $String))
+          (local $bs     (ref $Bytes))
+          (local $b      i32)
+          (local $n      i32)
+          (local $vec    (ref $Vector))
+          (local $j      i32)
+          (local $next   i32)
+          (local $fl     (ref $Flonum))
+          (local $idx    i32)
+
+          ;; Frames are arrays whose first slot is one of pair/vector/rational/
+          ;; complex. Subsequent slots retain the partial result and, for a
+          ;; vector, its next element index.
+          (local.set $stack (call $make-growable-array (i32.const 16)))
+          (local.set $value (global.get $undefined))
+          (local.set $ready (i32.const 0))
+          (block $done
+                 (loop $loop
+                       ;; Incorporate a completed child into the top frame.
+                       (if (i32.ne (local.get $ready) (i32.const 0))
+                           (then
+                            (br_if $done
+                                   (i32.eqz (call $growable-array-count
+                                                   (local.get $stack))))
+                            (local.set $frame
+                                       (ref.cast (ref $Array)
+                                                 (call $growable-array-remove-last!
+                                                       (local.get $stack))))
+                            (local.set $kind
+                                       (i31.get_u
+                                        (ref.cast (ref i31)
+                                                  (array.get $Array
+                                                             (local.get $frame)
+                                                             (i32.const 0)))))
+                            ;; pair frame
+                            (if (i32.eq (local.get $kind) (i32.const 1))
+                                (then
+                                 (local.set $slot
+                                            (array.get $Array
+                                                       (local.get $frame)
+                                                       (i32.const 1)))
+                                 (if (ref.eq (local.get $slot) (global.get $undefined))
+                                     (then
+                                      (array.set $Array (local.get $frame) (i32.const 1)
+                                                 (local.get $value))
+                                      (call $growable-array-add! (local.get $stack)
+                                                                    (local.get $frame))
+                                      (local.set $ready (i32.const 0)))
+                                     (else
+                                      (local.set $value
+                                                 (call $cons (local.get $slot)
+                                                           (local.get $value)))))))
+                            ;; vector frame
+                            (if (i32.eq (local.get $kind) (i32.const 2))
+                                (then
+                                 (local.set $vec
+                                            (ref.cast (ref $Vector)
+                                                      (array.get $Array
+                                                                 (local.get $frame)
+                                                                 (i32.const 1))))
+                                 (local.set $j
+                                            (i31.get_u
+                                             (ref.cast (ref i31)
+                                                       (array.get $Array
+                                                                  (local.get $frame)
+                                                                  (i32.const 2)))))
+                                 (call $vector-set!/checked (local.get $vec)
+                                                               (local.get $j)
+                                                               (local.get $value))
+                                 (local.set $next
+                                            (i32.add (local.get $j) (i32.const 1)))
+                                 (if (i32.lt_u (local.get $next)
+                                               (array.len
+                                                (struct.get $Vector $arr
+                                                            (local.get $vec))))
+                                     (then
+                                      (array.set $Array (local.get $frame) (i32.const 2)
+                                                 (ref.i31 (local.get $next)))
+                                      (call $growable-array-add! (local.get $stack)
+                                                                    (local.get $frame))
+                                      (local.set $ready (i32.const 0)))
+                                     (else
+                                      (local.set $value (local.get $vec))))))
+                            ;; rational frame
+                            (if (i32.eq (local.get $kind) (i32.const 3))
+                                (then
+                                 (local.set $slot
+                                            (array.get $Array
+                                                       (local.get $frame)
+                                                       (i32.const 1)))
+                                 (if (ref.eq (local.get $slot) (global.get $undefined))
+                                     (then
+                                      (array.set $Array (local.get $frame) (i32.const 1)
+                                                 (local.get $value))
+                                      (call $growable-array-add! (local.get $stack)
+                                                                    (local.get $frame))
+                                      (local.set $ready (i32.const 0)))
+                                     (else
+                                      (local.set $value
+                                                 (call $rational-normalize
+                                                       (local.get $slot)
+                                                       (local.get $value)))))))
+                            ;; complex frame
+                            (if (i32.eq (local.get $kind) (i32.const 4))
+                                (then
+                                 (local.set $slot
+                                            (array.get $Array
+                                                       (local.get $frame)
+                                                       (i32.const 1)))
+                                 (if (ref.eq (local.get $slot) (global.get $undefined))
+                                     (then
+                                      (array.set $Array (local.get $frame) (i32.const 1)
+                                                 (local.get $value))
+                                      (call $growable-array-add! (local.get $stack)
+                                                                    (local.get $frame))
+                                      (local.set $ready (i32.const 0)))
+                                     (else
+                                      (local.set $value
+                                                 (call $make-rectangular/canonical
+                                                       (local.get $slot)
+                                                       (local.get $value)))))))
+                            ))
+
+                       ;; Parse one child whenever no completed value is pending.
+                       (if (i32.eqz (local.get $ready))
+                           (then
+                            (local.set $tag
+                                       (i32.shl
+                                        (array.get_u $I8Array
+                                                     (local.get $arr)
+                                                     (local.get $i))
+                                        (i32.const 1)))
+                            (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                            (local.set $parsed (i32.const 0))
+                            (if (i32.and (i32.eqz (local.get $parsed))
+                                         (i32.eq (local.get $tag)
+                                                 (i31.get_u (global.get $fasl-bignum))))
+                                (then
+                                 (call $fasl:read-bignum (local.get $arr) (local.get $i))
+                                 (local.set $i) (local.set $value)
+                                 (local.set $ready (i32.const 1))
+                                 (local.set $parsed (i32.const 1))))
+                            (if (i32.and (i32.eqz (local.get $parsed))
+                                         (i32.eq (local.get $tag)
+                                                 (i31.get_u (global.get $fasl-rational))))
+                                (then
+                                 (local.set $frame
+                                            (array.new_fixed $Array 2
+                                                             (ref.i31 (i32.const 3))
+                                                             (global.get $undefined)))
+                                 (call $growable-array-add! (local.get $stack)
+                                                               (local.get $frame))
+                                 (local.set $parsed (i32.const 1))))
+                            (if (i32.and (i32.eqz (local.get $parsed))
+                                         (i32.eq (local.get $tag)
+                                                 (i31.get_u (global.get $fasl-complex))))
+                                (then
+                                 (local.set $frame
+                                            (array.new_fixed $Array 2
+                                                             (ref.i31 (i32.const 4))
+                                                             (global.get $undefined)))
+                                 (call $growable-array-add! (local.get $stack)
+                                                               (local.get $frame))
+                                 (local.set $parsed (i32.const 1))))
+                            (if (i32.and (i32.eqz (local.get $parsed))
+                                         (i32.eq (local.get $tag)
+                                                 (i31.get_u (global.get $fasl-fixnum))))
+                                (then
+                                 (call $fasl:read-u32 (local.get $arr) (local.get $i))
+                                 (local.set $i) (local.set $val)
+                                 (local.set $value
+                                            (ref.i31 (i32.shl (local.get $val) (i32.const 1))))
+                                 (local.set $ready (i32.const 1))
+                                 (local.set $parsed (i32.const 1))))
+                            (if (i32.and (i32.eqz (local.get $parsed))
+                                         (i32.eq (local.get $tag)
+                                                 (i31.get_u (global.get $fasl-character))))
+                                (then
+                                 (call $fasl:read-u32 (local.get $arr) (local.get $i))
+                                 (local.set $i) (local.set $cp)
+                                 (local.set $value
+                                            (ref.i31 (i32.or
+                                                      (i32.shl (local.get $cp)
+                                                               (i32.const ,char-shift))
+                                                      (i32.const ,char-tag))))
+                                 (local.set $ready (i32.const 1))
+                                 (local.set $parsed (i32.const 1))))
+                            (if (i32.and (i32.eqz (local.get $parsed))
+                                         (i32.eq (local.get $tag)
+                                                 (i31.get_u (global.get $fasl-symbol))))
+                                (then
+                                 (call $fasl:read-symbol (local.get $arr) (local.get $i))
+                                 (local.set $i) (local.set $sym)
+                                 (local.set $value (local.get $sym))
+                                 (local.set $ready (i32.const 1))
+                                 (local.set $parsed (i32.const 1))))
+                            (if (i32.and (i32.eqz (local.get $parsed))
+                                         (i32.eq (local.get $tag)
+                                                 (i31.get_u (global.get $fasl-keyword))))
+                                (then
+                                 (call $fasl:read-string (local.get $arr) (local.get $i))
+                                 (local.set $i) (local.set $str)
+                                 (local.set $kw (call $string->keyword/checked (local.get $str)))
+                                 (local.set $value (local.get $kw))
+                                 (local.set $ready (i32.const 1))
+                                 (local.set $parsed (i32.const 1))))
+                            (if (i32.and (i32.eqz (local.get $parsed))
+                                         (i32.eq (local.get $tag)
+                                                 (i31.get_u (global.get $fasl-string))))
+                                (then
+                                 (call $fasl:read-string (local.get $arr) (local.get $i))
+                                 (local.set $i) (local.set $str)
+                                 (local.set $value (local.get $str))
+                                 (local.set $ready (i32.const 1))
+                                 (local.set $parsed (i32.const 1))))
+                            (if (i32.and (i32.eqz (local.get $parsed))
+                                         (i32.eq (local.get $tag)
+                                                 (i31.get_u (global.get $fasl-bytes))))
+                                (then
+                                 (call $fasl:read-bytes (local.get $arr) (local.get $i))
+                                 (local.set $i) (local.set $bs)
+                                 (local.set $value (local.get $bs))
+                                 (local.set $ready (i32.const 1))
+                                 (local.set $parsed (i32.const 1))))
+                            (if (i32.and (i32.eqz (local.get $parsed))
+                                         (i32.eq (local.get $tag)
+                                                 (i31.get_u (global.get $fasl-boolean))))
+                                (then
+                                 (local.set $b (array.get_u $I8Array
+                                                           (local.get $arr)
+                                                           (local.get $i)))
+                                 (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                                 (local.set $value
+                                            (if (result (ref eq))
+                                                (i32.ne (local.get $b) (i32.const 0))
+                                                (then (global.get $true))
+                                                (else (global.get $false))))
+                                 (local.set $ready (i32.const 1))
+                                 (local.set $parsed (i32.const 1))))
+                            (if (i32.and (i32.eqz (local.get $parsed))
+                                         (i32.eq (local.get $tag)
+                                                 (i31.get_u (global.get $fasl-null))))
+                                (then
+                                 (local.set $value (global.get $null))
+                                 (local.set $ready (i32.const 1))
+                                 (local.set $parsed (i32.const 1))))
+                            (if (i32.and (i32.eqz (local.get $parsed))
+                                         (i32.eq (local.get $tag)
+                                                 (i31.get_u (global.get $fasl-pair))))
+                                (then
+                                 (local.set $frame
+                                            (array.new_fixed $Array 2
+                                                             (ref.i31 (i32.const 1))
+                                                             (global.get $undefined)))
+                                 (call $growable-array-add! (local.get $stack)
+                                                               (local.get $frame))
+                                 (local.set $parsed (i32.const 1))))
+                            (if (i32.and (i32.eqz (local.get $parsed))
+                                         (i32.eq (local.get $tag)
+                                                 (i31.get_u (global.get $fasl-vector))))
+                                (then
+                                 (call $fasl:read-u32 (local.get $arr) (local.get $i))
+                                 (local.set $i) (local.set $n)
+                                 (local.set $vec
+                                            (call $make-vector/checked
+                                                  (local.get $n) (global.get $void)))
+                                 (if (i32.eqz (local.get $n))
+                                     (then
+                                      (local.set $value (local.get $vec))
+                                      (local.set $ready (i32.const 1)))
+                                     (else
+                                      (local.set $frame
+                                                 (array.new_fixed $Array 3
+                                                                  (ref.i31 (i32.const 2))
+                                                                  (local.get $vec)
+                                                                  (ref.i31 (i32.const 0))))
+                                      (call $growable-array-add! (local.get $stack)
+                                                                    (local.get $frame))))
+                                 (local.set $parsed (i32.const 1))))
+                            (if (i32.and (i32.eqz (local.get $parsed))
+                                         (i32.eq (local.get $tag)
+                                                 (i31.get_u (global.get $fasl-flonum))))
+                                (then
+                                 (call $fasl:read-f64 (local.get $arr) (local.get $i))
+                                 (local.set $i) (local.set $fl)
+                                 (local.set $value (local.get $fl))
+                                 (local.set $ready (i32.const 1))
+                                 (local.set $parsed (i32.const 1))))
+                            (if (i32.and (i32.eqz (local.get $parsed))
+                                         (i32.eq (local.get $tag)
+                                                 (i31.get_u (global.get $fasl-void))))
+                                (then
+                                 (local.set $value (global.get $void))
+                                 (local.set $ready (i32.const 1))
+                                 (local.set $parsed (i32.const 1))))
+                            (if (i32.and (i32.eqz (local.get $parsed))
+                                         (i32.eq (local.get $tag)
+                                                 (i31.get_u (global.get $fasl-eof))))
+                                (then
+                                 (local.set $value (ref.i31 (i32.const ,eof-value)))
+                                 (local.set $ready (i32.const 1))
+                                 (local.set $parsed (i32.const 1))))
+                            (if (i32.and (i32.eqz (local.get $parsed))
+                                         (i32.eq (local.get $tag)
+                                                 (i31.get_u (global.get $fasl-external))))
+                                (then
+                                 (call $fasl:read-u32 (local.get $arr) (local.get $i))
+                                 (local.set $i) (local.set $idx)
+                                 (local.set $value
+                                            (struct.new $External
+                                                        (i32.const 0)
+                                                        (call $js-lookup-external
+                                                              (local.get $idx))))
+                                 (local.set $ready (i32.const 1))
+                                 (local.set $parsed (i32.const 1))))
+                            (if (i32.eqz (local.get $parsed))
+                                (then (unreachable)))))
+                       (br $loop)))
+          (return (local.get $value) (local.get $i)))
+
     ;; Decode FASL data directly from linear memory.
     (func $fasl-memory:read-u32
           (param $i i32)
@@ -1119,7 +1460,7 @@
                         (local.get $imag))
                   (local.get $i)))
 
-    (func $fasl-memory:read-s-exp
+    (func $fasl-memory:read-s-exp/recursive
           (param $i i32)
           (result (ref eq) i32)
 
@@ -1298,6 +1639,153 @@
                                                                                (else
                                                                                 (unreachable))))))))))))))))))))))))))))))
 
+    ;; fasl-memory:scan-end : i32 -> i32
+    ;;   Find the end of one FASL value in linear memory without recursion.
+    (func $fasl-memory:scan-end
+          (param $i i32)
+          (result i32)
+
+          (local $pending i32)
+          (local $tag     i32)
+          (local $parsed  i32)
+          (local $n       i32)
+
+          (local.set $pending (i32.const 1))
+          (block $done
+                 (loop $loop
+                       (br_if $done (i32.eqz (local.get $pending)))
+                       (local.set $pending
+                                  (i32.sub (local.get $pending) (i32.const 1)))
+                       (local.set $tag
+                                  (i32.shl (i32.load8_u (local.get $i))
+                                           (i32.const 1)))
+                       (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                       (local.set $parsed (i32.const 0))
+                       ;; Fixed-size scalar payloads.
+                       (if (i32.and (i32.eqz (local.get $parsed))
+                                    (i32.or
+                                     (i32.eq (local.get $tag)
+                                             (i31.get_u (global.get $fasl-fixnum)))
+                                     (i32.or
+                                      (i32.eq (local.get $tag)
+                                              (i31.get_u (global.get $fasl-character)))
+                                      (i32.eq (local.get $tag)
+                                              (i31.get_u (global.get $fasl-external))))))
+                           (then
+                            (local.set $i (i32.add (local.get $i) (i32.const 4)))
+                            (local.set $parsed (i32.const 1))))
+                       (if (i32.and (i32.eqz (local.get $parsed))
+                                    (i32.eq (local.get $tag)
+                                            (i31.get_u (global.get $fasl-flonum))))
+                           (then
+                            (local.set $i (i32.add (local.get $i) (i32.const 8)))
+                            (local.set $parsed (i32.const 1))))
+                       (if (i32.and (i32.eqz (local.get $parsed))
+                                    (i32.eq (local.get $tag)
+                                            (i31.get_u (global.get $fasl-boolean))))
+                           (then
+                            (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                            (local.set $parsed (i32.const 1))))
+                       (if (i32.and (i32.eqz (local.get $parsed))
+                                    (i32.or
+                                     (i32.eq (local.get $tag)
+                                             (i31.get_u (global.get $fasl-null)))
+                                     (i32.or
+                                      (i32.eq (local.get $tag)
+                                              (i31.get_u (global.get $fasl-void)))
+                                      (i32.eq (local.get $tag)
+                                              (i31.get_u (global.get $fasl-eof))))))
+                           (then (local.set $parsed (i32.const 1))))
+                       ;; Length-prefixed strings, symbols, keywords, and bytes.
+                       (if (i32.and (i32.eqz (local.get $parsed))
+                                    (i32.or
+                                     (i32.eq (local.get $tag)
+                                             (i31.get_u (global.get $fasl-symbol)))
+                                     (i32.or
+                                      (i32.eq (local.get $tag)
+                                              (i31.get_u (global.get $fasl-keyword)))
+                                      (i32.or
+                                       (i32.eq (local.get $tag)
+                                               (i31.get_u (global.get $fasl-string)))
+                                       (i32.eq (local.get $tag)
+                                               (i31.get_u (global.get $fasl-bytes)))))))
+                           (then
+                            (call $fasl-memory:read-u32 (local.get $i))
+                            (local.set $i) (local.set $n)
+                            (local.set $i (i32.add (local.get $i) (local.get $n)))
+                            (local.set $parsed (i32.const 1))))
+                       ;; A bignum carries sign, limb count, and 32-bit limbs.
+                       (if (i32.and (i32.eqz (local.get $parsed))
+                                    (i32.eq (local.get $tag)
+                                            (i31.get_u (global.get $fasl-bignum))))
+                           (then
+                            (call $fasl-memory:read-u32 (local.get $i))
+                            (local.set $i) (drop)
+                            (call $fasl-memory:read-u32 (local.get $i))
+                            (local.set $i) (local.set $n)
+                            (local.set $i
+                                       (i32.add (local.get $i)
+                                                (i32.mul (local.get $n) (i32.const 4))))
+                            (local.set $parsed (i32.const 1))))
+                       ;; The remaining tags introduce child values.
+                       (if (i32.and (i32.eqz (local.get $parsed))
+                                    (i32.or
+                                     (i32.eq (local.get $tag)
+                                             (i31.get_u (global.get $fasl-pair)))
+                                     (i32.or
+                                      (i32.eq (local.get $tag)
+                                              (i31.get_u (global.get $fasl-rational)))
+                                      (i32.eq (local.get $tag)
+                                              (i31.get_u (global.get $fasl-complex))))))
+                           (then
+                            (local.set $pending
+                                       (i32.add (local.get $pending) (i32.const 2)))
+                            (local.set $parsed (i32.const 1))))
+                       (if (i32.and (i32.eqz (local.get $parsed))
+                                    (i32.eq (local.get $tag)
+                                            (i31.get_u (global.get $fasl-vector))))
+                           (then
+                            (call $fasl-memory:read-u32 (local.get $i))
+                            (local.set $i) (local.set $n)
+                            (local.set $pending
+                                       (i32.add (local.get $pending) (local.get $n)))
+                            (local.set $parsed (i32.const 1))))
+                       (if (i32.eqz (local.get $parsed))
+                           (then (unreachable)))
+                       (br $loop)))
+          (local.get $i))
+
+    ;; fasl-memory:read-s-exp : i32 -> any/c i32
+    ;;   Decode one linear-memory FASL value through the iterative byte reader.
+    (func $fasl-memory:read-s-exp
+          (param $i i32)
+          (result (ref eq) i32)
+
+          (local $start i32)
+          (local $end   i32)
+          (local $len   i32)
+          (local $arr   (ref $I8Array))
+          (local $j     i32)
+          (local $value (ref eq))
+          (local $next  i32)
+
+          (local.set $start (local.get $i))
+          (local.set $end (call $fasl-memory:scan-end (local.get $start)))
+          (local.set $len (i32.sub (local.get $end) (local.get $start)))
+          (local.set $arr (array.new_default $I8Array (local.get $len)))
+          (block $done
+                 (loop $copy
+                       (br_if $done (i32.ge_u (local.get $j) (local.get $len)))
+                       (array.set $I8Array (local.get $arr) (local.get $j)
+                                  (i32.load8_u
+                                   (i32.add (local.get $start) (local.get $j))))
+                       (local.set $j (i32.add (local.get $j) (i32.const 1)))
+                       (br $copy)))
+          (call $fasl:read-s-exp (local.get $arr) (local.get $len) (i32.const 0))
+          (local.set $next) (local.set $value)
+          (return (local.get $value)
+                  (i32.add (local.get $start) (local.get $next))))
+
     (func $fasl-memory->s-exp
           (param $start i32)
           (result (ref eq))
@@ -1315,20 +1803,15 @@
           (param $start i32)
           (result (ref $I8Array) i32)
 
-          (local $mem-bytes i32)
           (local $len       i32)
           (local $arr       (ref $I8Array))
           (local $i         i32)
           (local $end       i32)
-          (local $res       (ref $I8Array))
 
-          ; The Performance tab in Chrome shows that we are spending way too much time here.
-          ; It is called from linear-memory->value.
-          ; Why are we copying linear memory?
-
-          ; memory.size returns number of pages. The page size is 64 KiB = 65536.
-          (local.set $mem-bytes (i32.mul (memory.size) (i32.const 65536)))
-          (local.set $len       (i32.sub (local.get $mem-bytes) (local.get $start)))
+          ;; Scan first so callback decoding copies only the FASL payload rather
+          ;; than every remaining byte in linear memory.
+          (local.set $end (call $fasl-memory:scan-end (local.get $start)))
+          (local.set $len (i32.sub (local.get $end) (local.get $start)))
           (local.set $arr       (array.new_default $I8Array (local.get $len)))
           (local.set $i         (i32.const 0))
           ; Note: Currently (sep 2025) there are no bulk copy operations from
@@ -1342,11 +1825,7 @@
                        (local.set $i (i32.add (local.get $i) (i32.const 1)))
                        (br $copy)))
 
-          (call $fasl:read-s-exp (local.get $arr) (local.get $len) (i32.const 0))
-          (local.set $end) (drop)
-
-          (local.set $res (call $i8array-copy (local.get $arr) (i32.const 0) (local.get $end)))
-          (return (local.get $res) (i32.add (local.get $start) (local.get $end))))
+          (return (local.get $arr) (local.get $end)))
 
     (func $linear-memory->value (export "linear-memory->value")
           (param $start i32)

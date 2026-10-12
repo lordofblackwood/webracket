@@ -288,15 +288,13 @@
 ;; filter-map : procedure? list? ... -> list?
 ;;   Map and keep true results.
 (define (filter-map f . xss)
-  (let loop ([xss xss])
+  (let loop ([xss xss] [reversed null])
     (cond
-      [(ormap null? xss) null]
+      [(ormap null? xss) (reverse reversed)]
       [else
        (define v (apply f (map car xss)))
        (define rest-xss (map cdr xss))
-       (if v
-           (cons v (loop rest-xss))
-           (loop rest-xss))])))
+       (loop rest-xss (if v (cons v reversed) reversed))])))
 
 ;; append-map : procedure? list? ... -> list?
 ;;   Map f and append the resulting lists.
@@ -359,9 +357,10 @@
 ;; take : list? exact-nonnegative-integer? -> list?
 ;;   Return the first n elements of xs.
 (define (take xs n)
-  (cond
-    [(zero? n) null]
-    [else (cons (car xs) (take (cdr xs) (sub1 n)))]))
+  (let loop ([xs xs] [n n] [reversed null])
+    (cond
+      [(zero? n) (reverse reversed)]
+      [else (loop (cdr xs) (sub1 n) (cons (car xs) reversed))])))
 
 ;; drop : list? exact-nonnegative-integer? -> list?
 ;;   Drop the first n elements of xs.
@@ -408,10 +407,10 @@
 ;; drop-right : list? exact-nonnegative-integer? -> list?
 ;;   Drop the final n elements of xs using the lead-pointer strategy.
 (define (drop-right xs n)
-  (let loop ([xs xs] [lead (drop xs n)])
+  (let loop ([xs xs] [lead (drop xs n)] [reversed null])
     (cond
-      [(pair? lead) (cons (car xs) (loop (cdr xs) (cdr lead)))]
-      [else null])))
+      [(pair? lead) (loop (cdr xs) (cdr lead) (cons (car xs) reversed))]
+      [else (reverse reversed)])))
 
 ;; split-at-right : list? exact-nonnegative-integer? -> (values list? list?)
 ;;   Split xs before the final n elements.
@@ -582,13 +581,11 @@
   (check-list 'list-update xs)
   (check-index 'list-update n)
   (check-procedure 'list-update f)
-  (cond
-    [(zero? n) (cons (f (car xs)) (cdr xs))]
-    [else
-     (let loop ([xs xs] [n n])
-       (cond
-         [(zero? n) (cons (f (car xs)) (cdr xs))]
-         [else (cons (car xs) (loop (cdr xs) (sub1 n)))]))]))
+  (let loop ([xs xs] [n n] [reversed null])
+    (cond
+      [(zero? n)
+       (append (reverse reversed) (cons (f (car xs)) (cdr xs)))]
+      [else (loop (cdr xs) (sub1 n) (cons (car xs) reversed))])))
 
 ;; list-set : list? exact-nonnegative-integer? any/c -> list?
 ;;   Return xs with element n replaced by v.
@@ -600,11 +597,16 @@
 ;; flatten : any/c -> list?
 ;;   Flatten pair trees, omitting null leaves.
 (define (flatten v)
-  (let loop ([v v] [acc null])
+  (let loop ([pending (list v)] [reversed null])
     (cond
-      [(null? v) acc]
-      [(pair? v) (loop (car v) (loop (cdr v) acc))]
-      [else (cons v acc)])))
+      [(null? pending) (reverse reversed)]
+      [else
+       (define next (car pending))
+       (define rest (cdr pending))
+       (cond
+         [(null? next) (loop rest reversed)]
+         [(pair? next) (loop (cons (car next) (cons (cdr next) rest)) reversed)]
+         [else (loop rest (cons next reversed))])])))
 
 ;; list-prefix? : list? list? [procedure?] -> boolean?
 ;;   Check whether xs is a prefix of ys under same?.
@@ -624,15 +626,11 @@
   (check-list 'split-common-prefix xs)
   (check-list 'split-common-prefix ys)
   (check-procedure 'split-common-prefix same?)
-  (let loop ([xs xs] [ys ys])
+  (let loop ([xs xs] [ys ys] [reversed null])
     (cond
       [(and (pair? xs) (pair? ys) (same? (car xs) (car ys)))
-       (define-values (prefix xs-tail ys-tail)
-         (loop (cdr xs) (cdr ys)))
-       (values (and keep-prefix? (cons (car xs) prefix))
-               xs-tail
-               ys-tail)]
-      [else (values null xs ys)])))
+       (loop (cdr xs) (cdr ys) (cons (car xs) reversed))]
+      [else (values (if keep-prefix? (reverse reversed) null) xs ys)])))
 
 ;; split-common-prefix : list? list? [procedure?] -> values
 ;;   Return the common prefix and both remaining tails.
@@ -676,24 +674,36 @@
        (raise-argument-error 'add-between "#:before-first only in splicing mode" before-first))
      (unless (null? after-last)
        (raise-argument-error 'add-between "#:after-last only in splicing mode" after-last))])
+  (define (append-output reversed piece)
+    (let loop ([piece piece] [reversed reversed])
+      (if (null? piece)
+          reversed
+          (loop (cdr piece) (cons (car piece) reversed)))))
   (cond
     [(or (null? xs) (null? (cdr xs)))
      (if splice?
          (append before-first xs after-last)
          xs)]
     [splice?
-     (append before-first
-             (let loop ([xs xs])
-               (cond
-                 [(null? (cdr xs)) (append before-last (list (car xs)) after-last)]
-                 [(null? (cddr xs)) (append (list (car xs)) before-last (list (cadr xs)) after-last)]
-                 [else (append (list (car xs)) sep (loop (cdr xs)))])))]
-    [else
-     (let loop ([xs xs])
+     (let loop ([remaining xs] [reversed (append-output null before-first)])
+       (define x (car remaining))
+       (define rest (cdr remaining))
        (cond
-         [(null? (cdr xs)) (list (car xs))]
-         [(null? (cddr xs)) (cons (car xs) (cons before-last (loop (cdr xs))))]
-         [else (cons (car xs) (cons sep (loop (cdr xs))))]))]))
+         [(null? rest)
+          (reverse (append-output (cons x reversed) after-last))]
+         [(null? (cdr rest))
+          (loop rest (append-output (cons x reversed) before-last))]
+         [else
+          (loop rest (append-output (cons x reversed) sep))]))]
+    [else
+     (let loop ([remaining xs] [reversed null])
+       (define x (car remaining))
+       (define rest (cdr remaining))
+       (cond
+         [(null? rest) (reverse (cons x reversed))]
+         [(null? (cdr rest))
+          (loop rest (cons before-last (cons x reversed)))]
+         [else (loop rest (cons sep (cons x reversed)))]))]))
 
 ;; remove-duplicates : list? [procedure?] [#:key (or/c procedure? #f)] -> list?
 ;;   Remove later duplicates, preserving the first occurrence.
@@ -768,15 +778,28 @@
 ;; group-by : procedure? list? [procedure?] -> (listof list?)
 ;;   Group elements by key, preserving first-key and per-group order.
 (define (group-by key xs [same? equal?])
+  ;; prepend-reversed : list? list? -> list?
+  ;;   Rebuild a group prefix held in reverse order without recursive unwind.
+  (define (prepend-reversed reversed tail)
+    (let loop ([reversed reversed] [tail tail])
+      (if (null? reversed)
+          tail
+          (loop (cdr reversed) (cons (car reversed) tail)))))
+
+  ;; add : list? any/c -> list?
+  ;;   Add x to its group while preserving group order without stack growth.
   (define (add groups x)
     (define k (key x))
-    (let loop ([groups groups])
+    (let loop ([groups groups] [reversed-prefix null])
       (cond
-        [(null? groups) (list (cons k (list x)))]
+        [(null? groups)
+         (prepend-reversed reversed-prefix (list (cons k (list x))))]
         [(same? k (caar groups))
-         (cons (cons (caar groups) (cons x (cdar groups)))
-               (cdr groups))]
-        [else (cons (car groups) (loop (cdr groups)))])))
+         (prepend-reversed
+          reversed-prefix
+          (cons (cons (caar groups) (cons x (cdar groups)))
+                (cdr groups)))]
+        [else (loop (cdr groups) (cons (car groups) reversed-prefix))])))
   (let loop ([xs xs] [groups null])
     (cond
       [(null? xs) (map reverse (map cdr groups))]

@@ -51,8 +51,11 @@
   (define dest-node-dir (make-temporary-file "webracket-dest-node-~a" 'directory))
   (define dest-explicit-dir (make-temporary-file "webracket-dest-explicit-out-~a" 'directory))
   (define dest-browser-dir (make-temporary-file "webracket-dest-browser-~a" 'directory))
+  (define dest-require-dir (make-temporary-file "webracket-dest-require-~a" 'directory))
   (define source-path (build-path source-dir "program.rkt"))
   (define browser-source-path (build-path source-dir "browser-program.rkt"))
+  (define helper-source-path (build-path source-dir "helper.rkt"))
+  (define require-source-path (build-path source-dir "require-program.rkt"))
   (define explicit-host-path (build-path dest-explicit-dir "custom-runtime.js"))
 
   (dynamic-wind
@@ -110,17 +113,37 @@
                                        (build-path source-dir "browser-program.wasm.map.sexp")
                                        (build-path source-dir "browser-program.html")))])
               (assert-file-missing 'test-dest-output path))
-            (assert-file-missing 'test-dest-output (build-path dest-browser-dir "browser-program.js"))))))
+            (assert-file-missing 'test-dest-output (build-path dest-browser-dir "browser-program.js"))))
+
+        (write-program! helper-source-path
+                        "#lang webracket/base\n(provide answer)\n(define answer 42)\n")
+        (write-program! require-source-path
+                        "#lang webracket\n(require \"helper.rkt\")\n(js-log answer)\n")
+        (let-values ([(require-status require-output)
+                      (run-webracket (list "--browser"
+                                           "--dest" (path->string dest-require-dir)
+                                           (path->string require-source-path))
+                                     source-dir)])
+          (unless (zero? require-status)
+            (error 'test-dest-output
+                   (format "browser local string require compile failed (~a): ~a"
+                           require-status require-output)))
+          (assert-file-exists
+           'test-dest-output
+           (build-path dest-require-dir "require-program.html")))))
     (lambda ()
       (for ([path (in-list (list explicit-host-path
                                  source-path
-                                 browser-source-path))])
+                                 browser-source-path
+                                 helper-source-path
+                                 require-source-path))])
         (with-handlers ([exn:fail:filesystem? void])
           (when (file-exists? path)
             (delete-file path))))
       (for ([dir (in-list (list dest-explicit-dir
                                 dest-node-dir
                                 dest-browser-dir
+                                dest-require-dir
                                 source-dir))])
         (with-handlers ([exn:fail:filesystem? void])
           (delete-directory/files dir))))))

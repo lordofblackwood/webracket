@@ -13,12 +13,17 @@
          string-trim)
 
 ;; A small contract-free `racket/string` substitute for Goal 1 module
-;; programs. Most operations are compiler/runtime primitives; `string-join`
-;; and `string-append*` stay here to avoid pulling in the larger installed
-;; provider graph for common browser programs.
+;; programs. Most operations are compiler/runtime primitives. Keep the
+;; high-volume string assembly operations routed to their iterative Wasm
+;; implementations rather than expanding `(apply string-append ...)` into a
+;; recursive application chain.
 
 ;; string-append* : (or/c (listof string?) string? ... string?) -> string?
 ;;   Append a list of strings or a variadic sequence of strings.
+;;
+;; The compiler recognizes this public alias as runtime-preferred, so compiled
+;; calls go directly to the iterative Wasm primitive. This host definition
+;; preserves the provider's ordinary Racket behavior and export shape.
 (define string-append*
   (case-lambda
     [(strings) (apply string-append strings)]

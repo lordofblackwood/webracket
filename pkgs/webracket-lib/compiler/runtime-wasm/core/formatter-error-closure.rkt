@@ -116,6 +116,7 @@
     $fasl-memory:read-symbol
     $fasl-memory:read-f64
     $fasl-memory:read-s-exp
+    $fasl-memory:scan-end
     $fasl-memory->s-exp
     $linear-memory->value
     $linear-memory->string
@@ -392,11 +393,11 @@
   (define selected-names
     (map core-runtime-helper-name formatter-error-closure-core-runtime-helpers))
 
-  (check-equal? (length formatter-error-closure-core-runtime-helper-names) 286)
+  (check-equal? (length formatter-error-closure-core-runtime-helper-names) 287)
   (check-equal? (length (remove-duplicates
                          formatter-error-closure-core-runtime-helper-names
                          eq?))
-                286)
+                287)
   (check-equal? (sort selected-names symbol<?)
                 (sort formatter-error-closure-core-runtime-helper-names symbol<?))
   (check-not-false (member '$raise-argument-error1 selected-names))

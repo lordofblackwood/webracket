@@ -3503,11 +3503,13 @@
   (and (primitive? v)
        (not (provider-owned-primitive-alias? v))))
 
-;; These primitives are runtime protocols, not ordinary library exports, in the
-;; current Webify expander bundle. If a provider wrapper shadows one of these
-;; names, calls must still target WebRacket's primitive implementation.
+;; These primitives are runtime protocols or iterative bulk operations, not
+;; ordinary library exports, in the current Webify expander bundle. If a
+;; provider wrapper shadows one of these names, calls must still target
+;; WebRacket's primitive implementation.
 (define runtime-preferred-primitive-aliases
-  '(call-with-parameterization))
+  '(call-with-parameterization
+    string-append*))
 (define runtime-preferred-primitive-aliases-set
   (list->seteq runtime-preferred-primitive-aliases))
 
