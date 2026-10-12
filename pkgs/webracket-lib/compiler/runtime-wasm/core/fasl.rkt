@@ -85,6 +85,7 @@
   '($s-exp->fasl
     $raise-s-exp->fasl:unsupported-value
     $fasl:s-exp->fasl
+    $fasl:write-value
     $s-exp->fasl/immediate
     $fasl:write-u32
     $fasl:write-bignum
@@ -151,9 +152,37 @@
                            (global.get $true)))
                (unreachable))
 
+         ;; fasl:s-exp->fasl : any/c output-port? -> void?
+         ;;   Encode v in preorder without growing the Wasm call stack.
          (func $fasl:s-exp->fasl
                (param $v   (ref eq))
                (param $out (ref eq)) ;; a StringPort
+
+               (local $stack   (ref $GrowableArray))
+               (local $current (ref eq))
+
+               (local.set $stack (call $make-growable-array (i32.const 16)))
+               (call $growable-array-add! (local.get $stack) (local.get $v))
+               (block $done
+                      (loop $loop
+                            (br_if $done
+                                   (i32.eqz (call $growable-array-count
+                                                   (local.get $stack))))
+                            (local.set $current
+                                       (call $growable-array-remove-last!
+                                             (local.get $stack)))
+                            (call $fasl:write-value
+                                  (local.get $current)
+                                  (local.get $out)
+                                  (local.get $stack))
+                            (br $loop))))
+
+         ;; fasl:write-value : any/c output-port? growable-array? -> void?
+         ;;   Write one FASL value and push its children in reverse output order.
+         (func $fasl:write-value
+               (param $v     (ref eq))
+               (param $out   (ref eq)) ;; a StringPort
+               (param $stack (ref $GrowableArray))
 
                (local $i   i32)
                (local $n   i32)
@@ -186,26 +215,26 @@
                (if (ref.test (ref $Rational) (local.get $v))
                    (then
                     (drop (call $write-byte (global.get $fasl-rational) (local.get $out)))
-                    (call $fasl:s-exp->fasl
-                          (struct.get $Rational $num
-                                      (ref.cast (ref $Rational) (local.get $v)))
-                          (local.get $out))
-                    (call $fasl:s-exp->fasl
+                    (call $growable-array-add!
+                          (local.get $stack)
                           (struct.get $Rational $den
-                                      (ref.cast (ref $Rational) (local.get $v)))
-                          (local.get $out))
+                                      (ref.cast (ref $Rational) (local.get $v))))
+                    (call $growable-array-add!
+                          (local.get $stack)
+                          (struct.get $Rational $num
+                                      (ref.cast (ref $Rational) (local.get $v))))
                     (return)))
                (if (ref.test (ref $Complex) (local.get $v))
                    (then
                     (drop (call $write-byte (global.get $fasl-complex) (local.get $out)))
-                    (call $fasl:s-exp->fasl
-                          (struct.get $Complex $real
-                                      (ref.cast (ref $Complex) (local.get $v)))
-                          (local.get $out))
-                    (call $fasl:s-exp->fasl
+                    (call $growable-array-add!
+                          (local.get $stack)
                           (struct.get $Complex $imag
-                                      (ref.cast (ref $Complex) (local.get $v)))
-                          (local.get $out))
+                                      (ref.cast (ref $Complex) (local.get $v))))
+                    (call $growable-array-add!
+                          (local.get $stack)
+                          (struct.get $Complex $real
+                                      (ref.cast (ref $Complex) (local.get $v))))
                     (return)))
                (if (ref.test (ref $String) (local.get $v))
                         (then
@@ -257,14 +286,14 @@
                                                   (if (ref.test (ref $Pair) (local.get $v))
                                                       (then
                                                        (drop (call $write-byte (global.get $fasl-pair) (local.get $out)))
-                                                       (call $fasl:s-exp->fasl
-                                                             (struct.get $Pair $a
-                                                                         (ref.cast (ref $Pair) (local.get $v)))
-                                                             (local.get $out))
-                                                       (call $fasl:s-exp->fasl
+                                                       (call $growable-array-add!
+                                                             (local.get $stack)
                                                              (struct.get $Pair $d
-                                                                         (ref.cast (ref $Pair) (local.get $v)))
-                                                             (local.get $out)))
+                                                                         (ref.cast (ref $Pair) (local.get $v))))
+                                                       (call $growable-array-add!
+                                                             (local.get $stack)
+                                                             (struct.get $Pair $a
+                                                                         (ref.cast (ref $Pair) (local.get $v)))))
                                                       (else
                                                        (if (ref.test (ref $Vector) (local.get $v))
                                                            (then
@@ -273,19 +302,18 @@
                                                             (local.set $arr (struct.get $Vector $arr (local.get $vec)))
                                                             (local.set $n   (array.len (local.get $arr)))
                                                             (call $fasl:write-u32 (local.get $n) (local.get $out))
-                                                            (local.set $i (i32.const 0))
+                                                            (local.set $i (local.get $n))
                                                             (block $break
                                                                    (loop $loop
-                                                                         (br_if $break
-                                                                                (i32.ge_u (local.get $i) (local.get $n)))
-                                                                         (call $fasl:s-exp->fasl
+                                                                         (br_if $break (i32.eqz (local.get $i)))
+                                                                         (local.set $i
+                                                                                    (i32.sub (local.get $i)
+                                                                                             (i32.const 1)))
+                                                                         (call $growable-array-add!
+                                                                               (local.get $stack)
                                                                                (array.get $Array
                                                                                           (local.get $arr)
-                                                                                          (local.get $i))
-                                                                               (local.get $out))
-                                                                         (local.set $i
-                                                                                    (i32.add (local.get $i)
-                                                                                             (i32.const 1)))
+                                                                                          (local.get $i)))
                                                                          (br $loop))))
                                                            (else
                                                             (if (ref.test (ref $External) (local.get $v))

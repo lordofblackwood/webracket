@@ -102,6 +102,7 @@
     $s-exp->fasl
     $raise-s-exp->fasl:unsupported-value
     $fasl:s-exp->fasl
+    $fasl:write-value
     $s-exp->fasl/immediate
     $fasl:write-u32
     $fasl:write-bytes
@@ -391,11 +392,11 @@
   (define selected-names
     (map core-runtime-helper-name formatter-error-closure-core-runtime-helpers))
 
-  (check-equal? (length formatter-error-closure-core-runtime-helper-names) 285)
+  (check-equal? (length formatter-error-closure-core-runtime-helper-names) 286)
   (check-equal? (length (remove-duplicates
                          formatter-error-closure-core-runtime-helper-names
                          eq?))
-                285)
+                286)
   (check-equal? (sort selected-names symbol<?)
                 (sort formatter-error-closure-core-runtime-helper-names symbol<?))
   (check-not-false (member '$raise-argument-error1 selected-names))

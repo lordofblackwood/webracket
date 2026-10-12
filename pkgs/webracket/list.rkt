@@ -702,15 +702,15 @@
   (check-procedure 'remove-duplicates same?)
   (when key
     (check-procedure 'remove-duplicates key))
-  (let loop ([xs xs] [seen null])
+  (let loop ([xs xs] [seen null] [reversed null])
     (cond
-      [(null? xs) null]
+      [(null? xs) (reverse reversed)]
       [else
        (define x (car xs))
        (define k (if key (key x) x))
        (if (ormap (lambda (old) (same? k old)) seen)
-           (loop (cdr xs) seen)
-           (cons x (loop (cdr xs) (cons k seen))))])))
+           (loop (cdr xs) seen reversed)
+           (loop (cdr xs) (cons k seen) (cons x reversed)))])))
 
 ;; check-duplicates : list? [procedure?] [#:key procedure?] [#:default any/c] -> any/c
 ;;   Return the first duplicate item, or the default result.

@@ -26,13 +26,13 @@
          ;; Static host bridge scratch map:
          ;;   0..1MiB        VFS file transfer buffer
          ;;   +4KiB          VFS path buffer
-         ;;   +1MiB          callback/FASL/string scratch buffer
+         ;;   +16MiB         callback/FASL/string scratch buffer
          (global $memory-map:vfs-file-buffer-base   (mut i32) (i32.const 0))
          (global $memory-map:vfs-file-buffer-length (mut i32) (i32.const 1048576))
          (global $memory-map:vfs-path-buffer-base   (mut i32) (i32.const 1048576))
          (global $memory-map:vfs-path-buffer-length (mut i32) (i32.const 4096))
          (global $memory-map:callback-buffer-base   (mut i32) (i32.const 1052672))
-         (global $memory-map:callback-buffer-length (mut i32) (i32.const 1048576))
+         (global $memory-map:callback-buffer-length (mut i32) (i32.const 16777216))
          (global $memory-map:string-buffer-base     (mut i32) (i32.const 1052672))
          (global $memory-map:string-buffer-length   (mut i32) (i32.const 4096))))
 

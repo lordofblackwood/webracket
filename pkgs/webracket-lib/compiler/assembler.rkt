@@ -471,13 +471,13 @@ function utf8_decode_bytes(bytes) {
 	// Static host bridge scratch map. Keep this in sync with runtime-wasm.rkt.
 //   0..1MiB        VFS file transfer buffer
 //   +4KiB          VFS path buffer
-//   +1MiB          callback/FASL/string scratch buffer
+//   +16MiB         callback/FASL/string scratch buffer
 const VFS_FILE_BUFFER_BASE = 0;
 const VFS_FILE_BUFFER_LENGTH = 1048576;
 const VFS_PATH_BUFFER_BASE = 1048576;
 const VFS_PATH_BUFFER_LENGTH = 4096;
 const CALLBACK_BUFFER_BASE = 1052672;
-const CALLBACK_BUFFER_LENGTH = 1048576;
+const CALLBACK_BUFFER_LENGTH = 16777216;
 
 var output_string = [];
 var externals = [];
@@ -1555,9 +1555,6 @@ function fasl_bigint_fits_fixnum(n) {
 }
 
 function fasl_to_js_value(arr, i = 0) {
-                                       
-  const tag = arr[i++];
-
   function keywordValue(name) {
     return {
       tag: 'keyword',
@@ -1585,93 +1582,163 @@ function fasl_to_js_value(arr, i = 0) {
     return utf8_decode_bytes(b);
   }
 
-  switch(tag) {
-    case @|fasl-fixnum|: {
-      const raw = u32();
-      // Sign-extend the 30-bit payload so negative fixnums decode correctly.
-      return [(raw << 2) >> 2, i];
-    }
-    case @|fasl-character|:
-      return [hostStringFromCodePointForFasl(u32()), i];
-    case @|fasl-symbol|:
-      return [hostSymbolFor(read_string()), i];
-    case @|fasl-keyword|:
-      return [keywordValue(read_string()), i];
-    case @|fasl-string|:
-      return [read_string(), i];
-    case @|fasl-bytes|:
-      return [read_bytes(), i];
-    case @|fasl-boolean|:
-      return [arr[i++] !== 0, i];
-    case @|fasl-null|:
-      return [null, i];
-    case @|fasl-pair|: {
-      // Decode the cdr spine iteratively. A proper list is represented as
-      // consecutive pair tags followed by a null tag, so recursively decoding
-      // each cdr overflows the JavaScript stack for otherwise ordinary lists.
-      const cars = [];
-      while (true) {
-        let car;
-        [car, i] = fasl_to_js_value(arr, i);
-        cars.push(car);
-        if (arr[i] !== @|fasl-pair|) break;
-        i += 1;
+  // The console and callback bridges can carry documents with thousands of
+  // nested pair or vector values. Keep the parser's continuation explicitly
+  // in JavaScript data instead of consuming one JavaScript frame per value.
+  const frames = [];
+  let value;
+  let valueReady = false;
+
+  while (true) {
+    if (valueReady) {
+      if (frames.length === 0) return [value, i];
+
+      const frame = frames[frames.length - 1];
+      if (frame.kind === 'pair') {
+        if (!frame.carReady) {
+          frame.car = value;
+          frame.carReady = true;
+          valueReady = false;
+        } else {
+          frames.pop();
+          value = {tag: 'pair', car: frame.car, cdr: value};
+        }
+        continue;
       }
-      let cdr;
-      [cdr, i] = fasl_to_js_value(arr, i);
-      for (let j = cars.length - 1; j >= 0; j--) {
-        cdr = {tag:'pair', car: cars[j], cdr};
+
+      if (frame.kind === 'vector') {
+        frame.values[frame.next++] = value;
+        if (frame.next < frame.values.length) {
+          valueReady = false;
+        } else {
+          frames.pop();
+          value = frame.values;
+        }
+        continue;
       }
-      return [cdr, i];
-    }
-    case @|fasl-vector|: {
-      const n = u32();
-      const vec = new hostArray(n);
-      for(let j = 0; j < n; j++) {
-        [vec[j], i] = fasl_to_js_value(arr, i);
+
+      if (frame.kind === 'rational') {
+        if (!frame.numeratorReady) {
+          frame.numerator = value;
+          frame.numeratorReady = true;
+          valueReady = false;
+        } else {
+          frames.pop();
+          value = {
+            tag: 'rational', numerator: frame.numerator, denominator: value,
+          };
+        }
+        continue;
       }
-      return [vec, i];
-    }
-    case @|fasl-flonum|: {
-      const hi = u32();
-      const lo = u32();
-      const dv = new hostDataViewForFasl(new hostArrayBufferForBridge(8));
-      dv.setUint32(0, hi);
-      dv.setUint32(4, lo);
-      return [dv.getFloat64(0), i];
-    }
-    case @|fasl-bignum|: {
-      const signRaw = u32();
-      const len = u32();
-      let magnitude = faslBigIntZero;
-      for (let j = 0; j < len; j++) {
-        magnitude += hostBigIntForFasl(u32()) << (faslBigIntThirtyTwo * hostBigIntForFasl(j));
+
+      if (frame.kind === 'complex') {
+        if (!frame.realReady) {
+          frame.real = value;
+          frame.realReady = true;
+          valueReady = false;
+        } else {
+          frames.pop();
+          value = {tag: 'complex', real: frame.real, imag: value};
+        }
+        continue;
       }
-      const sign = signRaw === 0xFFFFFFFF ? -faslBigIntOne : faslBigIntOne;
-      return [sign * magnitude, i];
+
+      throw new Error('bad FASL decoder frame ' + frame.kind);
     }
-    case @|fasl-rational|: {
-      let numerator, denominator;
-      [numerator, i] = fasl_to_js_value(arr, i);
-      [denominator, i] = fasl_to_js_value(arr, i);
-      return [{tag: 'rational', numerator, denominator}, i];
+
+    const tag = arr[i++];
+    switch(tag) {
+      case @|fasl-fixnum|: {
+        const raw = u32();
+        // Sign-extend the 30-bit payload so negative fixnums decode correctly.
+        value = (raw << 2) >> 2;
+        valueReady = true;
+        break;
+      }
+      case @|fasl-character|:
+        value = hostStringFromCodePointForFasl(u32());
+        valueReady = true;
+        break;
+      case @|fasl-symbol|:
+        value = hostSymbolFor(read_string());
+        valueReady = true;
+        break;
+      case @|fasl-keyword|:
+        value = keywordValue(read_string());
+        valueReady = true;
+        break;
+      case @|fasl-string|:
+        value = read_string();
+        valueReady = true;
+        break;
+      case @|fasl-bytes|:
+        value = read_bytes();
+        valueReady = true;
+        break;
+      case @|fasl-boolean|:
+        value = arr[i++] !== 0;
+        valueReady = true;
+        break;
+      case @|fasl-null|:
+        value = null;
+        valueReady = true;
+        break;
+      case @|fasl-pair|:
+        frames.push({kind: 'pair', car: undefined, carReady: false});
+        break;
+      case @|fasl-vector|: {
+        const values = new hostArray(u32());
+        if (values.length === 0) {
+          value = values;
+          valueReady = true;
+        } else {
+          frames.push({kind: 'vector', values, next: 0});
+        }
+        break;
+      }
+      case @|fasl-flonum|: {
+        const hi = u32();
+        const lo = u32();
+        const dv = new hostDataViewForFasl(new hostArrayBufferForBridge(8));
+        dv.setUint32(0, hi);
+        dv.setUint32(4, lo);
+        value = dv.getFloat64(0);
+        valueReady = true;
+        break;
+      }
+      case @|fasl-bignum|: {
+        const signRaw = u32();
+        const len = u32();
+        let magnitude = faslBigIntZero;
+        for (let j = 0; j < len; j++) {
+          magnitude += hostBigIntForFasl(u32()) << (faslBigIntThirtyTwo * hostBigIntForFasl(j));
+        }
+        const sign = signRaw === 0xFFFFFFFF ? -faslBigIntOne : faslBigIntOne;
+        value = sign * magnitude;
+        valueReady = true;
+        break;
+      }
+      case @|fasl-rational|:
+        frames.push({kind: 'rational', numerator: undefined, numeratorReady: false});
+        break;
+      case @|fasl-complex|:
+        frames.push({kind: 'complex', real: undefined, realReady: false});
+        break;
+      case @|fasl-void|:
+        value = undefined;
+        valueReady = true;
+        break;
+      case @|fasl-eof|:
+        value = '<eof>';
+        valueReady = true;
+        break;
+      case @|fasl-external|:
+        value = externals[u32()];
+        valueReady = true;
+        break;
+      default:
+        throw new Error('bad FASL tag ' + tag);
     }
-    case @|fasl-complex|: {
-      let real, imag;
-      [real, i] = fasl_to_js_value(arr, i);
-      [imag, i] = fasl_to_js_value(arr, i);
-      return [{tag: 'complex', real, imag}, i];
-    }
-    case @|fasl-void|:
-      return [undefined, i];
-    case @|fasl-eof|:
-      return ['<eof>', i];
-    case @|fasl-external|: {
-      const idx = u32();
-      return [externals[idx], i];
-    }
-    default:
-      throw new Error('bad FASL tag ' + tag);
   }
 }
 
