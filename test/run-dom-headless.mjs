@@ -307,6 +307,21 @@ async function runPageProbe(page, testPage, consoleMessages) {
     const add1Result = globalThis.WR.raw("add1*", 41);
     const zeroArgCall = globalThis.WR.call("current-x");
     const largeResult = globalThis.WR.call("large-result");
+    const largeProperList = globalThis.WR.call("large-proper-list-result");
+    let largeProperListLength = 0;
+    let largeProperListAllZero = true;
+    let largeProperListTail = largeProperList;
+    while (largeProperListTail !== null) {
+      if (largeProperListTail?.tag !== "pair") {
+        largeProperListAllZero = false;
+        break;
+      }
+      if (largeProperListTail.car !== 0) {
+        largeProperListAllZero = false;
+      }
+      largeProperListLength += 1;
+      largeProperListTail = largeProperListTail.cdr;
+    }
     const largeValue = globalThis.WR.value("large-value");
     const largeValueResult = globalThis.WR.value("large-value-result", 0);
     const rawLargeValue = globalThis.WR.raw("large-value");
@@ -344,6 +359,8 @@ async function runPageProbe(page, testPage, consoleMessages) {
       add1Result,
       zeroArgCall,
       largeResult,
+      largeProperListLength,
+      largeProperListAllZero,
       largeValue,
       largeValueResult,
       rawLargeValue,
@@ -391,6 +408,9 @@ async function runPageProbe(page, testPage, consoleMessages) {
   if (typeof probe.largeResult !== "string" || probe.largeResult.length !== 70000 ||
       probe.largeResult[0] !== "x" || probe.largeResult.at(-1) !== "x") {
     throw new Error(`WR.call("large-result") returned an invalid ${typeof probe.largeResult} result`);
+  }
+  if (probe.largeProperListLength !== 5000 || !probe.largeProperListAllZero) {
+    throw new Error("WR.call(\"large-proper-list-result\") did not return 5,000 zeroes");
   }
   if (typeof probe.largeValue !== "string" || probe.largeValue.length !== 70000 ||
       probe.largeValue[0] !== "v" || probe.largeValue.at(-1) !== "v") {

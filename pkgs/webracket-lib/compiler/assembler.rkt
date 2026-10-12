@@ -1606,10 +1606,23 @@ function fasl_to_js_value(arr, i = 0) {
     case @|fasl-null|:
       return [null, i];
     case @|fasl-pair|: {
-      let car, cdr;
-      [car, i] = fasl_to_js_value(arr, i);
+      // Decode the cdr spine iteratively. A proper list is represented as
+      // consecutive pair tags followed by a null tag, so recursively decoding
+      // each cdr overflows the JavaScript stack for otherwise ordinary lists.
+      const cars = [];
+      while (true) {
+        let car;
+        [car, i] = fasl_to_js_value(arr, i);
+        cars.push(car);
+        if (arr[i] !== @|fasl-pair|) break;
+        i += 1;
+      }
+      let cdr;
       [cdr, i] = fasl_to_js_value(arr, i);
-      return [{tag:'pair', car, cdr}, i];
+      for (let j = cars.length - 1; j >= 0; j--) {
+        cdr = {tag:'pair', car: cars[j], cdr};
+      }
+      return [cdr, i];
     }
     case @|fasl-vector|: {
       const n = u32();

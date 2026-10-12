@@ -25,6 +25,11 @@
 (define (large-result)
   (make-string 70000 #\x))
 
+;; A flat proper list must cross the FASL bridge without consuming one
+;; JavaScript stack frame per pair.
+(define (large-proper-list-result)
+  (make-list 5000 0))
+
 ;; These two bindings exercise the non-printing value bridge for both lookup
 ;; and invocation. The bridge must transport the value without also producing
 ;; a discarded display string.
