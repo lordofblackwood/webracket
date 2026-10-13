@@ -64,6 +64,7 @@
                 #:before-last ", and "))
 
 @title{Library: @racketid[web-easy]}
+@(legacy-module-warning)
 @declare-exporting[(lib "scribblings/web-easy-labels.rkt" "webracket-doc")
                    (lib "scribblings/lib-event-labels.rkt" "webracket-doc")]
 

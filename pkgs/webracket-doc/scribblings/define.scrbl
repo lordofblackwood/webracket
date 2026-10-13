@@ -5,6 +5,7 @@
           "webracket-scribble-utils.rkt")
 
 @title{Library: @racketid[define]}
+@(legacy-module-warning)
 @declare-exporting[(lib "scribblings/define-labels.rkt" "webracket-doc")]
 
 @(how-to-require require-lib define (lib "lib/libs/define.rkt"))

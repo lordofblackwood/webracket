@@ -11,6 +11,7 @@
           how-to-require
           compile-option-bar
           warning-bar
+          legacy-module-warning
           mdn-bar
           jsx-doc-url
           jsx-bar)
@@ -61,6 +62,22 @@
                (list (background-color-property "#fff1f2")))
    (list (list (para (append (list (hspace 1))
                              content))))))
+
+;; legacy-module-warning : -> block?
+;;   Warn that a section still documents the pre-module library interface.
+(define (legacy-module-warning)
+  (warning-bar
+   (bold "Warning: module migration pending. ")
+   "This section still documents the legacy top-level API based on "
+   (tt "include-lib")
+   " or "
+   (tt "require-lib")
+   ". It has not yet been rewritten for module-based programs. For new code, "
+   "use "
+   (tt "#lang webracket/base")
+   " and ordinary "
+   (tt "require")
+   " where a module-based library is available."))
 
 ;; mdn-bar : string? string? -> block?
 ;;   Render an MDN banner linking to a browser API page.

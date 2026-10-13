@@ -8,6 +8,7 @@
           (for-label (lib "scribblings/lib-iterator-labels.rkt" "webracket-doc")))
 
 @title{Library: @racketid[window]}
+@(legacy-module-warning)
 @declare-exporting[(lib "scribblings/lib-window-labels.rkt" "webracket-doc")]
 
 @(how-to-require include-lib window (lib "libs/window.rkt"))

@@ -8,6 +8,7 @@
           )
 
 @title{Library: media}
+@(legacy-module-warning)
 @declare-exporting[(lib "scribblings/lib-media-labels.rkt" "webracket-doc")
                    (lib "scribblings/lib-document-labels.rkt" "webracket-doc")]
 

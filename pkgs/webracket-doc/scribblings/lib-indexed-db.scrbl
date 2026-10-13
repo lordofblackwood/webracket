@@ -6,6 +6,7 @@
           )
 
 @title{Library: @racketid[indexed-db]}
+@(legacy-module-warning)
 @declare-exporting[(lib "scribblings/lib-indexed-db-labels.rkt" "webracket-doc")]
 
 @(how-to-require include-lib indexed-db (lib "libs/indexed-db.rkt"))

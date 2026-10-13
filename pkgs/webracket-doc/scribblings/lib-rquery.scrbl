@@ -9,6 +9,7 @@
           )
 
 @title{Library: @racketid[rquery]}
+@(legacy-module-warning)
 @declare-exporting[(lib "scribblings/lib-rquery-labels.rkt" "webracket-doc")]
 
 @(how-to-require include-lib rquery (lib "libs/rquery.rkt"))

@@ -5,6 +5,7 @@
           )
 
 @title{Library: @racketid[domrect]}
+@(legacy-module-warning)
 @declare-exporting[(lib "scribblings/lib-domrect-labels.rkt" "webracket-doc")]
 
 @(how-to-require include-lib domrect (lib "libs/domrect.rkt"))

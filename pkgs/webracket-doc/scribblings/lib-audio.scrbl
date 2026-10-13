@@ -6,6 +6,7 @@
           )
 
 @title{Library: @racketid[audio]}
+@(legacy-module-warning)
 @declare-exporting[(lib "scribblings/audio-labels.rkt" "webracket-doc")]
 
 @(how-to-require include-lib audio (lib "libs/audio.rkt"))

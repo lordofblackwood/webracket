@@ -6,6 +6,7 @@
           )
 
 @title{Library: @racketid[storage]}
+@(legacy-module-warning)
 @declare-exporting[(lib "scribblings/lib-storage-labels.rkt" "webracket-doc")]
 
 @(how-to-require include-lib storage (lib "libs/storage.rkt"))

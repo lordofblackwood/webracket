@@ -5,6 +5,7 @@
           )
 
 @title{Library: @racketid[console]}
+@(legacy-module-warning)
 @declare-exporting[(lib "scribblings/console-labels.rkt" "webracket-doc")]
 
 @(how-to-require include-lib console (lib "libs/console.rkt"))

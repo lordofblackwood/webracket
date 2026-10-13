@@ -5,6 +5,8 @@
 
 @title[#:tag "console-bridge"]{The Browser Console Bridge}
 
+@(legacy-module-warning)
+
 The browser console bridge lets a generated browser page expose selected
 WebRacket bindings to the browser's JavaScript console.
 

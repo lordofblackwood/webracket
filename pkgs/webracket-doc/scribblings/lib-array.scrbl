@@ -7,6 +7,7 @@
           )
 
 @title{Library: @racketid[array]}
+@(legacy-module-warning)
 @declare-exporting[(lib "scribblings/lib-array-labels.rkt" "webracket-doc")]
 
 @(how-to-require include-lib array (lib "libs/array.rkt"))

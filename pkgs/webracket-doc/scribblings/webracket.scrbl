@@ -2,7 +2,8 @@
 
 @(require racket/runtime-path
           scribble/core
-          scribble/html-properties)
+          scribble/html-properties
+          "webracket-scribble-utils.rkt")
 
 @(define-runtime-path webracket-layout-css "webracket-layout.css")
 
@@ -15,6 +16,8 @@
 @include-section["getting-started.scrbl"]
 
 @include-section["Installation.scrbl"]
+
+@include-section["tools.scrbl"]
 
 @include-section["command-line-tool.scrbl"]
 
@@ -36,6 +39,8 @@
 @;-------------------------------------------------------------------
 
 @section{Libraries}
+
+@(legacy-module-warning)
 
 WebRacket libraries are grouped into three categories:
 

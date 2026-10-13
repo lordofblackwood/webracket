@@ -6,6 +6,7 @@
           )
 
 @title{Library: @racketid[iterator]}
+@(legacy-module-warning)
 @declare-exporting[(lib "scribblings/lib-iterator-labels.rkt" "webracket-doc")]
 
 @(how-to-require include-lib iterator (lib "libs/iterator.rkt"))

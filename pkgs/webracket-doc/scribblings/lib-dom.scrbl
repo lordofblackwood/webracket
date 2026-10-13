@@ -5,6 +5,7 @@
           )
 
 @title{Library: dom}
+@(legacy-module-warning)
 @declare-exporting[(lib "scribblings/lib-dom-labels.rkt" "webracket-doc")]
 
 @(how-to-require include-lib dom (lib "libs/dom.rkt"))
