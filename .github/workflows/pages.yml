@@ -92,9 +92,9 @@ jobs:
         env:
           PLTCOLLECTS: "${{ github.workspace }}/pkgs:"
         run: |
-          # The checked-in Scribble bytecode was built by an older Racket.
+          # The checked-in package bytecode was built by an older Racket.
           # Rebuild it with the runner's Racket before rendering the manual.
-          rm -rf pkgs/webracket-doc/scribblings/compiled
+          find pkgs -type d -name compiled -prune -exec rm -rf {} +
           raco scribble --htmls --dest html-wip pkgs/webracket-doc/scribblings/webracket.scrbl
 
       - name: Publish WIP manual under /webracket-wip/
