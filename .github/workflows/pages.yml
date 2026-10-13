@@ -90,7 +90,7 @@ jobs:
 
       - name: Render WIP WebRacket manual
         env:
-          PLTCOLLECTS: ${{ github.workspace }}/pkgs:
+          PLTCOLLECTS: "${{ github.workspace }}/pkgs:"
         run: raco scribble --htmls --dest html-wip pkgs/webracket-doc/scribblings/webracket.scrbl
 
       - name: Publish WIP manual under /webracket-wip/
