@@ -5,6 +5,8 @@
 
 @title{Callback Source-Map Tool}
 
+@(legacy-module-warning)
+
 This chapter documents the helper script
 @tt{tools/find-callback-source.rkt} and the browser WebAssembly frame helper
 @tt{tools/wasm-frame-source.rkt}.

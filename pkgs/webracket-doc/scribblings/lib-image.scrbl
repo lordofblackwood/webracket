@@ -5,6 +5,7 @@
           )
 
 @title{Library: @racketid[image]}
+@(legacy-module-warning)
 @declare-exporting[(lib "scribblings/lib-image-labels.rkt" "webracket-doc")]
 
 @(how-to-require include-lib image (lib "libs/image.rkt"))

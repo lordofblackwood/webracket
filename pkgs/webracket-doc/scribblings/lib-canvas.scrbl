@@ -9,6 +9,7 @@
           )
 
 @title{Library: @racketid[canvas]}
+@(legacy-module-warning)
 @declare-exporting[(lib "scribblings/lib-canvas-labels.rkt" "webracket-doc")]
 
 @(how-to-require include-lib canvas (lib "libs/canvas.rkt"))

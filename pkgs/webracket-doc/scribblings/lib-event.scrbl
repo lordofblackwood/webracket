@@ -6,6 +6,7 @@
           )
 
 @title{Library: @racketid[event]}
+@(legacy-module-warning)
 @declare-exporting[(lib "scribblings/lib-event-labels.rkt" "webracket-doc")]
 
 @(how-to-require include-lib event (lib "libs/event.rkt"))

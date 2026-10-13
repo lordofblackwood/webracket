@@ -5,6 +5,7 @@
           "webracket-scribble-utils.rkt")
 
 @title{Library: @racketid[jsx-graph]}
+@(legacy-module-warning)
 @declare-exporting[(lib "scribblings/lib-jsx-graph-labels.rkt" "webracket-doc")]
 
 @(how-to-require include-lib jsx-graph (lib "libs/jsx-graph.rkt"))

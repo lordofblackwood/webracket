@@ -7,6 +7,7 @@
           )
 
 @title{Library: @racketid[websocket]}
+@(legacy-module-warning)
 @declare-exporting[(lib "scribblings/lib-websocket-labels.rkt" "webracket-doc")]
 
 @(how-to-require include-lib websocket (lib "libs/websocket.rkt"))

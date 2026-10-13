@@ -6,6 +6,7 @@
           )
 
 @title{Library: @racketid[simple-pretty]}
+@(legacy-module-warning)
 @declare-exporting[(lib "scribblings/lib-simple-pretty-labels.rkt" "webracket-doc")]
 
 @(how-to-require include-lib simple-pretty (lib "libs/simple-pretty.rkt"))

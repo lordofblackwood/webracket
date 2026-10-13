@@ -34,7 +34,7 @@ jobs:
         with:
           architecture: x64
           distribution: full
-          version: stable
+          version: 8.12
 
       - name: Install Scribble tools
         run: raco pkg install --auto --skip-installed --no-docs scribble-tools
@@ -63,16 +63,41 @@ jobs:
           fi
           wasm-tools --version
 
-      - name: Render WebRacket manual
-        env:
-          PLTCOLLECTS: ${{ github.workspace }}/pkgs:
-        run: raco scribble --htmls --dest html pkgs/webracket-doc/scribblings/webracket.scrbl
-
-      - name: Publish manual under /webracket/
+      # The Pages artifact is a complete site replacement.  Preserve the
+      # published manual before adding the WIP manual at its own URL.
+      - name: Preserve legacy WebRacket manual
+        shell: bash
         run: |
-          rm -rf web-site/public/webracket
-          mkdir -p web-site/public/webracket
-          cp -R html/webracket/. web-site/public/webracket/
+          set -euo pipefail
+          legacy_url="https://soegaard.github.io/webracket/webracket"
+          legacy_root="web-site/public/webracket"
+
+          rm -rf "$legacy_root"
+          mkdir -p "$legacy_root"
+          curl --fail --location --retry 3 --output "$legacy_root/index.html" \
+            "$legacy_url/index.html"
+
+          mapfile -t legacy_files < <(
+            grep -oE '(href|src)="[^"]+"' "$legacy_root/index.html" \
+              | sed -E 's/^[^=]+="//; s/"$//' \
+              | sed 's/#.*$//' \
+              | grep -E '^[A-Za-z0-9_.-]+$' \
+              | sort -u)
+          for legacy_file in "${legacy_files[@]}"; do
+            curl --fail --location --retry 3 --output "$legacy_root/$legacy_file" \
+              "$legacy_url/$legacy_file"
+          done
+
+      - name: Render WIP WebRacket manual
+        env:
+          PLTCOLLECTS: "${{ github.workspace }}/pkgs:"
+        run: raco scribble --htmls --dest html-wip pkgs/webracket-doc/scribblings/webracket.scrbl
+
+      - name: Publish WIP manual under /webracket-wip/
+        run: |
+          rm -rf web-site/public/webracket-wip
+          mkdir -p web-site/public/webracket-wip
+          cp -R html-wip/webracket/. web-site/public/webracket-wip/
 
       - name: Configure Pages
         uses: actions/configure-pages@v5

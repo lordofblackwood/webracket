@@ -6,6 +6,7 @@
           )
 
 @title{Library: @racketid[sxml]}
+@(legacy-module-warning)
 @declare-exporting[(lib "scribblings/lib-sxml-labels.rkt" "webracket-doc")]
 
 @(how-to-require include-lib sxml (lib "lib/libs/sxml.rkt"))

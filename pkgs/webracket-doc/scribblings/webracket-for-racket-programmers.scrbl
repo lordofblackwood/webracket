@@ -1,6 +1,10 @@
 #lang scribble/manual
 
+@(require "webracket-scribble-utils.rkt")
+
 @title{WebRacket for Racket Programmers}
+
+@(legacy-module-warning)
 
 This chapter describes WebRacket from the perspective of a programmer
 familiar with Racket.

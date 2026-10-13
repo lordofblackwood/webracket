@@ -6,6 +6,7 @@
           )
 
 @title{Library: @racketid[fetch]}
+@(legacy-module-warning)
 @declare-exporting[(lib "scribblings/lib-fetch-labels.rkt" "webracket-doc")]
 
 @(how-to-require include-lib fetch (lib "libs/fetch.rkt"))

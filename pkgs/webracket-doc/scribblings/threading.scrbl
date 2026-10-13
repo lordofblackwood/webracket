@@ -5,6 +5,8 @@
 
 @title{Library: @racketid[threading]}
 
+@(legacy-module-warning)
+
 @(how-to-require require-lib threading (lib "libs/threading.rkt"))
 
 The @tt{threading} library provides a small set of macros for writing

@@ -6,6 +6,7 @@
           )
 
 @title{Library: @racketid[document]}
+@(legacy-module-warning)
 @declare-exporting[(lib "scribblings/lib-document-labels.rkt" "webracket-doc")]
 
 @(how-to-require include-lib document (lib "libs/document.rkt"))
