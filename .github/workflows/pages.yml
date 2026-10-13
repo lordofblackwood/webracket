@@ -34,7 +34,7 @@ jobs:
         with:
           architecture: x64
           distribution: full
-          version: stable
+          version: 8.12
 
       - name: Install Scribble tools
         run: raco pkg install --auto --skip-installed --no-docs scribble-tools
@@ -91,11 +91,7 @@ jobs:
       - name: Render WIP WebRacket manual
         env:
           PLTCOLLECTS: "${{ github.workspace }}/pkgs:"
-        run: |
-          # The checked-in package bytecode was built by an older Racket.
-          # Rebuild it with the runner's Racket before rendering the manual.
-          find pkgs -type d -name compiled -prune -exec rm -rf {} +
-          raco scribble --htmls --dest html-wip pkgs/webracket-doc/scribblings/webracket.scrbl
+        run: raco scribble --htmls --dest html-wip pkgs/webracket-doc/scribblings/webracket.scrbl
 
       - name: Publish WIP manual under /webracket-wip/
         run: |
