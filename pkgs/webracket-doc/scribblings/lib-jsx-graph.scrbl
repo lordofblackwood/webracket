@@ -1,6 +1,3 @@
-Warning: truncated output (original token count: 45724)
-Total output lines: 5481
-
 #lang scribble/manual
 
 @(require scribble/manual
@@ -2238,7 +2235,754 @@ Creates the intersection of two curves.
 Creates the difference of two curve regions.
 
 @racketblock[
-(include-li…5724 tokens truncated…
+(include-lib jsx-graph)
+
+(define board (jsx-create-board "box"))
+(define a (jsx-create-curve board (lambda (t) (vector t (* t t)))))
+(define b (jsx-create-curve board (lambda (t) (vector t (- (* t t) 1)))))
+(define d (jsx-create-curvedifference board (jsx-parents a b)))
+]
+}
+
+@defproc[(jsx-create-curveunion [board jsx-board?]
+                                [parents vector?]
+                                [attributes (or/c #f external/raw) #f])
+         jsx-element?]{
+@(jsx-bar "CurveUnion"
+          (jsx-doc-url "CurveUnion"))
+Creates the union of two curve regions.
+
+@racketblock[
+(include-lib jsx-graph)
+
+(define board (jsx-create-board "box"))
+(define a (jsx-create-curve board (lambda (t) (vector t (* t t)))))
+(define b (jsx-create-curve board (lambda (t) (vector t (- (* t t) 1)))))
+(define u (jsx-create-curveunion board (jsx-parents a b)))
+]
+}
+
+@subsubsection{Curve Compositions}
+
+@defproc[(jsx-create-derivative [board jsx-board?]
+                                [parents vector?]
+                                [attributes (or/c #f external/raw) #f])
+         jsx-element?]{
+@(jsx-bar "Derivative"
+          (jsx-doc-url "Derivative"))
+Creates the derivative graph of a function or curve.
+
+@racketblock[
+(include-lib jsx-graph)
+
+(define board (jsx-create-board "box"))
+(define d (jsx-create-derivative board (jsx-parents (lambda (x) (* x x)))))
+]
+}
+
+@defproc[(jsx-create-integral [board jsx-board?]
+                              [parents vector?]
+                              [attributes (or/c #f external/raw) #f])
+         jsx-element?]{
+@(jsx-bar "Integral"
+          (jsx-doc-url "Integral"))
+Creates an integral or area visualization.
+
+@racketblock[
+(include-lib jsx-graph)
+
+(define board (jsx-create-board "box"))
+(define i (jsx-create-integral board (jsx-parents (lambda (x) (* x x)))))
+]
+}
+
+@defproc[(jsx-create-riemannsum [board jsx-board?]
+                                [parents vector?]
+                                [attributes (or/c #f external/raw) #f])
+         jsx-element?]{
+@(jsx-bar "Riemannsum"
+          (jsx-doc-url "Riemannsum"))
+Creates a Riemann sum visualization for a function.
+
+@racketblock[
+(include-lib jsx-graph)
+
+(define board (jsx-create-board "box"))
+(define r (jsx-create-riemannsum board (jsx-parents (lambda (x) (* x x)))))
+]
+}
+
+@defproc[(jsx-riemannsum-value [riemannsum jsx-element?])
+         real?]{
+@(jsx-bar "Value"
+          (string-append (jsx-doc-url "Riemannsum")
+                         "#Value"))
+Reads the current value of a Riemann sum visualization.
+}
+
+@defproc[(jsx-create-slopefield [board jsx-board?]
+                                [parents vector?]
+                                [attributes (or/c #f external/raw) #f])
+         jsx-element?]{
+@(jsx-bar "Slopefield"
+          (jsx-doc-url "Slopefield"))
+Creates a slope field for a differential equation.
+
+@racketblock[
+(include-lib jsx-graph)
+
+(define board (jsx-create-board "box"))
+(define s (jsx-create-slopefield board (jsx-parents (lambda (x y) (+ x y)))))
+]
+}
+
+@defproc[(jsx-slopefield-set-f! [field jsx-element?]
+                                [func procedure?])
+         void?]{
+@(jsx-bar "setF"
+          (string-append (jsx-doc-url "Slopefield")
+                         "#setF"))
+Updates the defining function of a slope field.
+
+@racketblock[
+(include-lib jsx-graph)
+
+(define board (jsx-create-board "box"))
+(define s (jsx-create-slopefield board (jsx-parents (lambda (x y) (+ x y)))))
+(jsx-slopefield-set-f! s (lambda (x y) (- x y)))
+]
+}
+
+@defproc[(jsx-create-vectorfield [board jsx-board?]
+                                 [parents vector?]
+                                 [attributes (or/c #f external/raw) #f])
+         jsx-element?]{
+@(jsx-bar "Vectorfield"
+          (jsx-doc-url "Vectorfield"))
+Creates a vector field visualization.
+
+@racketblock[
+(include-lib jsx-graph)
+
+(define board (jsx-create-board "box"))
+(define v (jsx-create-vectorfield board (jsx-parents (lambda (x y) (vector x y)))))
+]
+}
+
+@defproc[(jsx-vectorfield-set-f! [field jsx-element?]
+                                 [func procedure?])
+         void?]{
+@(jsx-bar "setF"
+          (string-append (jsx-doc-url "Vectorfield")
+                         "#setF"))
+Updates the defining function of a vector field.
+
+@racketblock[
+(include-lib jsx-graph)
+
+(define board (jsx-create-board "box"))
+(define v (jsx-create-vectorfield board (jsx-parents (lambda (x y) (vector x y)))))
+(jsx-vectorfield-set-f! v (lambda (x y) (vector (- x) (- y))))
+]
+}
+
+@defproc[(jsx-create-implicitcurve [board jsx-board?]
+                                   [parents vector?]
+                                   [attributes (or/c #f external/raw) #f])
+         jsx-element?]{
+@(jsx-bar "ImplicitCurve"
+          (jsx-doc-url "ImplicitCurve"))
+Creates a curve defined by an implicit relation.
+
+@racketblock[
+(include-lib jsx-graph)
+
+(define board (jsx-create-board "box"))
+(define c (jsx-create-implicitcurve board (jsx-parents (lambda (x y) (- (+ (* x x) (* y y)) 1)))))
+]
+}
+
+@defproc[(jsx-create-spline [board jsx-board?]
+                            [parents vector?]
+                            [attributes (or/c #f external/raw) #f])
+         jsx-element?]{
+@(jsx-bar "Spline"
+          (jsx-doc-url "Spline"))
+Creates a spline curve through control points.
+
+@racketblock[
+(include-lib jsx-graph)
+
+(define board (jsx-create-board "box"))
+(define a (jsx-create-point board (jsx-parents -1 0)))
+(define b (jsx-create-point board (jsx-parents 0 1)))
+(define c (jsx-create-point board (jsx-parents 1 0)))
+(define s (jsx-create-spline board (jsx-parents a b c)))
+]
+}
+
+@defproc[(jsx-create-cardinalspline [board jsx-board?]
+                                    [parents vector?]
+                                    [attributes (or/c #f external/raw) #f])
+         jsx-element?]{
+@(jsx-bar "Cardinalspline"
+          (jsx-doc-url "Cardinalspline"))
+Creates a cardinal spline with adjustable tension.
+
+@racketblock[
+(include-lib jsx-graph)
+
+(define board (jsx-create-board "box"))
+(define a (jsx-create-point board (jsx-parents -1 0)))
+(define b (jsx-create-point board (jsx-parents 0 1)))
+(define c (jsx-create-point board (jsx-parents 1 0)))
+(define s (jsx-create-cardinalspline board (jsx-parents a b c)))
+]
+}
+
+@defproc[(jsx-create-comb [board jsx-board?]
+                          [parents vector?]
+                          [attributes (or/c #f external/raw) #f])
+         jsx-element?]{
+@(jsx-bar "Comb"
+          (jsx-doc-url "Comb"))
+Creates a comb-like helper curve.
+
+@racketblock[
+(include-lib jsx-graph)
+
+(define board (jsx-create-board "box"))
+(define a (jsx-create-point board (jsx-parents -1 0)))
+(define b (jsx-create-point board (jsx-parents 0 1)))
+(define c (jsx-create-point board (jsx-parents 1 0)))
+(define s (jsx-create-comb board (jsx-parents a b c)))
+]
+}
+
+@defproc[(jsx-create-metapostspline [board jsx-board?]
+                                    [parents vector?]
+                                    [attributes (or/c #f external/raw) #f])
+         jsx-element?]{
+@(jsx-bar "Metapostspline"
+          (jsx-doc-url "Metapostspline"))
+Creates a MetaPost-style spline curve.
+
+@racketblock[
+(include-lib jsx-graph)
+
+(define board (jsx-create-board "box"))
+(define a (jsx-create-point board (jsx-parents -1 0)))
+(define b (jsx-create-point board (jsx-parents 0 1)))
+(define c (jsx-create-point board (jsx-parents 1 0)))
+(define s (jsx-create-metapostspline board (jsx-parents a b c)))
+]
+}
+
+@defproc[(jsx-create-polygonalchain [board jsx-board?]
+                                    [parents vector?]
+                                    [attributes (or/c #f external/raw) #f])
+         jsx-element?]{
+@(jsx-bar "PolygonalChain"
+          (jsx-doc-url "PolygonalChain"))
+Creates a chain of connected line segments.
+
+@racketblock[
+(include-lib jsx-graph)
+
+(define board (jsx-create-board "box"))
+(define a (jsx-create-point board (jsx-parents -1 0)))
+(define b (jsx-create-point board (jsx-parents 0 1)))
+(define c (jsx-create-point board (jsx-parents 1 0)))
+(define chain (jsx-create-polygonalchain board (jsx-parents a b c)))
+]
+}
+
+@defproc[(jsx-create-regularpolygon [board jsx-board?]
+                                    [parents vector?]
+                                    [attributes (or/c #f external/raw) #f])
+         jsx-element?]{
+@(jsx-bar "RegularPolygon"
+          (jsx-doc-url "RegularPolygon"))
+Creates a regular polygon from a center and radius-like parents.
+
+@racketblock[
+(include-lib jsx-graph)
+
+(define board (jsx-create-board "box"))
+(define c (jsx-create-point board (jsx-parents 0 0)))
+(define p (jsx-create-point board (jsx-parents 1 0)))
+(define poly (jsx-create-regularpolygon board (jsx-parents c p 5)))
+]
+}
+
+@defproc[(jsx-create-hyperbola [board jsx-board?]
+                               [parents vector?]
+                               [attributes (or/c #f external/raw) #f])
+         jsx-element?]{
+@(jsx-bar "Hyperbola"
+          (jsx-doc-url "Hyperbola"))
+Creates a hyperbola graph.
+
+@racketblock[
+(include-lib jsx-graph)
+
+(define board (jsx-create-board "box"))
+(define h (jsx-create-hyperbola board (jsx-parents 1 1 2 2)))
+]
+}
+
+@defproc[(jsx-create-parabola [board jsx-board?]
+                              [parents vector?]
+                              [attributes (or/c #f external/raw) #f])
+         jsx-element?]{
+@(jsx-bar "Parabola"
+          (jsx-doc-url "Parabola"))
+Creates a parabola graph.
+
+@racketblock[
+(include-lib jsx-graph)
+
+(define board (jsx-create-board "box"))
+(define p (jsx-create-parabola board (jsx-parents 0 0 1 1)))
+]
+}
+
+@defproc[(jsx-create-stepfunction [board jsx-board?]
+                                  [parents vector?]
+                                  [attributes (or/c #f external/raw) #f])
+         jsx-element?]{
+@(jsx-bar "Stepfunction"
+          (jsx-doc-url "Stepfunction"))
+Creates a step-function graph.
+
+@racketblock[
+(include-lib jsx-graph)
+
+(define board (jsx-create-board "box"))
+(define s (jsx-create-stepfunction board (jsx-parents (vector 0 1 2) (vector 1 2 3))))
+]
+}
+
+@defproc[(jsx-create-inequality [board jsx-board?]
+                                [parents vector?]
+                                [attributes (or/c #f external/raw) #f])
+         jsx-element?]{
+@(jsx-bar "Inequality"
+          (jsx-doc-url "Inequality"))
+Creates a shaded inequality region or boundary.
+
+@racketblock[
+(include-lib jsx-graph)
+
+(define board (jsx-create-board "box"))
+(define ineq (jsx-create-inequality board (jsx-parents (lambda (x) (- x 1)))))
+]
+}
+
+@defproc[(jsx-create-turtle [board jsx-board?]
+                            [parents vector?]
+                            [attributes (or/c #f external/raw) #f])
+         jsx-element?]{
+@(jsx-bar "Turtle"
+          (jsx-doc-url "Turtle"))
+Creates a turtle-graphics drawing helper.
+
+@racketblock[
+(include-lib jsx-graph)
+
+(define board (jsx-create-board "box"))
+(define t (jsx-create-turtle board (jsx-parents)))
+]
+}
+
+@defproc[(jsx-create-slopetriangle [board jsx-board?]
+                                   [parents vector?]
+                                   [attributes (or/c #f external/raw) #f])
+         jsx-element?]{
+@(jsx-bar "Slopetriangle"
+          (jsx-doc-url "Slopetriangle"))
+Creates the slope triangle used for rise-over-run visuals.
+
+@racketblock[
+(include-lib jsx-graph)
+
+(define board (jsx-create-board "box"))
+(define s (jsx-create-slopetriangle board (jsx-parents (vector 0 0) (vector 1 1))))
+]
+}
+
+@defproc[(jsx-create-perpendicular [board jsx-board?]
+                                   [parents vector?]
+                                   [attributes (or/c #f external/raw) #f])
+         jsx-element?]{
+@(jsx-bar "Perpendicular"
+          (jsx-doc-url "Perpendicular"))
+Creates a line perpendicular to a base line through a point.
+
+@racketblock[
+(include-lib jsx-graph)
+
+(define board (jsx-create-board "box"))
+(define a (jsx-create-point board (jsx-parents -1 0)))
+(define b (jsx-create-point board (jsx-parents 1 0)))
+(define c (jsx-create-point board (jsx-parents 0 1)))
+(define p (jsx-create-perpendicular board (jsx-parents a b c)))
+]
+}
+
+@defproc[(jsx-create-reflection [board jsx-board?]
+                                [parents vector?]
+                                [attributes (or/c #f external/raw) #f])
+         jsx-element?]{
+@(jsx-bar "Reflection"
+          (jsx-doc-url "Reflection"))
+Creates the reflection of a point or element across a line.
+
+@racketblock[
+(include-lib jsx-graph)
+
+(define board (jsx-create-board "box"))
+(define a (jsx-create-point board (jsx-parents -1 0)))
+(define b (jsx-create-point board (jsx-parents 1 0)))
+(define c (jsx-create-point board (jsx-parents 0 1)))
+(define r (jsx-create-reflection board (jsx-parents a b c)))
+]
+}
+
+@defproc[(jsx-create-bisector [board jsx-board?]
+                              [parents vector?]
+                              [attributes (or/c #f external/raw) #f])
+         jsx-element?]{
+@(jsx-bar "Bisector"
+          (jsx-doc-url "Bisector"))
+Creates an angle or perpendicular bisector construction.
+
+@racketblock[
+(include-lib jsx-graph)
+
+(define board (jsx-create-board "box"))
+(define a (jsx-create-point board (jsx-parents -1 0)))
+(define b (jsx-create-point board (jsx-parents 0 1)))
+(define c (jsx-create-point board (jsx-parents 1 0)))
+(define bis (jsx-create-bisector board (jsx-parents a b c)))
+]
+}
+
+@defproc[(jsx-create-normal [board jsx-board?]
+                            [parents vector?]
+                            [attributes (or/c #f external/raw) #f])
+         jsx-element?]{
+@(jsx-bar "Normal"
+          (jsx-doc-url "Normal"))
+Creates the normal line through a point on a curve or line.
+
+@racketblock[
+(include-lib jsx-graph)
+
+(define board (jsx-create-board "box"))
+(define curve (jsx-create-curve board (lambda (t) (vector t (* t t)))))
+(define p (jsx-create-point board (jsx-parents 1 1)))
+(define n (jsx-create-normal board (jsx-parents p curve)))
+]
+}
+
+@subsection{Polygon Helpers}
+
+The @racket[jsx-polygon] wrappers expose the documented
+@racketid[JXG.Polygon] methods that are useful for editing polygon
+vertices and querying polygon geometry.
+
+@racketblock[
+(include-lib jsx-graph)
+
+(define board (jsx-create-board "box"))
+(define a (jsx-create-point board (jsx-parents 0 0)))
+(define b (jsx-create-point board (jsx-parents 2 0)))
+(define c (jsx-create-point board (jsx-parents 1 1)))
+(define poly (jsx-create-polygon board (jsx-parents a b c)))
+(jsx-polygon-area poly)
+]
+
+@defproc[(jsx-polygon-add-points! [polygon jsx-element?]
+                                  [point jsx-element?] ...)
+         jsx-element?]{
+@(jsx-bar "addPoints"
+          (string-append (jsx-doc-url "JXG.Polygon")
+                         "#addPoints"))
+Adds vertices to @racket[polygon].
+}
+
+@defproc[(jsx-polygon-area [polygon jsx-element?])
+         real?]{
+@(jsx-bar "Area"
+          (string-append (jsx-doc-url "JXG.Polygon")
+                         "#Area"))
+Returns the area of @racket[polygon].
+}
+
+@defproc[(jsx-polygon-bounding-box [polygon jsx-element?])
+         vector?]{
+@(jsx-bar "boundingBox"
+          (string-append (jsx-doc-url "JXG.Polygon")
+                         "#boundingBox"))
+Returns the bounding box of @racket[polygon].
+}
+
+@defproc[(jsx-polygon-find-point [polygon jsx-element?]
+                                 [point jsx-element?])
+         exact-nonnegative-integer?]{
+@(jsx-bar "findPoint"
+          (string-append (jsx-doc-url "JXG.Polygon")
+                         "#findPoint"))
+Returns the index for @racket[point] in @racket[polygon].
+}
+
+@defproc[(jsx-polygon-has-point? [polygon jsx-element?]
+                                 [x real?]
+                                 [y real?])
+         boolean?]{
+@(jsx-bar "hasPoint"
+          (string-append (jsx-doc-url "JXG.Polygon")
+                         "#hasPoint"))
+Returns @racket[#t] when screen coordinates hit @racket[polygon].
+}
+
+@defproc[(jsx-polygon-hide-element! [polygon jsx-element?]
+                                    [borderless (or/c #f boolean?) #f])
+         void?]{
+@(jsx-bar "hideElement"
+          (string-append (jsx-doc-url "JXG.Polygon")
+                         "#hideElement"))
+Hides @racket[polygon], optionally leaving the borders visible.
+}
+
+@defproc[(jsx-polygon-insert-points! [polygon jsx-element?]
+                                     [point jsx-element?] ...)
+         jsx-element?]{
+@(jsx-bar "insertPoints"
+          (string-append (jsx-doc-url "JXG.Polygon")
+                         "#insertPoints"))
+Inserts vertices into @racket[polygon].
+}
+
+@defproc[(jsx-polygon-intersect [polygon jsx-element?]
+                                [other jsx-element?])
+         external/raw]{
+@(jsx-bar "intersect"
+          (string-append (jsx-doc-url "JXG.Polygon")
+                         "#intersect"))
+Intersects @racket[polygon] with @racket[other].
+}
+
+@defproc[(jsx-polygon-l [polygon jsx-element?])
+         real?]{
+@(jsx-bar "L"
+          (string-append (jsx-doc-url "JXG.Polygon")
+                         "#L"))
+Returns the perimeter alias for @racket[polygon].
+}
+
+@defproc[(jsx-polygon-perimeter [polygon jsx-element?])
+         real?]{
+@(jsx-bar "Perimeter"
+          (string-append (jsx-doc-url "JXG.Polygon")
+                         "#Perimeter"))
+Returns the perimeter of @racket[polygon].
+}
+
+@defproc[(jsx-polygon-pnpoly [polygon jsx-element?]
+                             [x real?]
+                             [y real?]
+                             [coord-type (or/c #f string? symbol?) #f])
+         boolean?]{
+@(jsx-bar "pnpoly"
+          (string-append (jsx-doc-url "JXG.Polygon")
+                         "#pnpoly"))
+Checks whether @racket[x] and @racket[y] fall inside @racket[polygon].
+}
+
+@defproc[(jsx-polygon-remove-points! [polygon jsx-element?]
+                                     [point jsx-element?] ...)
+         jsx-element?]{
+@(jsx-bar "removePoints"
+          (string-append (jsx-doc-url "JXG.Polygon")
+                         "#removePoints"))
+Removes vertices from @racket[polygon].
+}
+
+@defproc[(jsx-polygon-set-position-directly! [polygon jsx-element?]
+                                             [method (or/c string? symbol?)]
+                                             [coords (or/c vector? list?)]
+                                             [oldcoords (or/c vector? list?)])
+         jsx-element?]{
+@(jsx-bar "setPositionDirectly"
+          (string-append (jsx-doc-url "JXG.Polygon")
+                         "#setPositionDirectly"))
+Moves @racket[polygon] directly by coordinate differences.
+}
+
+@defproc[(jsx-polygon-show-element! [polygon jsx-element?]
+                                    [borderless (or/c #f boolean?) #f])
+         void?]{
+@(jsx-bar "showElement"
+          (string-append (jsx-doc-url "JXG.Polygon")
+                         "#showElement"))
+Shows @racket[polygon], optionally leaving the borders visible.
+}
+
+@defproc[(jsx-polygon-update-renderer! [polygon jsx-element?])
+         void?]{
+@(jsx-bar "updateRenderer"
+          (string-append (jsx-doc-url "JXG.Polygon")
+                         "#updateRenderer"))
+Refreshes the polygon renderer.
+}
+
+@defproc[(jsx-create-intersection [board jsx-board?]
+                                  [parents vector?]
+                                  [attributes (or/c #f external/raw) #f])
+         jsx-element?]{
+@(jsx-bar "Intersection"
+          (jsx-doc-url "Intersection"))
+Creates the intersection point of two objects.
+
+@racketblock[
+(include-lib jsx-graph)
+
+(define board (jsx-create-board "box"))
+(define a (jsx-create-point board (jsx-parents -1 0)))
+(define b (jsx-create-point board (jsx-parents 1 0)))
+(define c (jsx-create-point board (jsx-parents 0 1)))
+(define i (jsx-create-intersection board (jsx-parents a b c)))
+]
+}
+
+@defproc[(jsx-create-arrow [board jsx-board?]
+                           [parents vector?]
+                           [attributes (or/c #f external/raw) #f])
+         jsx-element?]{
+@(jsx-bar "Arrow"
+          (jsx-doc-url "Arrow"))
+Creates an arrow annotation or vector.
+
+@racketblock[
+(include-lib jsx-graph)
+
+(define board (jsx-create-board "box"))
+(define arrow (jsx-create-arrow board (jsx-parents (vector 0 0) (vector 1 1))))
+]
+}
+
+@section{Widgets and Annotation}
+
+This section covers the widget-like and annotation-style objects that
+sit alongside the core geometry constructors.
+
+The widget and annotation constructors cover the elements that present
+controls, labels, and board-attached UI.
+
+@subsection{Form Controls}
+
+@defproc[(jsx-create-button [board jsx-board?]
+                            [parents vector?]
+                            [attributes (or/c #f external/raw) #f])
+         jsx-element?]{
+@(jsx-bar "Button"
+          (jsx-doc-url "Button"))
+Creates a clickable button widget.
+
+@racketblock[
+(include-lib jsx-graph)
+
+(define board (jsx-create-board "box"))
+(define btn (jsx-create-button board (jsx-parents 0 0 "Click")))
+]
+}
+
+@defproc[(jsx-create-checkbox [board jsx-board?]
+                              [parents vector?]
+                              [attributes (or/c #f external/raw) #f])
+         jsx-element?]{
+@(jsx-bar "Checkbox"
+          (jsx-doc-url "Checkbox"))
+Creates a boolean toggle widget.
+
+@racketblock[
+(include-lib jsx-graph)
+
+(define board (jsx-create-board "box"))
+(define cb (jsx-create-checkbox board (jsx-parents 0 0 "Show")))
+]
+}
+
+@subsection{Checkbox Helpers}
+
+@defproc[(jsx-checkbox-value [checkbox jsx-element?])
+         boolean?]{
+@(jsx-bar "Value"
+          (string-append (jsx-doc-url "JXG.Checkbox")
+                         "#Value"))
+Returns the current checkbox value.
+}
+
+@defproc[(jsx-create-input [board jsx-board?]
+                           [parents vector?]
+                           [attributes (or/c #f external/raw) #f])
+         jsx-element?]{
+@(jsx-bar "Input"
+          (jsx-doc-url "Input"))
+Creates a text input widget.
+
+@racketblock[
+(include-lib jsx-graph)
+
+(define board (jsx-create-board "box"))
+(define input (jsx-create-input board (jsx-parents 0 0)))
+]
+}
+
+@subsection{Input Helpers}
+
+@defproc[(jsx-input-set! [input jsx-element?]
+                         [value string?])
+         jsx-element?]{
+@(jsx-bar "set"
+          (string-append (jsx-doc-url "JXG.Input")
+                         "#set"))
+Sets the current value of @racket[input].
+}
+
+@defproc[(jsx-input-value [input jsx-element?])
+         string?]{
+@(jsx-bar "Value"
+          (string-append (jsx-doc-url "JXG.Input")
+                         "#Value"))
+Returns the current input value.
+}
+
+@defproc[(jsx-create-slider [board jsx-board?]
+                            [parents vector?]
+                            [attributes (or/c #f external/raw) #f])
+         jsx-element?]{
+@(jsx-bar "Slider"
+          (jsx-doc-url "Slider"))
+Creates a numeric slider widget.
+
+@racketblock[
+(include-lib jsx-graph)
+
+(define board (jsx-create-board "box"))
+(define slider (jsx-create-slider board (jsx-parents 0 1 0 10)))
+]
+}
+
+@subsection{Slider Helpers}
+
+@racketblock[
+(include-lib jsx-graph)
+
+(define board (jsx-create-board "box"))
+(define slider (jsx-create-slider board (jsx-parents 0 1 0 10)))
 (jsx-slider-value slider)
 ]
 
