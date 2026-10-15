@@ -3254,6 +3254,13 @@
                                  #f)
                          (equal? (regexp-match (byte-regexp #"([^;]*);(.*)") #"c;d")
                                  (list #"c;d" #"c" #"d"))))
+              (list "regexp-match string captures bootstrap"
+                    (and (equal? (regexp-match #px"^([1-8]),([1-8])$" "2,2")
+                                 (list "2,2" "2" "2"))
+                         (equal? (regexp-match #px"^([1-8]),([1-8])$" "8,1")
+                                 (list "8,1" "8" "1"))
+                         (equal? (regexp-match #px"^([1-8]),([1-8])$" "2,9") #f)
+                         (equal? (regexp-match #px"^([1-8]),([1-8])$" "22") #f)))
               (list "regexp-replace bootstrap subset"
                     (and (equal? (regexp-replace #rx"\n" "a\nb" " ") "a b")
                          (equal? (regexp-replace* #rx"-" "a-b-c" "_") "a_b_c")

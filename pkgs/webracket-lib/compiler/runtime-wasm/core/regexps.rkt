@@ -16,6 +16,7 @@
   '((rx-dot-class       "[.]")
     (rx-dot-zo-end      "[.]zo$")
     (rx-id-colon-or-end "^id(:|$)")
+    (rx-bounded-pair    "^([1-8]),([1-8])$")
     (dot                ".")
     (dot-zo             ".zo")
     (id                 "id")
@@ -587,12 +588,69 @@
                                       (i32.const 59))))
                (global.get $false))
 
-         ;; regexp-match : regexp? bytes? -> (or/c list? #f)
-         ;;   Bootstrap subset for expander startup; full matching belongs to
-         ;;   the demodded regexp library.
+         ;; regexp-match/bounded-pair-string : regexp? string? -> (or/c list? #f)
+         ;;   Return captures for the bootstrap anchored bounded-pair pattern.
+         (func $regexp-match/bounded-pair-string
+               (param $rx (ref $Regexp)) ;; character regexp value
+               (param $s  (ref $String)) ;; input string
+               (result    (ref eq))
+               (local $source  (ref eq))
+               (local $pattern (ref $String))
+               (local $len     i32)
+               (local $left-cp i32)
+               (local $right-cp i32)
+               (local $left    (ref eq))
+               (local $right   (ref eq))
+
+               (local.set $source (struct.get $Regexp $source (local.get $rx)))
+               (if (i32.eqz (ref.test (ref $String) (local.get $source)))
+                   (then (return (global.get $false))))
+               (local.set $pattern (ref.cast (ref $String) (local.get $source)))
+               (if (i32.eqz
+                    (call $string=?/i32/checked
+                          (local.get $pattern)
+                          (ref.cast (ref $String)
+                                    (global.get $string:rx-bounded-pair))))
+                   (then (return (global.get $false))))
+               (local.set $len (call $string-length/checked/i32 (local.get $s)))
+               (if (i32.ne (local.get $len) (i32.const 3))
+                   (then (return (global.get $false))))
+               (if (i32.ne (call $string-ref/checked/i32 (local.get $s) (i32.const 1))
+                           (i32.const 44))
+                   (then (return (global.get $false))))
+               (local.set $left-cp
+                          (call $string-ref/checked/i32 (local.get $s) (i32.const 0)))
+               (local.set $right-cp
+                          (call $string-ref/checked/i32 (local.get $s) (i32.const 2)))
+               (if (i32.or (i32.lt_u (local.get $left-cp) (i32.const 49))
+                           (i32.gt_u (local.get $left-cp) (i32.const 56)))
+                   (then (return (global.get $false))))
+               (if (i32.or (i32.lt_u (local.get $right-cp) (i32.const 49))
+                           (i32.gt_u (local.get $right-cp) (i32.const 56)))
+                   (then (return (global.get $false))))
+               (local.set $left
+                          (call $substring
+                                (ref.cast (ref eq) (local.get $s))
+                                (ref.i31 (i32.const 0))
+                                (ref.i31 (i32.const 2))))
+               (local.set $right
+                          (call $substring
+                                (ref.cast (ref eq) (local.get $s))
+                                (ref.i31 (i32.const 4))
+                                (ref.i31 (i32.const 6))))
+               (call $cons
+                     (ref.cast (ref eq) (local.get $s))
+                     (call $cons
+                           (local.get $left)
+                           (call $cons
+                                 (local.get $right)
+                                 (global.get $null)))))
+
+         ;; regexp-match : regexp? (or/c string? bytes?) -> (or/c list? #f)
+         ;;   Return bootstrap capture lists for supported string and byte patterns.
          (func $regexp-match (type $Prim2)
                (param $rx-raw (ref eq)) ;; regexp?
-               (param $s-raw  (ref eq)) ;; bytes? for the bootstrap subset
+               (param $s-raw  (ref eq)) ;; string? or bytes? for the bootstrap subset
                (result        (ref eq))
                (if (i32.eqz (ref.test (ref $Regexp) (local.get $rx-raw)))
                    (then (call $raise-argument-error1
@@ -600,15 +658,19 @@
                                (global.get $string:regexp-replace:pattern-contract)
                                (local.get $rx-raw))
                          (unreachable)))
-               (if (i32.eqz (ref.test (ref $Bytes) (local.get $s-raw)))
+               (if (ref.test (ref $Bytes) (local.get $s-raw))
+                   (then (return_call $regexp-match/bytes-subset
+                                      (ref.cast (ref $Regexp) (local.get $rx-raw))
+                                      (ref.cast (ref $Bytes) (local.get $s-raw)))))
+               (if (i32.eqz (ref.test (ref $String) (local.get $s-raw)))
                    (then (call $raise-argument-error1
                                (global.get $symbol:regexp-match)
                                (global.get $string:regexp-match:input-contract)
                                (local.get $s-raw))
                          (unreachable)))
-               (return_call $regexp-match/bytes-subset
+               (return_call $regexp-match/bounded-pair-string
                             (ref.cast (ref $Regexp) (local.get $rx-raw))
-                            (ref.cast (ref $Bytes) (local.get $s-raw))))
+                            (ref.cast (ref $String) (local.get $s-raw))))
 
          ;; regexp-match? : regexp? (or/c string? bytes?) -> boolean?
          ;;   Bootstrap subset. Full Racket regexp semantics should come from
