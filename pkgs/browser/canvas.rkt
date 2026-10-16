@@ -423,6 +423,27 @@
     [(real? value)   (exact->inexact value)]
     [else (raise-argument-error who "real?" value)]))
 
+;; canvas-optional-real->flonum : symbol? any/c -> any/c
+;;   Normalize supplied numeric arguments while preserving omitted values.
+(define (canvas-optional-real->flonum who value)
+  (cond
+    [(real? value) (canvas-real->flonum who value)]
+    [else          (canvas-resolve-optional value)]))
+
+;; canvas-real-sequence->array : symbol? any/c -> external?
+;;   Normalize numeric sequence elements and preserve existing browser arrays.
+(define (canvas-real-sequence->array who items)
+  (cond
+    [(or (external? items) (array? items)) (array-unwrap items)]
+    [else
+     (array-unwrap
+      (sequence->array
+       (map (lambda (value)
+              (if (real? value)
+                  (canvas-real->flonum who value)
+                  value))
+            (if (vector? items) (vector->list items) items))))]))
+
 ;; canvas-raw-host-value? : any/c -> boolean?
 ;;   Report whether value is a non-nullish browser host value.
 (define (canvas-raw-host-value? value)
@@ -620,7 +641,7 @@
 ;;   Capture the canvas stream.
 (define (canvas-capture-stream canvas [frame-rate #f])
   (media-stream-wrap (js-canvas-capture-stream (canvas-unwrap canvas)
-                                               (canvas-resolve-optional frame-rate))))
+                                               (canvas-optional-real->flonum 'canvas-capture-stream frame-rate))))
 
 ;; canvas-get-context : (or/c html-canvas-element? external?) (or/c string? symbol?) [any/c #f]
 ;;   -> (or/c #f canvas-rendering-context-2d?)
@@ -664,13 +685,13 @@
 ;;   Encode a canvas as a data URL.
 (define (canvas-to-data-url canvas [type "image/png"] [quality #f])
   (define type* (canvas-stringish->string 'canvas-to-data-url type))
-  (js-canvas-to-data-url (canvas-unwrap canvas) type* (canvas-resolve-optional quality)))
+  (js-canvas-to-data-url (canvas-unwrap canvas) type* (canvas-optional-real->flonum 'canvas-to-data-url quality)))
 
 ;; canvas-to-blob : (or/c html-canvas-element? external?) external? (or/c string? symbol?) [any/c #f] -> void?
 ;;   Encode a canvas into a Blob callback.
 (define (canvas-to-blob canvas callback [type "image/png"] [quality #f])
   (define type* (canvas-stringish->string 'canvas-to-blob type))
-  (js-canvas-to-blob (canvas-unwrap canvas) callback type* (canvas-resolve-optional quality))
+  (js-canvas-to-blob (canvas-unwrap canvas) callback type* (canvas-optional-real->flonum 'canvas-to-blob quality))
   (void))
 
 ;; canvas-transfer-control-to-offscreen : (or/c html-canvas-element? external?) -> external/raw
@@ -712,13 +733,21 @@
 ;; canvas-2d-fill-rect : (or/c canvas-rendering-context-2d? external?) real? real? real? real? -> void?
 ;;   Fill a rectangle.
 (define (canvas-2d-fill-rect ctx x y w h)
-  (js-canvas2d-fill-rect (canvas-2d-context-unwrap ctx) x y w h)
+  (js-canvas2d-fill-rect (canvas-2d-context-unwrap ctx)
+                         (canvas-real->flonum 'canvas-2d-fill-rect x)
+                         (canvas-real->flonum 'canvas-2d-fill-rect y)
+                         (canvas-real->flonum 'canvas-2d-fill-rect w)
+                         (canvas-real->flonum 'canvas-2d-fill-rect h))
   (void))
 
 ;; canvas-2d-stroke-rect : (or/c canvas-rendering-context-2d? external?) real? real? real? real? -> void?
 ;;   Stroke a rectangle.
 (define (canvas-2d-stroke-rect ctx x y w h)
-  (js-canvas2d-stroke-rect (canvas-2d-context-unwrap ctx) x y w h)
+  (js-canvas2d-stroke-rect (canvas-2d-context-unwrap ctx)
+                           (canvas-real->flonum 'canvas-2d-stroke-rect x)
+                           (canvas-real->flonum 'canvas-2d-stroke-rect y)
+                           (canvas-real->flonum 'canvas-2d-stroke-rect w)
+                           (canvas-real->flonum 'canvas-2d-stroke-rect h))
   (void))
 
 ;; canvas-2d-begin-path : (or/c canvas-rendering-context-2d? external?) -> void?
@@ -736,25 +765,39 @@
 ;; canvas-2d-move-to : (or/c canvas-rendering-context-2d? external?) real? real? -> void?
 ;;   Move the current path cursor.
 (define (canvas-2d-move-to ctx x y)
-  (js-canvas2d-move-to (canvas-2d-context-unwrap ctx) x y)
+  (js-canvas2d-move-to (canvas-2d-context-unwrap ctx)
+                       (canvas-real->flonum 'canvas-2d-move-to x)
+                       (canvas-real->flonum 'canvas-2d-move-to y))
   (void))
 
 ;; canvas-2d-line-to : (or/c canvas-rendering-context-2d? external?) real? real? -> void?
 ;;   Add a line segment to the path.
 (define (canvas-2d-line-to ctx x y)
-  (js-canvas2d-line-to (canvas-2d-context-unwrap ctx) x y)
+  (js-canvas2d-line-to (canvas-2d-context-unwrap ctx)
+                       (canvas-real->flonum 'canvas-2d-line-to x)
+                       (canvas-real->flonum 'canvas-2d-line-to y))
   (void))
 
 ;; canvas-2d-arc : (or/c canvas-rendering-context-2d? external?) real? real? real? real? real? -> void?
 ;;   Add an arc to the path.
 (define (canvas-2d-arc ctx x y radius start-angle end-angle)
-  (js-canvas2d-arc (canvas-2d-context-unwrap ctx) x y radius start-angle end-angle)
+  (js-canvas2d-arc (canvas-2d-context-unwrap ctx)
+                   (canvas-real->flonum 'canvas-2d-arc x)
+                   (canvas-real->flonum 'canvas-2d-arc y)
+                   (canvas-real->flonum 'canvas-2d-arc radius)
+                   (canvas-real->flonum 'canvas-2d-arc start-angle)
+                   (canvas-real->flonum 'canvas-2d-arc end-angle)
+                   0)
   (void))
 
 ;; canvas-2d-clear-rect : (or/c canvas-rendering-context-2d? external?) real? real? real? real? -> void?
 ;;   Clear a rectangle.
 (define (canvas-2d-clear-rect ctx x y w h)
-  (js-canvas2d-clear-rect (canvas-2d-context-unwrap ctx) x y w h)
+  (js-canvas2d-clear-rect (canvas-2d-context-unwrap ctx)
+                          (canvas-real->flonum 'canvas-2d-clear-rect x)
+                          (canvas-real->flonum 'canvas-2d-clear-rect y)
+                          (canvas-real->flonum 'canvas-2d-clear-rect w)
+                          (canvas-real->flonum 'canvas-2d-clear-rect h))
   (void))
 
 ;; canvas-2d-fill : (or/c canvas-rendering-context-2d? external?) [any/c #f] [any/c #f] -> void?
@@ -786,31 +829,44 @@
 ;; canvas-2d-translate : (or/c canvas-rendering-context-2d? external?) real? real? -> void?
 ;;   Translate the context.
 (define (canvas-2d-translate ctx x y)
-  (js-canvas2d-translate (canvas-2d-context-unwrap ctx) x y)
+  (js-canvas2d-translate (canvas-2d-context-unwrap ctx)
+                         (canvas-real->flonum 'canvas-2d-translate x)
+                         (canvas-real->flonum 'canvas-2d-translate y))
   (void))
 
 ;; canvas-2d-scale : (or/c canvas-rendering-context-2d? external?) real? real? -> void?
 ;;   Scale the context.
 (define (canvas-2d-scale ctx x y)
-  (js-canvas2d-scale (canvas-2d-context-unwrap ctx) x y)
+  (js-canvas2d-scale (canvas-2d-context-unwrap ctx)
+                     (canvas-real->flonum 'canvas-2d-scale x)
+                     (canvas-real->flonum 'canvas-2d-scale y))
   (void))
 
 ;; canvas-2d-rotate : (or/c canvas-rendering-context-2d? external?) real? -> void?
 ;;   Rotate the context.
 (define (canvas-2d-rotate ctx angle)
-  (js-canvas2d-rotate (canvas-2d-context-unwrap ctx) angle)
+  (js-canvas2d-rotate (canvas-2d-context-unwrap ctx)
+                      (canvas-real->flonum 'canvas-2d-rotate angle))
   (void))
 
 ;; canvas-2d-fill-text : (or/c canvas-rendering-context-2d? external?) string? real? real? [any/c #f] -> void?
 ;;   Draw filled text.
 (define (canvas-2d-fill-text ctx text x y [max-width #f])
-  (js-canvas2d-fill-text (canvas-2d-context-unwrap ctx) text x y (canvas-resolve-optional max-width))
+  (js-canvas2d-fill-text (canvas-2d-context-unwrap ctx)
+                         text
+                         (canvas-real->flonum 'canvas-2d-fill-text x)
+                         (canvas-real->flonum 'canvas-2d-fill-text y)
+                         (canvas-optional-real->flonum 'canvas-2d-fill-text max-width))
   (void))
 
 ;; canvas-2d-stroke-text : (or/c canvas-rendering-context-2d? external?) string? real? real? [any/c #f] -> void?
 ;;   Draw stroked text.
 (define (canvas-2d-stroke-text ctx text x y [max-width #f])
-  (js-canvas2d-stroke-text (canvas-2d-context-unwrap ctx) text x y (canvas-resolve-optional max-width))
+  (js-canvas2d-stroke-text (canvas-2d-context-unwrap ctx)
+                           text
+                           (canvas-real->flonum 'canvas-2d-stroke-text x)
+                           (canvas-real->flonum 'canvas-2d-stroke-text y)
+                           (canvas-optional-real->flonum 'canvas-2d-stroke-text max-width))
   (void))
 
 ;; canvas-2d-measure-text : (or/c canvas-rendering-context-2d? external?) string? -> external/raw
@@ -884,7 +940,8 @@
   (define raw (canvas-gradient-unwrap gradient))
   (check-canvas-host-method 'canvas-gradient-add-color-stop! raw "CanvasGradient" "addColorStop")
   (js-send/value raw "addColorStop"
-                 (vector offset (canvas-stringish->string 'canvas-gradient-add-color-stop! color)))
+                 (vector (canvas-real->flonum 'canvas-gradient-add-color-stop! offset)
+                         (canvas-stringish->string 'canvas-gradient-add-color-stop! color)))
   (void))
 
 ;; canvas-pattern-set-transform! : (or/c canvas-pattern? external?) (or/c dom-matrix? external?) -> void?
@@ -928,7 +985,8 @@
 ;; canvas-2d-set-global-alpha! : (or/c canvas-rendering-context-2d? external?) real? -> void?
 ;;   Set the global alpha.
 (define (canvas-2d-set-global-alpha! ctx alpha)
-  (js-set-canvas2d-global-alpha! (canvas-2d-context-unwrap ctx) alpha)
+  (js-set-canvas2d-global-alpha! (canvas-2d-context-unwrap ctx)
+                                 (canvas-real->flonum 'canvas-2d-set-global-alpha! alpha))
   (void))
 
 ;; canvas-2d-global-composite-operation : (or/c canvas-rendering-context-2d? external?) -> string?
@@ -988,7 +1046,8 @@
 ;; canvas-2d-set-line-dash-offset! : (or/c canvas-rendering-context-2d? external?) real? -> void?
 ;;   Set the line dash offset.
 (define (canvas-2d-set-line-dash-offset! ctx offset)
-  (js-set-canvas2d-line-dash-offset! (canvas-2d-context-unwrap ctx) offset)
+  (js-set-canvas2d-line-dash-offset! (canvas-2d-context-unwrap ctx)
+                                     (canvas-real->flonum 'canvas-2d-set-line-dash-offset! offset))
   (void))
 
 ;; canvas-2d-line-join : (or/c canvas-rendering-context-2d? external?) -> string?
@@ -1011,7 +1070,8 @@
 ;; canvas-2d-set-line-width! : (or/c canvas-rendering-context-2d? external?) real? -> void?
 ;;   Set the line width.
 (define (canvas-2d-set-line-width! ctx width)
-  (js-set-canvas2d-line-width! (canvas-2d-context-unwrap ctx) width)
+  (js-set-canvas2d-line-width! (canvas-2d-context-unwrap ctx)
+                               (canvas-real->flonum 'canvas-2d-set-line-width! width))
   (void))
 
 ;; canvas-2d-miter-limit : (or/c canvas-rendering-context-2d? external?) -> real?
@@ -1022,7 +1082,8 @@
 ;; canvas-2d-set-miter-limit! : (or/c canvas-rendering-context-2d? external?) real? -> void?
 ;;   Set the miter limit.
 (define (canvas-2d-set-miter-limit! ctx limit)
-  (js-set-canvas2d-miter-limit! (canvas-2d-context-unwrap ctx) limit)
+  (js-set-canvas2d-miter-limit! (canvas-2d-context-unwrap ctx)
+                                (canvas-real->flonum 'canvas-2d-set-miter-limit! limit))
   (void))
 
 ;; canvas-2d-shadow-blur : (or/c canvas-rendering-context-2d? external?) -> real?
@@ -1033,7 +1094,8 @@
 ;; canvas-2d-set-shadow-blur! : (or/c canvas-rendering-context-2d? external?) real? -> void?
 ;;   Set the shadow blur.
 (define (canvas-2d-set-shadow-blur! ctx blur)
-  (js-set-canvas2d-shadow-blur! (canvas-2d-context-unwrap ctx) blur)
+  (js-set-canvas2d-shadow-blur! (canvas-2d-context-unwrap ctx)
+                                (canvas-real->flonum 'canvas-2d-set-shadow-blur! blur))
   (void))
 
 ;; canvas-2d-shadow-color : (or/c canvas-rendering-context-2d? external?) -> string?
@@ -1056,7 +1118,8 @@
 ;; canvas-2d-set-shadow-offset-x! : (or/c canvas-rendering-context-2d? external?) real? -> void?
 ;;   Set the horizontal shadow offset.
 (define (canvas-2d-set-shadow-offset-x! ctx dx)
-  (js-set-canvas2d-shadow-offset-x! (canvas-2d-context-unwrap ctx) dx)
+  (js-set-canvas2d-shadow-offset-x! (canvas-2d-context-unwrap ctx)
+                                    (canvas-real->flonum 'canvas-2d-set-shadow-offset-x! dx))
   (void))
 
 ;; canvas-2d-shadow-offset-y : (or/c canvas-rendering-context-2d? external?) -> real?
@@ -1067,7 +1130,8 @@
 ;; canvas-2d-set-shadow-offset-y! : (or/c canvas-rendering-context-2d? external?) real? -> void?
 ;;   Set the vertical shadow offset.
 (define (canvas-2d-set-shadow-offset-y! ctx dy)
-  (js-set-canvas2d-shadow-offset-y! (canvas-2d-context-unwrap ctx) dy)
+  (js-set-canvas2d-shadow-offset-y! (canvas-2d-context-unwrap ctx)
+                                    (canvas-real->flonum 'canvas-2d-set-shadow-offset-y! dy))
   (void))
 
 ;; canvas-2d-text-align : (or/c canvas-rendering-context-2d? external?) -> string?
@@ -1193,13 +1257,24 @@
 ;; canvas-2d-arc-to : (or/c canvas-rendering-context-2d? external?) real? real? real? real? real? -> void?
 ;;   Add an arc-to segment to the current path.
 (define (canvas-2d-arc-to ctx x1 y1 x2 y2 radius)
-  (js-canvas2d-arc-to (canvas-2d-context-unwrap ctx) x1 y1 x2 y2 radius)
+  (js-canvas2d-arc-to (canvas-2d-context-unwrap ctx)
+                      (canvas-real->flonum 'canvas-2d-arc-to x1)
+                      (canvas-real->flonum 'canvas-2d-arc-to y1)
+                      (canvas-real->flonum 'canvas-2d-arc-to x2)
+                      (canvas-real->flonum 'canvas-2d-arc-to y2)
+                      (canvas-real->flonum 'canvas-2d-arc-to radius))
   (void))
 
 ;; canvas-2d-bezier-curve-to : (or/c canvas-rendering-context-2d? external?) real? real? real? real? real? real? -> void?
 ;;   Add a cubic Bezier curve to the current path.
 (define (canvas-2d-bezier-curve-to ctx cp1x cp1y cp2x cp2y x y)
-  (js-canvas2d-bezier-curve-to (canvas-2d-context-unwrap ctx) cp1x cp1y cp2x cp2y x y)
+  (js-canvas2d-bezier-curve-to (canvas-2d-context-unwrap ctx)
+                               (canvas-real->flonum 'canvas-2d-bezier-curve-to cp1x)
+                               (canvas-real->flonum 'canvas-2d-bezier-curve-to cp1y)
+                               (canvas-real->flonum 'canvas-2d-bezier-curve-to cp2x)
+                               (canvas-real->flonum 'canvas-2d-bezier-curve-to cp2y)
+                               (canvas-real->flonum 'canvas-2d-bezier-curve-to x)
+                               (canvas-real->flonum 'canvas-2d-bezier-curve-to y))
   (void))
 
 ;; canvas-2d-clip : (or/c canvas-rendering-context-2d? external?) [any/c #f] [any/c #f] -> void?
@@ -1321,7 +1396,13 @@
 ;;   Add an ellipse to the current path.
 (define (canvas-2d-ellipse ctx x y rx ry rotation start-angle end-angle [anticlockwise #f])
   (js-canvas2d-ellipse (canvas-2d-context-unwrap ctx)
-                       x y rx ry rotation start-angle end-angle
+                       (canvas-real->flonum 'canvas-2d-ellipse x)
+                       (canvas-real->flonum 'canvas-2d-ellipse y)
+                       (canvas-real->flonum 'canvas-2d-ellipse rx)
+                       (canvas-real->flonum 'canvas-2d-ellipse ry)
+                       (canvas-real->flonum 'canvas-2d-ellipse rotation)
+                       (canvas-real->flonum 'canvas-2d-ellipse start-angle)
+                       (canvas-real->flonum 'canvas-2d-ellipse end-angle)
                        (canvas-boolean->i32 anticlockwise))
   (void))
 
@@ -1370,22 +1451,22 @@
      (canvas-i32->boolean
       (js-canvas2d-is-point-in-path (canvas-2d-context-unwrap ctx)
                                     (void)
-                                    x
-                                    y
+                                    (canvas-real->flonum 'canvas-2d-is-point-in-path x)
+                                    (canvas-real->flonum 'canvas-2d-is-point-in-path y)
                                     (void)))]
     [(ctx path x y)
      (canvas-i32->boolean
       (js-canvas2d-is-point-in-path (canvas-2d-context-unwrap ctx)
                                     (canvas-resolve-optional path)
-                                    x
-                                    y
+                                    (canvas-real->flonum 'canvas-2d-is-point-in-path x)
+                                    (canvas-real->flonum 'canvas-2d-is-point-in-path y)
                                     (void)))]
     [(ctx path x y fill-rule)
      (canvas-i32->boolean
       (js-canvas2d-is-point-in-path (canvas-2d-context-unwrap ctx)
                                     (canvas-resolve-optional path)
-                                    x
-                                    y
+                                    (canvas-real->flonum 'canvas-2d-is-point-in-path x)
+                                    (canvas-real->flonum 'canvas-2d-is-point-in-path y)
                                     (canvas-fill-rule->js fill-rule)))]))
 
 ;; canvas-2d-is-point-in-stroke : (or/c canvas-rendering-context-2d? external?) [any/c #f] real? real? -> boolean?
@@ -1396,38 +1477,46 @@
      (canvas-i32->boolean
       (js-canvas2d-is-point-in-stroke (canvas-2d-context-unwrap ctx)
                                       (void)
-                                      x
-                                      y))]
+                                      (canvas-real->flonum 'canvas-2d-is-point-in-stroke x)
+                                      (canvas-real->flonum 'canvas-2d-is-point-in-stroke y)))]
     [(ctx path x y)
      (canvas-i32->boolean
       (js-canvas2d-is-point-in-stroke (canvas-2d-context-unwrap ctx)
                                       (canvas-resolve-optional path)
-                                      x
-                                      y))]))
+                                      (canvas-real->flonum 'canvas-2d-is-point-in-stroke x)
+                                      (canvas-real->flonum 'canvas-2d-is-point-in-stroke y)))]))
 
 ;; canvas-2d-put-image-data : (or/c canvas-rendering-context-2d? external?) (or/c image-data? external?) real? real? [any/c #f] [any/c #f] [any/c #f] [any/c #f] -> void?
 ;;   Write pixels back to the canvas.
 (define (canvas-2d-put-image-data ctx data dx dy [dirty-x #f] [dirty-y #f] [dirty-width #f] [dirty-height #f])
   (js-canvas2d-put-image-data (canvas-2d-context-unwrap ctx)
                               (canvas-image-data-unwrap/checked 'canvas-2d-put-image-data data)
-                              dx
-                              dy
-                              (canvas-resolve-optional dirty-x)
-                              (canvas-resolve-optional dirty-y)
-                              (canvas-resolve-optional dirty-width)
-                              (canvas-resolve-optional dirty-height))
+                              (canvas-real->flonum 'canvas-2d-put-image-data dx)
+                              (canvas-real->flonum 'canvas-2d-put-image-data dy)
+                              (canvas-optional-real->flonum 'canvas-2d-put-image-data dirty-x)
+                              (canvas-optional-real->flonum 'canvas-2d-put-image-data dirty-y)
+                              (canvas-optional-real->flonum 'canvas-2d-put-image-data dirty-width)
+                              (canvas-optional-real->flonum 'canvas-2d-put-image-data dirty-height))
   (void))
 
 ;; canvas-2d-quadratic-curve-to : (or/c canvas-rendering-context-2d? external?) real? real? real? real? -> void?
 ;;   Add a quadratic curve to the current path.
 (define (canvas-2d-quadratic-curve-to ctx cpx cpy x y)
-  (js-canvas2d-quadratic-curve-to (canvas-2d-context-unwrap ctx) cpx cpy x y)
+  (js-canvas2d-quadratic-curve-to (canvas-2d-context-unwrap ctx)
+                                  (canvas-real->flonum 'canvas-2d-quadratic-curve-to cpx)
+                                  (canvas-real->flonum 'canvas-2d-quadratic-curve-to cpy)
+                                  (canvas-real->flonum 'canvas-2d-quadratic-curve-to x)
+                                  (canvas-real->flonum 'canvas-2d-quadratic-curve-to y))
   (void))
 
 ;; canvas-2d-rect : (or/c canvas-rendering-context-2d? external?) real? real? real? real? -> void?
 ;;   Add a rectangle to the current path.
 (define (canvas-2d-rect ctx x y width height)
-  (js-canvas2d-rect (canvas-2d-context-unwrap ctx) x y width height)
+  (js-canvas2d-rect (canvas-2d-context-unwrap ctx)
+                    (canvas-real->flonum 'canvas-2d-rect x)
+                    (canvas-real->flonum 'canvas-2d-rect y)
+                    (canvas-real->flonum 'canvas-2d-rect width)
+                    (canvas-real->flonum 'canvas-2d-rect height))
   (void))
 
 ;; canvas-2d-reset : (or/c canvas-rendering-context-2d? external?) -> void?
@@ -1446,26 +1535,32 @@
 ;;   Add a rounded rectangle to the current path.
 (define (canvas-2d-round-rect ctx x y width height [radii #f])
   (js-canvas2d-round-rect (canvas-2d-context-unwrap ctx)
-                          x
-                          y
-                          width
-                          height
-                          (if (or (list? radii) (vector? radii))
-                              (array-unwrap (sequence->array radii))
-                              radii))
+                          (canvas-real->flonum 'canvas-2d-round-rect x)
+                          (canvas-real->flonum 'canvas-2d-round-rect y)
+                          (canvas-real->flonum 'canvas-2d-round-rect width)
+                          (canvas-real->flonum 'canvas-2d-round-rect height)
+                          (if (or (list? radii) (vector? radii) (array? radii))
+                              (canvas-real-sequence->array 'canvas-2d-round-rect radii)
+                              (canvas-optional-real->flonum 'canvas-2d-round-rect radii)))
   (void))
 
 ;; canvas-2d-set-line-dash : (or/c canvas-rendering-context-2d? external?) any/c -> void?
 ;;   Set the dash pattern.
 (define (canvas-2d-set-line-dash ctx segments)
   (js-canvas2d-set-line-dash (canvas-2d-context-unwrap ctx)
-                             (array-unwrap (sequence->array segments)))
+                             (canvas-real-sequence->array 'canvas-2d-set-line-dash segments))
   (void))
 
 ;; canvas-2d-set-transform! : (or/c canvas-rendering-context-2d? external?) real? real? real? real? real? real? -> void?
 ;;   Set the transform matrix using six numbers.
 (define (canvas-2d-set-transform! ctx a b c d e f)
-  (js-canvas2d-set-transform! (canvas-2d-context-unwrap ctx) a b c d e f)
+  (js-canvas2d-set-transform! (canvas-2d-context-unwrap ctx)
+                              (canvas-real->flonum 'canvas-2d-set-transform! a)
+                              (canvas-real->flonum 'canvas-2d-set-transform! b)
+                              (canvas-real->flonum 'canvas-2d-set-transform! c)
+                              (canvas-real->flonum 'canvas-2d-set-transform! d)
+                              (canvas-real->flonum 'canvas-2d-set-transform! e)
+                              (canvas-real->flonum 'canvas-2d-set-transform! f))
   (void))
 
 ;; canvas-2d-set-transform-matrix! : (or/c canvas-rendering-context-2d? external?) (or/c dom-matrix? external?) -> void?
@@ -1480,7 +1575,13 @@
 ;; canvas-2d-transform : (or/c canvas-rendering-context-2d? external?) real? real? real? real? real? real? -> void?
 ;;   Apply an affine transform to the current matrix.
 (define (canvas-2d-transform ctx a b c d e f)
-  (js-canvas2d-transform (canvas-2d-context-unwrap ctx) a b c d e f)
+  (js-canvas2d-transform (canvas-2d-context-unwrap ctx)
+                         (canvas-real->flonum 'canvas-2d-transform a)
+                         (canvas-real->flonum 'canvas-2d-transform b)
+                         (canvas-real->flonum 'canvas-2d-transform c)
+                         (canvas-real->flonum 'canvas-2d-transform d)
+                         (canvas-real->flonum 'canvas-2d-transform e)
+                         (canvas-real->flonum 'canvas-2d-transform f))
   (void))
 
 ;; canvas-2d-create-linear-gradient : (or/c canvas-rendering-context-2d? external?) real? real? real? real? -> canvas-gradient?

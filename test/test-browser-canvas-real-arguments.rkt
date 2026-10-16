@@ -1,0 +1,113 @@
+#lang webracket/base
+
+(require browser/canvas
+         browser/dom)
+
+;; check-equal : any/c any/c string? -> void?
+;;   Report an unexpected browser canvas result.
+(define (check-equal got want label)
+  (unless (if (and (number? got) (number? want))
+              (= got want)
+              (equal? got want))
+    (error 'check-equal (format "~a: got ~s want ~s" label got want))))
+
+(define canvas (js-create-element "canvas"))
+(canvas-set-width! canvas 32)
+(canvas-set-height! canvas 32)
+(define ctx (canvas-get-context canvas "2d" (js-object #())))
+
+(canvas-2d-translate ctx 2 -3/2)
+(define translated (canvas-2d-get-transform ctx))
+(check-equal (canvas-dom-matrix-e translated) 2.0 "integer translation")
+(check-equal (canvas-dom-matrix-f translated) -1.5 "rational translation")
+(canvas-2d-translate ctx 1/2 1.25)
+(define translated-again (canvas-2d-get-transform ctx))
+(check-equal (canvas-dom-matrix-e translated-again) 2.5 "fractional translation")
+(check-equal (canvas-dom-matrix-f translated-again) -0.25 "flonum translation")
+
+(canvas-2d-set-transform! ctx 1 0 0 1 1/2 3/2)
+(canvas-2d-scale ctx 3/2 1/2)
+(canvas-2d-rotate ctx 0)
+(canvas-2d-transform ctx 1 0 0 1 1 1)
+(define transformed (canvas-2d-get-transform ctx))
+(check-equal (canvas-dom-matrix-a transformed) 1.5 "rational x scale")
+(check-equal (canvas-dom-matrix-d transformed) 0.5 "rational y scale")
+(check-equal (canvas-dom-matrix-e transformed) 2.0 "composed x translation")
+(check-equal (canvas-dom-matrix-f transformed) 2.0 "composed y translation")
+(canvas-2d-reset-transform ctx)
+
+(canvas-2d-fill-rect ctx 1/2 1/2 6 6)
+(check-equal
+ (bytes-ref (canvas-image-data-data (canvas-2d-get-image-data ctx 5 5 1 1)) 3)
+ 255
+ "fractional rectangle interior")
+(canvas-2d-clear-rect ctx 1 1 2 2)
+(check-equal
+ (bytes-ref (canvas-image-data-data (canvas-2d-get-image-data ctx 1 1 1 1)) 3)
+ 0
+ "integer clear rectangle")
+
+(canvas-2d-set-line-width! ctx 3/2)
+(check-equal (canvas-2d-line-width ctx) 1.5 "rational line width")
+(canvas-2d-set-line-dash-offset! ctx -1/2)
+(check-equal (canvas-2d-line-dash-offset ctx) -0.5 "rational dash offset")
+(canvas-2d-set-miter-limit! ctx 3/2)
+(check-equal (canvas-2d-miter-limit ctx) 1.5 "rational miter limit")
+(canvas-2d-set-shadow-blur! ctx 1/2)
+(check-equal (canvas-2d-shadow-blur ctx) 0.5 "rational shadow blur")
+(canvas-2d-set-shadow-offset-x! ctx -1/2)
+(canvas-2d-set-shadow-offset-y! ctx 3/2)
+(check-equal (canvas-2d-shadow-offset-x ctx) -0.5 "rational shadow x")
+(check-equal (canvas-2d-shadow-offset-y ctx) 1.5 "rational shadow y")
+(canvas-2d-set-global-alpha! ctx 1/2)
+(check-equal (canvas-2d-global-alpha ctx) 0.5 "rational alpha")
+(canvas-2d-set-line-dash ctx '(1/2 3/2))
+(check-equal (canvas-2d-get-line-dash ctx) '#(0.5 1.5) "rational list dash")
+(canvas-2d-set-line-dash ctx '#(5/2 7/2))
+(check-equal (canvas-2d-get-line-dash ctx) '#(2.5 3.5) "rational vector dash")
+(canvas-2d-set-line-dash ctx '())
+
+(canvas-2d-begin-path ctx)
+(canvas-2d-rect ctx 17/2 3/2 5 5)
+(check-equal (canvas-2d-is-point-in-path ctx 19/2 5/2) #t "fractional path point")
+(check-equal (canvas-2d-is-point-in-path ctx 1/2 1/2) #f "outside path point")
+(canvas-2d-move-to ctx 1/2 10)
+(canvas-2d-line-to ctx 17/2 10)
+(check-equal (canvas-2d-is-point-in-stroke ctx 9/2 10) #t "fractional stroke point")
+(canvas-2d-quadratic-curve-to ctx 1/2 12 9/2 12)
+(canvas-2d-bezier-curve-to ctx 1/2 12 9/2 12 17/2 12)
+(canvas-2d-arc-to ctx 17/2 14 21/2 14 1/2)
+(canvas-2d-arc ctx 16 16 3/2 0 1.0)
+(canvas-2d-ellipse ctx 16 16 3/2 2 0 0 1)
+(canvas-2d-round-rect ctx 1/2 20 6 6 1/2)
+(canvas-2d-begin-path ctx)
+(canvas-2d-round-rect ctx 17/2 20 6 6 '(1/2 3/2))
+(check-equal (canvas-2d-is-point-in-path ctx 23/2 23) #t "rational list radii")
+(check-equal (canvas-2d-is-point-in-path ctx 57/4 81/4) #f "rounded list corner")
+(canvas-2d-begin-path ctx)
+(canvas-2d-round-rect ctx 17/2 20 6 6 '#(1/2 3/2))
+(check-equal (canvas-2d-is-point-in-path ctx 23/2 23) #t "rational vector radii")
+(check-equal (canvas-2d-is-point-in-path ctx 57/4 81/4) #f "rounded vector corner")
+(canvas-2d-stroke-rect ctx 1/2 20 6 6)
+
+;; Both supplied and omitted text widths keep their existing optional behavior.
+(canvas-2d-fill-text ctx "" 1/2 20 3/2)
+(canvas-2d-stroke-text ctx "" 1/2 20 3/2)
+(canvas-2d-fill-text ctx "" 1/2 20)
+(canvas-2d-stroke-text ctx "" 1/2 20)
+
+(define pixel (canvas-2d-get-image-data ctx 5 5 1 1))
+(canvas-2d-put-image-data ctx pixel 20 21 0 0 1 1)
+(check-equal
+ (bytes-ref (canvas-image-data-data (canvas-2d-get-image-data ctx 20 21 1 1)) 3)
+ 255
+ "integer pixel destination and dirty rectangle")
+
+(define gradient (canvas-2d-create-linear-gradient ctx 1/2 0 3/2 4))
+(canvas-gradient-add-color-stop! gradient 1/2 "red")
+
+(define jpeg (canvas-to-data-url canvas "image/jpeg" 1/2))
+(check-equal (substring jpeg 0 23) "data:image/jpeg;base64," "rational JPEG quality")
+
+(js-set-attribute! (js-document-body) "data-state" "loaded")
+(js-log "browser-canvas-real-arguments-ok")
